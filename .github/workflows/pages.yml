@@ -1,0 +1,94 @@
+name: Deploy (GitHub Pages)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Enable corepack (pnpm)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Detect Pages domain and set BASE_PATH
+        id: detect
+        shell: bash
+        env:
+          VAR_CNAME: ${{ vars.PAGES_CNAME }}
+          SEC_CNAME: ${{ secrets.PAGES_CNAME }}
+        run: |
+          CUSTOM_DOMAIN="${VAR_CNAME}"
+          if [ -z "$CUSTOM_DOMAIN" ] && [ -n "$SEC_CNAME" ]; then
+            CUSTOM_DOMAIN="$SEC_CNAME"
+          fi
+
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            echo "BASE_PATH=/" >> $GITHUB_ENV
+            echo "CUSTOM_DOMAIN set (value masked). Using BASE_PATH=/"
+          else
+            REPO="${{ github.event.repository.name }}"
+            OWNER="${{ github.repository_owner }}"
+            if [ "$REPO" = "${OWNER}.github.io" ]; then
+              echo "BASE_PATH=/" >> $GITHUB_ENV
+              echo "User/Org pages detected. Using BASE_PATH=/"
+            else
+              echo "BASE_PATH=/$REPO/" >> $GITHUB_ENV
+              echo "Project pages detected. Using BASE_PATH=/$REPO/"
+            fi
+          fi
+
+          echo "CUSTOM_DOMAIN=$CUSTOM_DOMAIN" >> $GITHUB_ENV
+
+      - name: Type check (tsc -b)
+        run: pnpm exec tsc -b
+
+      - name: Build (Vite reads BASE_PATH)
+        run: pnpm build
+
+      - name: Write CNAME (optional)
+        if: ${{ env.CUSTOM_DOMAIN != '' }}
+        shell: bash
+        run: |
+          mkdir -p dist
+          printf '%s\n' "$CUSTOM_DOMAIN" > dist/CNAME
+          echo "CNAME written to dist/CNAME"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
