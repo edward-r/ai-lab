@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Dial } from '../../components/Dial';
 import { Led } from '../../components/Led';
-import { step, sigmoid } from '../../lib/activation';
-import { binaryCombinations, weightedSum } from '../../lib/perceptron';
+import { binaryCombinations, sigmoid, step, weightedSum } from '@perceptron/core';
 
 type ActivationKey = 'step' | 'sigmoid';
 
@@ -21,29 +20,37 @@ export function PerceptronSimulator(): JSX.Element {
 
   const z = useMemo(() => weightedSum(inputs, weights, bias), [inputs, weights, bias]);
   const y = useMemo(() => activationFns[activation](z), [activation, z]);
-  const combos = useMemo(() => binaryCombinations(n), [n]);
+  const combos = useMemo<number[][]>(() => binaryCombinations(n), [n]);
 
-  function toggleInput(i: number): void {
-    setInputs((prev) => prev.map((v, j) => (j === i ? 1 - v : v)));
+  function toggleInput(index: number): void {
+    setInputs((prev) => prev.map((value, i) => (i === index ? 1 - value : value)));
   }
-  function setWeight(i: number, v: number): void {
-    setWeights((prev) => prev.map((w, j) => (j === i ? v : w)));
+
+  function setWeight(index: number, value: number): void {
+    setWeights((prev) => prev.map((weight, i) => (i === index ? value : weight)));
   }
+
   function trainEpoch(): void {
-    let w = [...weights],
-      b = bias;
-    for (let r = 0; r < combos.length; r++) {
-      const row = combos[r];
-      const zRow = weightedSum(row, w, b);
-      const yPred = step(zRow);
-      const yT = targets[r];
-      const err = yT - yPred;
-      for (let i = 0; i < n; i++) w[i] += learningRate * err * row[i];
-      b += learningRate * err;
-    }
-    setWeights(w);
-    setBias(b);
-    setEpoch((e) => e + 1);
+    const nextWeights = [...weights];
+    let nextBias = bias;
+
+    combos.forEach((row, rowIndex) => {
+      const target = targets[rowIndex] ?? 0;
+      const zRow = weightedSum(row, nextWeights, nextBias);
+      const prediction = step(zRow);
+      const error = target - prediction;
+
+      row.forEach((bit, bitIndex) => {
+        const currentWeight = nextWeights[bitIndex] ?? 0;
+        nextWeights[bitIndex] = currentWeight + learningRate * error * bit;
+      });
+
+      nextBias += learningRate * error;
+    });
+
+    setWeights(nextWeights);
+    setBias(nextBias);
+    setEpoch((value) => value + 1);
   }
 
   return (
@@ -51,29 +58,29 @@ export function PerceptronSimulator(): JSX.Element {
       <h2 className="text-xl font-semibold">Perceptron</h2>
 
       <div className="flex items-center justify-center gap-6">
-        {inputs.map((x, i) => (
+        {inputs.map((value, index) => (
           <button
-            key={i}
+            key={index}
             type="button"
-            onClick={() => toggleInput(i)}
+            onClick={() => toggleInput(index)}
             className="flex flex-col items-center"
           >
-            <Led on={x === 1} />
-            <span className="mt-1 text-sm">x{i}</span>
+            <Led on={value === 1} />
+            <span className="mt-1 text-sm">x{index}</span>
           </button>
         ))}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        {weights.map((w, i) => (
+        {weights.map((weight, index) => (
           <Dial
-            key={i}
-            value={w}
+            key={index}
+            value={weight}
             min={-2}
             max={2}
             step={0.01}
-            label={`w${i}`}
-            onChange={(v) => setWeight(i, v)}
+            label={`w${index}`}
+            onChange={(value) => setWeight(index, value)}
           />
         ))}
       </div>
@@ -87,7 +94,7 @@ export function PerceptronSimulator(): JSX.Element {
           <span>Activation:</span>
           <select
             value={activation}
-            onChange={(e) => setActivation(e.target.value as ActivationKey)}
+            onChange={(event) => setActivation(event.target.value as ActivationKey)}
             className="rounded border p-1"
           >
             <option value="step">Step</option>
@@ -130,7 +137,7 @@ export function PerceptronSimulator(): JSX.Element {
         <button
           type="button"
           className="rounded border px-3 py-1"
-          onClick={() => setShowTable((s) => !s)}
+          onClick={() => setShowTable((visible) => !visible)}
         >
           {showTable ? 'Hide' : 'Show'} Truth Table
         </button>
@@ -141,9 +148,9 @@ export function PerceptronSimulator(): JSX.Element {
           <table className="mt-4 w-full table-auto border-collapse">
             <thead>
               <tr>
-                {Array.from({ length: n }).map((_, i) => (
-                  <th key={i} className="border px-2">
-                    x{i}
+                {Array.from({ length: n }).map((_, index) => (
+                  <th key={index} className="border px-2">
+                    x{index}
                   </th>
                 ))}
                 <th className="border px-2">Target</th>
@@ -152,27 +159,32 @@ export function PerceptronSimulator(): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {combos.map((row, r) => {
+              {combos.map((row, rowIndex) => {
+                const target = targets[rowIndex] ?? 0;
                 const zRow = weightedSum(row, weights, bias);
-                const yRow = activationFns[activation](zRow);
+                const output = activationFns[activation](zRow);
                 return (
-                  <tr key={r}>
-                    {row.map((v, c) => (
-                      <td key={c} className="border px-2 text-center">
-                        {v}
+                  <tr key={rowIndex}>
+                    {row.map((bit, colIndex) => (
+                      <td key={colIndex} className="border px-2 text-center">
+                        {bit}
                       </td>
                     ))}
                     <td className="border px-2 text-center">
                       <button
                         type="button"
-                        onClick={() => setTargets((t) => t.map((vv, j) => (j === r ? 1 - vv : vv)))}
+                        onClick={() =>
+                          setTargets((list) =>
+                            list.map((value, index) => (index === rowIndex ? 1 - target : value))
+                          )
+                        }
                         className="mx-auto block"
                       >
-                        <Led on={targets[r] === 1} />
+                        <Led on={target === 1} />
                       </button>
                     </td>
                     <td className="border px-2 text-center">{zRow.toFixed(2)}</td>
-                    <td className="border px-2 text-center">{yRow.toFixed(2)}</td>
+                    <td className="border px-2 text-center">{output.toFixed(2)}</td>
                   </tr>
                 );
               })}

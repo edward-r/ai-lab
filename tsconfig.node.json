@@ -6,5 +6,9 @@
     "moduleResolution": "Bundler",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "apps/perceptron-sim/vite.config.ts",
+    "apps/perceptron-sim/vitest.config.ts",
+    "libs/perceptron-core/vitest.config.ts"
+  ]
 }

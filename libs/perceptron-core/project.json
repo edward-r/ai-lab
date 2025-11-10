@@ -1,0 +1,26 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "perceptron-core",
+  "projectType": "library",
+  "sourceRoot": "libs/perceptron-core/src",
+  "tags": [],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": [
+          "libs/perceptron-core/src/**/*.ts",
+          "libs/perceptron-core/src/**/*.tsx"
+        ]
+      }
+    },
+    "test": {
+      "executor": "@nx/vite:test",
+      "outputs": ["{workspaceRoot}/coverage/libs/perceptron-core"],
+      "options": {
+        "configFile": "libs/perceptron-core/vitest.config.ts"
+      }
+    }
+  }
+}

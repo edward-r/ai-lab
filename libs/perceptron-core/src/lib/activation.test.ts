@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { step, sigmoid } from './activation';
+import { sigmoid, step } from './activation';
 
 describe('activation', () => {
   it('step', () => {

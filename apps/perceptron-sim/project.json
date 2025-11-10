@@ -1,0 +1,53 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "perceptron-sim",
+  "projectType": "application",
+  "sourceRoot": "apps/perceptron-sim/src",
+  "targets": {
+    "build": {
+      "executor": "@nx/vite:build",
+      "outputs": ["{workspaceRoot}/dist/apps/perceptron-sim"],
+      "options": {
+        "configFile": "apps/perceptron-sim/vite.config.ts"
+      }
+    },
+    "serve": {
+      "executor": "@nx/vite:dev-server",
+      "options": {
+        "buildTarget": "perceptron-sim:build",
+        "configFile": "apps/perceptron-sim/vite.config.ts",
+        "port": 5173,
+        "hmr": true
+      }
+    },
+    "preview": {
+      "executor": "@nx/vite:preview",
+      "options": {
+        "buildTarget": "perceptron-sim:build",
+        "configFile": "apps/perceptron-sim/vite.config.ts",
+        "port": 4173
+      }
+    },
+    "test": {
+      "executor": "@nx/vite:test",
+      "outputs": ["{projectRoot}/coverage"],
+      "options": {
+        "configFile": "apps/perceptron-sim/vitest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": [
+          "apps/perceptron-sim/src/**/*.ts",
+          "apps/perceptron-sim/src/**/*.tsx",
+          "apps/perceptron-sim/src/**/*.js",
+          "apps/perceptron-sim/src/**/*.jsx"
+        ]
+      }
+    }
+  },
+  "tags": [],
+  "implicitDependencies": ["perceptron-core"]
+}

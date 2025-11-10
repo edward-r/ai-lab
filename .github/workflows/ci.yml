@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-test:
@@ -14,26 +14,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node.js 20
+      - name: Use Node.js 22.15
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Enable corepack (pnpm)
-        run: corepack enable
+          node-version: 22.15
+          cache: npm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
+        run: npm install
 
       - name: Lint
-        run: pnpm lint
+        run: npx nx run-many -t lint
 
-      - name: Unit tests (Vitest)
-        run: pnpm test -- --run
+      - name: Unit tests
+        run: npx nx run-many -t test -- --run
 
-      - name: Type check (tsc -b)
-        run: pnpm exec tsc -b
-
-      - name: Build (Vite)
-        run: pnpm build
+      - name: Build
+        run: npx nx build perceptron-sim

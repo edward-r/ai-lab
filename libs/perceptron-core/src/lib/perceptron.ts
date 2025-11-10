@@ -1,6 +1,7 @@
 export function weightedSum(x: number[], w: number[], b: number): number {
   return x.reduce((acc, xi, i) => acc + (w[i] ?? 0) * xi, b);
 }
+
 export function binaryCombinations(n: number): number[][] {
   const total = 1 << n;
   const rows: number[][] = [];
