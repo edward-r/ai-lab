@@ -21,7 +21,7 @@
       "inputs": ["production", "^production"]
     },
     "lint": {
-      "inputs": ["default", "{workspaceRoot}/.eslintrc.cjs"]
+      "inputs": ["default", "{workspaceRoot}/eslint.config.mjs"]
     },
     "test": {
       "inputs": ["default", "^production"]

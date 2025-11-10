@@ -1,56 +1,56 @@
-import React, { useMemo, useState } from 'react';
-import { Dial } from '../../components/Dial';
-import { Led } from '../../components/Led';
-import { binaryCombinations, sigmoid, step, weightedSum } from '@perceptron/core';
+import React, { useMemo, useState } from 'react'
+import { Dial } from '../../components/Dial'
+import { Led } from '../../components/Led'
+import { binaryCombinations, sigmoid, step, weightedSum } from '@perceptron/core'
 
-type ActivationKey = 'step' | 'sigmoid';
+type ActivationKey = 'step' | 'sigmoid'
 
-const activationFns: Record<ActivationKey, (z: number) => number> = { step, sigmoid };
+const activationFns: Record<ActivationKey, (z: number) => number> = { step, sigmoid }
 
 export function PerceptronSimulator(): JSX.Element {
-  const n = 3;
-  const [inputs, setInputs] = useState<number[]>(Array.from({ length: n }, () => 0));
-  const [weights, setWeights] = useState<number[]>(Array.from({ length: n }, () => 0.5));
-  const [bias, setBias] = useState<number>(0);
-  const [activation, setActivation] = useState<ActivationKey>('step');
-  const [learningRate, setLearningRate] = useState<number>(0.1);
-  const [epoch, setEpoch] = useState<number>(0);
-  const [targets, setTargets] = useState<number[]>(() => Array(1 << n).fill(0));
-  const [showTable, setShowTable] = useState<boolean>(true);
+  const n = 3
+  const [inputs, setInputs] = useState<number[]>(Array.from({ length: n }, () => 0))
+  const [weights, setWeights] = useState<number[]>(Array.from({ length: n }, () => 0.5))
+  const [bias, setBias] = useState<number>(0)
+  const [activation, setActivation] = useState<ActivationKey>('step')
+  const [learningRate, setLearningRate] = useState<number>(0.1)
+  const [epoch, setEpoch] = useState<number>(0)
+  const [targets, setTargets] = useState<number[]>(() => Array(1 << n).fill(0))
+  const [showTable, setShowTable] = useState<boolean>(true)
 
-  const z = useMemo(() => weightedSum(inputs, weights, bias), [inputs, weights, bias]);
-  const y = useMemo(() => activationFns[activation](z), [activation, z]);
-  const combos = useMemo<number[][]>(() => binaryCombinations(n), [n]);
+  const z = useMemo(() => weightedSum(inputs, weights, bias), [inputs, weights, bias])
+  const y = useMemo(() => activationFns[activation](z), [activation, z])
+  const combos = useMemo<number[][]>(() => binaryCombinations(n), [n])
 
   function toggleInput(index: number): void {
-    setInputs((prev) => prev.map((value, i) => (i === index ? 1 - value : value)));
+    setInputs((prev) => prev.map((value, i) => (i === index ? 1 - value : value)))
   }
 
   function setWeight(index: number, value: number): void {
-    setWeights((prev) => prev.map((weight, i) => (i === index ? value : weight)));
+    setWeights((prev) => prev.map((weight, i) => (i === index ? value : weight)))
   }
 
   function trainEpoch(): void {
-    const nextWeights = [...weights];
-    let nextBias = bias;
+    const nextWeights = [...weights]
+    let nextBias = bias
 
     combos.forEach((row, rowIndex) => {
-      const target = targets[rowIndex] ?? 0;
-      const zRow = weightedSum(row, nextWeights, nextBias);
-      const prediction = step(zRow);
-      const error = target - prediction;
+      const target = targets[rowIndex] ?? 0
+      const zRow = weightedSum(row, nextWeights, nextBias)
+      const prediction = step(zRow)
+      const error = target - prediction
 
       row.forEach((bit, bitIndex) => {
-        const currentWeight = nextWeights[bitIndex] ?? 0;
-        nextWeights[bitIndex] = currentWeight + learningRate * error * bit;
-      });
+        const currentWeight = nextWeights[bitIndex] ?? 0
+        nextWeights[bitIndex] = currentWeight + learningRate * error * bit
+      })
 
-      nextBias += learningRate * error;
-    });
+      nextBias += learningRate * error
+    })
 
-    setWeights(nextWeights);
-    setBias(nextBias);
-    setEpoch((value) => value + 1);
+    setWeights(nextWeights)
+    setBias(nextBias)
+    setEpoch((value) => value + 1)
   }
 
   return (
@@ -160,9 +160,9 @@ export function PerceptronSimulator(): JSX.Element {
             </thead>
             <tbody>
               {combos.map((row, rowIndex) => {
-                const target = targets[rowIndex] ?? 0;
-                const zRow = weightedSum(row, weights, bias);
-                const output = activationFns[activation](zRow);
+                const target = targets[rowIndex] ?? 0
+                const zRow = weightedSum(row, weights, bias)
+                const output = activationFns[activation](zRow)
                 return (
                   <tr key={rowIndex}>
                     {row.map((bit, colIndex) => (
@@ -175,7 +175,7 @@ export function PerceptronSimulator(): JSX.Element {
                         type="button"
                         onClick={() =>
                           setTargets((list) =>
-                            list.map((value, index) => (index === rowIndex ? 1 - target : value))
+                            list.map((value, index) => (index === rowIndex ? 1 - target : value)),
                           )
                         }
                         className="mx-auto block"
@@ -186,12 +186,12 @@ export function PerceptronSimulator(): JSX.Element {
                     <td className="border px-2 text-center">{zRow.toFixed(2)}</td>
                     <td className="border px-2 text-center">{output.toFixed(2)}</td>
                   </tr>
-                );
+                )
               })}
             </tbody>
           </table>
         </div>
       )}
     </section>
-  );
+  )
 }

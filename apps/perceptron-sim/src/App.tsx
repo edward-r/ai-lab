@@ -1,5 +1,5 @@
-import React from 'react';
-import { PerceptronSimulator } from './features/Perceptron/PerceptronSimulator';
+import React from 'react'
+import { PerceptronSimulator } from './features/Perceptron/PerceptronSimulator'
 
 export default function App(): JSX.Element {
   return (
@@ -19,5 +19,5 @@ export default function App(): JSX.Element {
         Built with React, TypeScript, Vite, Tailwind, and Vitest.
       </footer>
     </div>
-  );
+  )
 }

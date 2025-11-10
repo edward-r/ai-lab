@@ -81,7 +81,8 @@ perceptron-sim/
 ├─ tsconfig.node.json
 ├─ tailwind.config.ts
 ├─ postcss.config.js
-├─ .eslintrc.cjs
+├─ eslint.config.mjs
+├─ .eslintrc.cjs (legacy stub)
 ├─ .prettierrc
 └─ package.json
 ```
@@ -93,6 +94,7 @@ perceptron-sim/
 1. **Node** – Install `v22.15` (see `.nvmrc`). Prefer `nvm use` or `volta install node@22.15`.
 2. **Dependencies** – Run `npm install` after pulling new commits to ensure Nx plugins are available.
 3. **IDE setup** – Enable TypeScript project references and ESLint integration; both apps and libs share `tsconfig.base.json` path aliases (`@perceptron/core`).
+4. **ESLint** – Flat config lives at `eslint.config.mjs`; leave `.eslintrc.cjs` untouched (stub for older tooling).
 
 ### Day-to-day Development
 

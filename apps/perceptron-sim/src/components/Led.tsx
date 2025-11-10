@@ -1,10 +1,10 @@
-import React from 'react';
-import { clsx } from 'clsx';
+import React from 'react'
+import { clsx } from 'clsx'
 
-export type LedProps = { on: boolean; size?: 'sm' | 'md' };
+export type LedProps = { on: boolean; size?: 'sm' | 'md' }
 
 export function Led({ on, size = 'sm' }: LedProps): JSX.Element {
-  const dim = size === 'sm' ? 'h-4 w-4' : 'h-6 w-6';
+  const dim = size === 'sm' ? 'h-4 w-4' : 'h-6 w-6'
   return (
     <div
       className={clsx(
@@ -13,5 +13,5 @@ export function Led({ on, size = 'sm' }: LedProps): JSX.Element {
         on ? 'bg-green-400 shadow-lg' : 'bg-gray-400',
       )}
     />
-  );
+  )
 }

@@ -1,174 +1,4 @@
 {
-  "libs/perceptron-core": {
-    "root": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.cache": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.inputs": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.options": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.executor": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.options.cwd": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.options.command": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.description": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.technologies": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.technologies.0": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.help": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.help.command": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.help.example": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.build-deps": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.build-deps.dependsOn": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.dependsOn": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.executor": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.options": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.options.command": [
-      "libs/perceptron-core/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "name": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "$schema": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "projectType": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "sourceRoot": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "tags": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.executor": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.outputs": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.options": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.options.lintFilePatterns": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.executor": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.outputs": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.options": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.options.configFile": [
-      "libs/perceptron-core/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.inputs": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.test.parallelism": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.lint.inputs": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.lint.parallelism": [
-      "nx.json",
-      "nx/target-defaults"
-    ]
-  },
   "apps/perceptron-sim": {
     "root": [
       "apps/perceptron-sim/project.json",
@@ -465,6 +295,176 @@
     "targets.preview.parallelism": [
       "nx.json",
       "nx/target-defaults"
+    ],
+    "targets.test.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.lint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.lint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "libs/perceptron-core": {
+    "root": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.cache": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.inputs": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.options": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.executor": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.options.cwd": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.options.command": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.description": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.technologies": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.technologies.0": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.help": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.help.command": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.help.example": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.build-deps": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.build-deps.dependsOn": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.dependsOn": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.executor": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.options": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.options.command": [
+      "libs/perceptron-core/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "name": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "projectType": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.executor": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.outputs": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.options": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.options.lintFilePatterns": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.executor": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.outputs": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.options": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.options.configFile": [
+      "libs/perceptron-core/project.json",
+      "nx/core/project-json"
     ],
     "targets.test.inputs": [
       "nx.json",

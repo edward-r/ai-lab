@@ -1,16 +1,16 @@
-import React from 'react';
+import React from 'react'
 
 export type DialProps = {
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  label: string;
-  onChange: (v: number) => void;
-};
+  value: number
+  min: number
+  max: number
+  step: number
+  label: string
+  onChange: (v: number) => void
+}
 
 export function Dial({ value, min, max, step, label, onChange }: DialProps): JSX.Element {
-  const angle = ((value - min) / (max - min)) * 270 - 135;
+  const angle = ((value - min) / (max - min)) * 270 - 135
 
   return (
     <div className="flex flex-col items-center">
@@ -35,5 +35,5 @@ export function Dial({ value, min, max, step, label, onChange }: DialProps): JSX
         {label}: {value.toFixed(2)}
       </span>
     </div>
-  );
+  )
 }
