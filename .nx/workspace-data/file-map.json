@@ -17,109 +17,75 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "tsconfig.json",
-        "hash": "8347955755980990732"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": "package.json",
-        "hash": "15177964788453208714"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "1725388122548879102"
-      },
-      {
         "file": ".github/workflows/ci.yml",
         "hash": "15256470195678966833"
       },
       {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
-      },
-      {
-        "file": "tsconfig.base.json",
-        "hash": "11616903063793360800"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
-        "file": "README.md",
-        "hash": "7275003167834257955"
+        "file": "package.json",
+        "hash": "12374204316163615220"
       },
       {
         "file": ".github/workflows/pages.yml",
         "hash": "1716301107585681006"
       },
       {
-        "file": "nx.json",
-        "hash": "10895747293426653132"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
       },
       {
         "file": "tsconfig.node.json",
         "hash": "8684776726152056264"
       },
       {
-        "file": "eslint.config.mjs",
-        "hash": "10364682253811599621"
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "8642919883864682808"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "8347955755980990732"
       },
       {
         "file": ".nvmrc",
         "hash": "16951876268857922555"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
+        "file": "README.md",
+        "hash": "7275003167834257955"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "11616903063793360800"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "10364682253811599621"
+      },
+      {
+        "file": "nx.json",
+        "hash": "10895747293426653132"
       }
     ],
     "projectFileMap": {
-      "perceptron-core": [
-        {
-          "file": "libs/perceptron-core/project.json",
-          "hash": "15571648856739924981"
-        },
-        {
-          "file": "libs/perceptron-core/src/index.ts",
-          "hash": "8240860054729818693"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.test.ts",
-          "hash": "2763675980340157823"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.ts",
-          "hash": "10493328169959022042"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
-          "hash": "14897755387999689691"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.ts",
-          "hash": "801047537965533375"
-        },
-        {
-          "file": "libs/perceptron-core/tsconfig.json",
-          "hash": "16535889485124124979"
-        },
-        {
-          "file": "libs/perceptron-core/vitest.config.ts",
-          "hash": "9903363322179040656"
-        }
-      ],
       "perceptron-sim": [
         {
           "file": "apps/perceptron-sim/index.html",
@@ -127,7 +93,7 @@
         },
         {
           "file": "apps/perceptron-sim/project.json",
-          "hash": "6381513956748890732"
+          "hash": "3520926284126263116"
         },
         {
           "file": "apps/perceptron-sim/public/CNAME.example",
@@ -190,6 +156,40 @@
         {
           "file": "apps/perceptron-sim/vitest.config.ts",
           "hash": "11043035261381918575"
+        }
+      ],
+      "perceptron-core": [
+        {
+          "file": "libs/perceptron-core/project.json",
+          "hash": "15571648856739924981"
+        },
+        {
+          "file": "libs/perceptron-core/src/index.ts",
+          "hash": "8240860054729818693"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.test.ts",
+          "hash": "2763675980340157823"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.ts",
+          "hash": "10493328169959022042"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
+          "hash": "14897755387999689691"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.ts",
+          "hash": "801047537965533375"
+        },
+        {
+          "file": "libs/perceptron-core/tsconfig.json",
+          "hash": "16535889485124124979"
+        },
+        {
+          "file": "libs/perceptron-core/vitest.config.ts",
+          "hash": "9903363322179040656"
         }
       ]
     }

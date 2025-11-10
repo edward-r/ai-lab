@@ -116,6 +116,7 @@
               "{workspaceRoot}/dist/apps/perceptron-sim"
             ],
             "options": {
+              "outputPath": "dist/apps/perceptron-sim",
               "configFile": "apps/perceptron-sim/vite.config.ts"
             },
             "configurations": {},
@@ -2929,6 +2930,33 @@
         "version": "4.53.1",
         "packageName": "@rollup/rollup-darwin-arm64",
         "hash": "4822960209491147405"
+      }
+    },
+    "npm:@rollup/rollup-darwin-x64": {
+      "type": "npm",
+      "name": "npm:@rollup/rollup-darwin-x64",
+      "data": {
+        "version": "4.53.1",
+        "packageName": "@rollup/rollup-darwin-x64",
+        "hash": "sha512-is3r/k4vig2Gt8mKtTlzzyaSQ+hd87kDxiN3uDSDwggJLUV56Umli6OoL+/YZa/KvtdrdyNfMKHzL/P4siOOmg=="
+      }
+    },
+    "npm:@rollup/rollup-linux-x64-gnu": {
+      "type": "npm",
+      "name": "npm:@rollup/rollup-linux-x64-gnu",
+      "data": {
+        "version": "4.53.1",
+        "packageName": "@rollup/rollup-linux-x64-gnu",
+        "hash": "sha512-E/n8x2MSjAQgjj9IixO4UeEUeqXLtiA7pyoXCFYLuXpBA/t2hnbIdxHfA7kK9BFsYAoNU4st1rHYdldl8dTqGA=="
+      }
+    },
+    "npm:@rollup/rollup-linux-x64-musl": {
+      "type": "npm",
+      "name": "npm:@rollup/rollup-linux-x64-musl",
+      "data": {
+        "version": "4.53.1",
+        "packageName": "@rollup/rollup-linux-x64-musl",
+        "hash": "sha512-IhJ087PbLOQXCN6Ui/3FUkI9pWNZe/Z7rEIVOzMsOs1/HSAECCvSZ7PkIbkNqL/AZn6WbZvnoVZw/qwqYMo4/w=="
       }
     },
     "npm:@rspack/binding": {
@@ -19804,6 +19832,21 @@
         "source": "npm:rollup",
         "target": "npm:@rollup/rollup-darwin-arm64",
         "type": "static"
+      },
+      {
+        "source": "npm:rollup",
+        "target": "npm:@rollup/rollup-darwin-x64",
+        "type": "static"
+      },
+      {
+        "source": "npm:rollup",
+        "target": "npm:@rollup/rollup-linux-x64-gnu",
+        "type": "static"
+      },
+      {
+        "source": "npm:rollup",
+        "target": "npm:@rollup/rollup-linux-x64-musl",
+        "type": "static"
       }
     ],
     "npm:run-parallel": [
@@ -21629,5 +21672,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1762798507987
+  "computedAt": 1762798887100
 }

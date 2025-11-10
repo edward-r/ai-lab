@@ -180,6 +180,10 @@
       "apps/perceptron-sim/project.json",
       "nx/core/project-json"
     ],
+    "targets.build.options.outputPath": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
     "targets.build.options.configFile": [
       "apps/perceptron-sim/project.json",
       "nx/core/project-json"
