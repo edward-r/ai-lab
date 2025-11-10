@@ -17,12 +17,16 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
       },
       {
-        "file": "package.json",
-        "hash": "12374204316163615220"
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
       },
       {
         "file": ".github/workflows/pages.yml",
@@ -33,48 +37,16 @@
         "hash": "18129817643549187384"
       },
       {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
       },
       {
         "file": ".prettierrc",
         "hash": "4872122421842301431"
       },
       {
-        "file": "package-lock.json",
-        "hash": "8642919883864682808"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "8347955755980990732"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
         "file": "README.md",
         "hash": "7275003167834257955"
-      },
-      {
-        "file": "tsconfig.base.json",
-        "hash": "11616903063793360800"
       },
       {
         "file": "eslint.config.mjs",
@@ -83,6 +55,34 @@
       {
         "file": "nx.json",
         "hash": "10895747293426653132"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "11318228995399084176"
+      },
+      {
+        "file": "package.json",
+        "hash": "3781158329798557239"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "11616903063793360800"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "8347955755980990732"
+      },
+      {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
       }
     ],
     "projectFileMap": {
