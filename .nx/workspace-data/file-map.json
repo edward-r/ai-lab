@@ -12,80 +12,371 @@
   "nxJsonPlugins": [
     {
       "name": "@nx/vite/plugin"
+    },
+    {
+      "name": "@nx/next/plugin"
     }
   ],
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
       },
       {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
+        "file": "tsconfig.json",
+        "hash": "14777241203059172914"
       },
       {
         "file": ".gitignore",
         "hash": "18129817643549187384"
       },
       {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": "README.md",
-        "hash": "7275003167834257955"
-      },
-      {
-        "file": "eslint.config.mjs",
-        "hash": "10364682253811599621"
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
       },
       {
         "file": "nx.json",
-        "hash": "10895747293426653132"
+        "hash": "13064133220213869636"
       },
       {
-        "file": "package-lock.json",
-        "hash": "11318228995399084176"
-      },
-      {
-        "file": "package.json",
-        "hash": "3781158329798557239"
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
       },
       {
         "file": "postcss.config.js",
         "hash": "11834113634521185343"
       },
       {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": "package.json",
+        "hash": "13761242301549208884"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "5339798102812845007"
+      },
+      {
+        "file": "README.md",
+        "hash": "7275003167834257955"
       },
       {
         "file": "tsconfig.base.json",
         "hash": "11616903063793360800"
       },
       {
-        "file": "tsconfig.json",
-        "hash": "8347955755980990732"
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
       },
       {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "13538891849197178099"
       }
     ],
     "projectFileMap": {
+      "prompt-maker": [
+        {
+          "file": "apps/prompt-maker/.next/app-build-manifest.json",
+          "hash": "15285923409013759466"
+        },
+        {
+          "file": "apps/prompt-maker/.next/build-manifest.json",
+          "hash": "4022198718087905130"
+        },
+        {
+          "file": "apps/prompt-maker/.next/cache/webpack/client-development/0.pack.gz",
+          "hash": "9943376882487978105"
+        },
+        {
+          "file": "apps/prompt-maker/.next/cache/webpack/client-development/1.pack.gz",
+          "hash": "9042939706734941482"
+        },
+        {
+          "file": "apps/prompt-maker/.next/cache/webpack/client-development/index.pack.gz",
+          "hash": "5943897895990064474"
+        },
+        {
+          "file": "apps/prompt-maker/.next/cache/webpack/client-development/index.pack.gz.old",
+          "hash": "15071457745966306436"
+        },
+        {
+          "file": "apps/prompt-maker/.next/cache/webpack/server-development/0.pack.gz",
+          "hash": "15335680129514968585"
+        },
+        {
+          "file": "apps/prompt-maker/.next/cache/webpack/server-development/index.pack.gz",
+          "hash": "14626516305304060115"
+        },
+        {
+          "file": "apps/prompt-maker/.next/package.json",
+          "hash": "11338307439248427064"
+        },
+        {
+          "file": "apps/prompt-maker/.next/react-loadable-manifest.json",
+          "hash": "1389868326933519382"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/app-paths-manifest.json",
+          "hash": "10623236492438987288"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/app/_not-found/page.js",
+          "hash": "13173660105596411855",
+          "deps": [
+            [
+              "npm:next",
+              "dynamic"
+            ]
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/app/_not-found/page_client-reference-manifest.js",
+          "hash": "17197324766188884855"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/app/icon.svg/route.js",
+          "hash": "9964805551421613396",
+          "deps": [
+            [
+              "npm:next",
+              "dynamic"
+            ]
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/app/page.js",
+          "hash": "1576756833261503674",
+          "deps": [
+            [
+              "npm:next",
+              "dynamic"
+            ]
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/app/page_client-reference-manifest.js",
+          "hash": "18418529301118024426"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/interception-route-rewrite-manifest.js",
+          "hash": "10484309360224763022"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/middleware-build-manifest.js",
+          "hash": "12578018668904100291"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/middleware-manifest.json",
+          "hash": "9889576824779923310"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/middleware-react-loadable-manifest.js",
+          "hash": "9185069726031651908"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/next-font-manifest.js",
+          "hash": "16541577805185552134"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/next-font-manifest.json",
+          "hash": "11891788324563068681"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/pages-manifest.json",
+          "hash": "1389868326933519382"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/server-reference-manifest.js",
+          "hash": "11991857740372784360"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/server-reference-manifest.json",
+          "hash": "4983335932731440559"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/vendor-chunks/next.js",
+          "hash": "11157255483750536763"
+        },
+        {
+          "file": "apps/prompt-maker/.next/server/webpack-runtime.js",
+          "hash": "3940657713313349894"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/chunks/app-pages-internals.js",
+          "hash": "521214373682951814"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/chunks/app/_not-found/page.js",
+          "hash": "14472095145010467122"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/chunks/app/layout.js",
+          "hash": "17485179868523240015"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/chunks/app/page.js",
+          "hash": "9481443588693964829"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/chunks/main-app.js",
+          "hash": "12222268801911665593"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/chunks/polyfills.js",
+          "hash": "1955602371502312040"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/chunks/webpack.js",
+          "hash": "16706029193495762977"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/css/app/layout.css",
+          "hash": "13914130774026467338"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/development/_buildManifest.js",
+          "hash": "15678672880040024319"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/development/_ssgManifest.js",
+          "hash": "17018243955171961484"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/webpack/633457081244afec._.hot-update.json",
+          "hash": "10481436618516908015"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/webpack/8e3665c1bb457797.webpack.hot-update.json",
+          "hash": "13405125561290911638"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/webpack/f64d003ffbf05291.webpack.hot-update.json",
+          "hash": "13405125561290911638"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/webpack/webpack.8e3665c1bb457797.hot-update.js",
+          "hash": "11834416046647204872"
+        },
+        {
+          "file": "apps/prompt-maker/.next/static/webpack/webpack.f64d003ffbf05291.hot-update.js",
+          "hash": "15187106282177087584"
+        },
+        {
+          "file": "apps/prompt-maker/.next/trace",
+          "hash": "10636975185152895566"
+        },
+        {
+          "file": "apps/prompt-maker/.next/types/app/layout.ts",
+          "hash": "7761504072086369115",
+          "deps": [
+            "npm:next"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/.next/types/app/page.ts",
+          "hash": "9791483871804857200",
+          "deps": [
+            "npm:next"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/.next/types/link.d.ts",
+          "hash": "1710711401923698223",
+          "deps": [
+            "npm:next",
+            "npm:react"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/.next/types/package.json",
+          "hash": "6094546126370684104"
+        },
+        {
+          "file": "apps/prompt-maker/app/api/diagnose/route.ts",
+          "hash": "12791685316299863541"
+        },
+        {
+          "file": "apps/prompt-maker/app/api/improve/route.ts",
+          "hash": "7617757894907127607"
+        },
+        {
+          "file": "apps/prompt-maker/app/globals.css",
+          "hash": "1439370978261701156"
+        },
+        {
+          "file": "apps/prompt-maker/app/icon.svg",
+          "hash": "12349380297714092637"
+        },
+        {
+          "file": "apps/prompt-maker/app/layout.tsx",
+          "hash": "6743821760352912015",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/app/page.tsx",
+          "hash": "11600017856243560440",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker/lib/contract.ts",
+          "hash": "15393296970748474577"
+        },
+        {
+          "file": "apps/prompt-maker/lib/heuristics.ts",
+          "hash": "1737953474250247787"
+        },
+        {
+          "file": "apps/prompt-maker/lib/improve.ts",
+          "hash": "565283469705238016"
+        },
+        {
+          "file": "apps/prompt-maker/lib/llm.ts",
+          "hash": "14520808269220009036"
+        },
+        {
+          "file": "apps/prompt-maker/lib/questions.ts",
+          "hash": "4132197091194580515"
+        },
+        {
+          "file": "apps/prompt-maker/lib/types.ts",
+          "hash": "15469363360530045221"
+        },
+        {
+          "file": "apps/prompt-maker/next-env.d.ts",
+          "hash": "5909181270615354023"
+        },
+        {
+          "file": "apps/prompt-maker/next.config.mjs",
+          "hash": "1180603462589404646"
+        },
+        {
+          "file": "apps/prompt-maker/project.json",
+          "hash": "15257033491682159818"
+        },
+        {
+          "file": "apps/prompt-maker/tsconfig.json",
+          "hash": "1190035950690342656"
+        }
+      ],
       "perceptron-sim": [
         {
           "file": "apps/perceptron-sim/index.html",
@@ -143,7 +434,10 @@
         },
         {
           "file": "apps/perceptron-sim/src/test/setup.ts",
-          "hash": "4941352530169676329"
+          "hash": "4941352530169676329",
+          "deps": [
+            "npm:@testing-library/jest-dom"
+          ]
         },
         {
           "file": "apps/perceptron-sim/tsconfig.json",
@@ -151,11 +445,18 @@
         },
         {
           "file": "apps/perceptron-sim/vite.config.ts",
-          "hash": "3659858580587846834"
+          "hash": "3659858580587846834",
+          "deps": [
+            "npm:vite",
+            "npm:@vitejs/plugin-react"
+          ]
         },
         {
           "file": "apps/perceptron-sim/vitest.config.ts",
-          "hash": "11043035261381918575"
+          "hash": "11043035261381918575",
+          "deps": [
+            "npm:vitest"
+          ]
         }
       ],
       "perceptron-core": [
@@ -169,7 +470,10 @@
         },
         {
           "file": "libs/perceptron-core/src/lib/activation.test.ts",
-          "hash": "2763675980340157823"
+          "hash": "2763675980340157823",
+          "deps": [
+            "npm:vitest"
+          ]
         },
         {
           "file": "libs/perceptron-core/src/lib/activation.ts",
@@ -177,7 +481,10 @@
         },
         {
           "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
-          "hash": "14897755387999689691"
+          "hash": "14897755387999689691",
+          "deps": [
+            "npm:vitest"
+          ]
         },
         {
           "file": "libs/perceptron-core/src/lib/perceptron.ts",
@@ -189,7 +496,10 @@
         },
         {
           "file": "libs/perceptron-core/vitest.config.ts",
-          "hash": "9903363322179040656"
+          "hash": "9903363322179040656",
+          "deps": [
+            "npm:vitest"
+          ]
         }
       ]
     }

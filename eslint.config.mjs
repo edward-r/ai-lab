@@ -19,6 +19,7 @@ export default [
   ...compat.extends('plugin:@nx/typescript'),
   ...compat.extends('plugin:@nx/javascript'),
   ...compat.extends('plugin:@nx/react'),
+  ...compat.extends('next'),
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
     languageOptions: {
