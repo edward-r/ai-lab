@@ -1,0 +1,19 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "perceptron-visuals",
+  "projectType": "library",
+  "sourceRoot": "libs/perceptron-visuals/src",
+  "tags": [],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": [
+          "libs/perceptron-visuals/src/**/*.ts",
+          "libs/perceptron-visuals/src/**/*.tsx"
+        ]
+      }
+    }
+  }
+}

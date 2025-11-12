@@ -13,7 +13,7 @@ const reactRefresh = await import('eslint-plugin-react-refresh')
 
 export default [
   {
-    ignores: ['**/dist'],
+    ignores: ['**/dist', '**/.next', '**/.next/**'],
   },
   js.configs.recommended,
   ...compat.extends('plugin:@nx/typescript'),

@@ -1,18 +1,18 @@
-import { resolve } from 'node:path';
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { resolve } from 'node:path'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
-const BASE_PATH = process.env.BASE_PATH ?? '/';
+const BASE_PATH = process.env.BASE_PATH ?? '/'
 
 const normalizeBase = (v: string): string => {
-  let s = v;
-  if (!s.startsWith('/')) s = `/${s}`;
-  if (!s.endsWith('/')) s = `${s}/`;
-  return s;
-};
+  let s = v
+  if (!s.startsWith('/')) s = `/${s}`
+  if (!s.endsWith('/')) s = `${s}/`
+  return s
+}
 
-const appRoot = __dirname;
-const distRoot = resolve(__dirname, '../../dist/apps/perceptron-sim');
+const appRoot = __dirname
+const distRoot = resolve(__dirname, '../../dist/apps/perceptron-sim')
 
 export default defineConfig({
   root: appRoot,
@@ -29,6 +29,8 @@ export default defineConfig({
     alias: {
       '@perceptron/core': resolve(__dirname, '../../libs/perceptron-core/src'),
       '@perceptron/core/': resolve(__dirname, '../../libs/perceptron-core/src/'),
+      '@perceptron-visuals': resolve(__dirname, '../../libs/perceptron-visuals/src'),
+      '@perceptron-visuals/': resolve(__dirname, '../../libs/perceptron-visuals/src/'),
     },
   },
   plugins: [react()],
@@ -42,4 +44,4 @@ export default defineConfig({
     },
   },
   base: normalizeBase(BASE_PATH),
-});
+})

@@ -28,7 +28,10 @@
       "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],
       "options": {
-        "lintFilePatterns": ["apps/prompt-maker/**/*.{ts,tsx,js,jsx}"]
+        "lintFilePatterns": [
+          "apps/prompt-maker/**/*.{ts,tsx,js,jsx}",
+          "!apps/prompt-maker/.next/**/*"
+        ]
       }
     }
   },

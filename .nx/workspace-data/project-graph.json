@@ -1,5 +1,38 @@
 {
   "nodes": {
+    "perceptron-visuals": {
+      "name": "perceptron-visuals",
+      "type": "lib",
+      "data": {
+        "root": "libs/perceptron-visuals",
+        "name": "perceptron-visuals",
+        "$schema": "../../node_modules/nx/schemas/project-schema.json",
+        "projectType": "library",
+        "sourceRoot": "libs/perceptron-visuals/src",
+        "tags": [],
+        "targets": {
+          "lint": {
+            "executor": "@nx/eslint:lint",
+            "outputs": [
+              "{options.outputFile}"
+            ],
+            "options": {
+              "lintFilePatterns": [
+                "libs/perceptron-visuals/src/**/*.ts",
+                "libs/perceptron-visuals/src/**/*.tsx"
+              ]
+            },
+            "configurations": {},
+            "parallelism": true,
+            "inputs": [
+              "default",
+              "{workspaceRoot}/eslint.config.mjs"
+            ]
+          }
+        },
+        "implicitDependencies": []
+      }
+    },
     "perceptron-core": {
       "name": "perceptron-core",
       "type": "lib",
@@ -382,7 +415,8 @@
             ],
             "options": {
               "lintFilePatterns": [
-                "apps/prompt-maker/**/*.{ts,tsx,js,jsx}"
+                "apps/prompt-maker/**/*.{ts,tsx,js,jsx}",
+                "!apps/prompt-maker/.next/**/*"
               ]
             },
             "configurations": {},
@@ -12618,6 +12652,18 @@
     }
   },
   "dependencies": {
+    "perceptron-visuals": [
+      {
+        "source": "perceptron-visuals",
+        "target": "npm:react",
+        "type": "static"
+      },
+      {
+        "source": "perceptron-visuals",
+        "target": "perceptron-core",
+        "type": "static"
+      }
+    ],
     "perceptron-core": [
       {
         "source": "perceptron-core",
@@ -12634,6 +12680,11 @@
       {
         "source": "perceptron-sim",
         "target": "npm:react",
+        "type": "static"
+      },
+      {
+        "source": "perceptron-sim",
+        "target": "perceptron-visuals",
         "type": "static"
       },
       {
@@ -29146,5 +29197,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1762965309554
+  "computedAt": 1762979567599
 }
