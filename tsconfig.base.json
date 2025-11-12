@@ -16,7 +16,9 @@
     "baseUrl": "./",
     "paths": {
       "@perceptron/core": ["libs/perceptron-core/src/index.ts"],
-      "@perceptron/core/*": ["libs/perceptron-core/src/*"]
+      "@perceptron/core/*": ["libs/perceptron-core/src/*"],
+      "@perceptron-visuals": ["libs/perceptron-visuals/src/index.ts"],
+      "@perceptron-visuals/*": ["libs/perceptron-visuals/src/*"]
     }
   }
 }
