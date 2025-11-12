@@ -4,7 +4,7 @@
   "affected": {
     "defaultBase": "main"
   },
-  "plugins": ["@nx/vite/plugin"],
+  "plugins": ["@nx/vite/plugin", "@nx/next/plugin"],
   "tasksRunnerOptions": {
     "default": {
       "runner": "nx/tasks-runners/default",

@@ -1,0 +1,36 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "prompt-maker",
+  "projectType": "application",
+  "sourceRoot": "apps/prompt-maker",
+  "targets": {
+    "build": {
+      "executor": "@nx/next:build",
+      "outputs": ["{workspaceRoot}/dist/apps/prompt-maker"],
+      "options": {
+        "outputPath": "dist/apps/prompt-maker",
+        "root": "apps/prompt-maker",
+        "nextConfig": "apps/prompt-maker/next.config.mjs"
+      }
+    },
+    "serve": {
+      "executor": "@nx/next:server",
+      "options": {
+        "buildTarget": "prompt-maker:build"
+      },
+      "configurations": {
+        "production": {
+          "buildTarget": "prompt-maker:build:production"
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/prompt-maker/**/*.{ts,tsx,js,jsx}"]
+      }
+    }
+  },
+  "tags": []
+}

@@ -7,6 +7,7 @@
   "include": [],
   "references": [
     { "path": "apps/perceptron-sim/tsconfig.json" },
+    { "path": "apps/prompt-maker/tsconfig.json" },
     { "path": "libs/perceptron-core/tsconfig.json" }
   ]
 }
