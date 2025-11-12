@@ -415,7 +415,8 @@
             ],
             "options": {
               "lintFilePatterns": [
-                "apps/prompt-maker/**/*.{ts,tsx,js,jsx}"
+                "apps/prompt-maker/**/*.{ts,tsx,js,jsx}",
+                "!apps/prompt-maker/.next/**/*"
               ]
             },
             "configurations": {},
@@ -29196,5 +29197,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1762976148585
+  "computedAt": 1762979567599
 }
