@@ -26,12 +26,60 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
       },
       {
         "file": ".nvmrc",
         "hash": "16951876268857922555"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "10162619954131977335"
+      },
+      {
+        "file": "README.md",
+        "hash": "7275003167834257955"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "14158514078548521926"
+      },
+      {
+        "file": "nx.json",
+        "hash": "13064133220213869636"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "13538891849197178099"
+      },
+      {
+        "file": "package.json",
+        "hash": "13761242301549208884"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
       },
       {
         "file": "tailwind.config.ts",
@@ -42,60 +90,12 @@
         "hash": "5883521791101511980"
       },
       {
-        "file": "AGENTS.md",
-        "hash": "10162619954131977335"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": "nx.json",
-        "hash": "13064133220213869636"
-      },
-      {
-        "file": "README.md",
-        "hash": "7275003167834257955"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": "eslint.config.mjs",
-        "hash": "14158514078548521926"
-      },
-      {
         "file": "tsconfig.json",
         "hash": "14777241203059172914"
       },
       {
         "file": "tsconfig.node.json",
         "hash": "8684776726152056264"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": "package.json",
-        "hash": "13761242301549208884"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "13538891849197178099"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
       }
     ],
     "projectFileMap": {
@@ -187,119 +187,6 @@
           "deps": [
             "npm:vitest"
           ]
-        }
-      ],
-      "perceptron-core": [
-        {
-          "file": "libs/perceptron-core/project.json",
-          "hash": "15571648856739924981"
-        },
-        {
-          "file": "libs/perceptron-core/src/index.ts",
-          "hash": "8240860054729818693"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.test.ts",
-          "hash": "2763675980340157823",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.ts",
-          "hash": "10493328169959022042"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
-          "hash": "14897755387999689691",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.ts",
-          "hash": "801047537965533375"
-        },
-        {
-          "file": "libs/perceptron-core/tsconfig.json",
-          "hash": "16535889485124124979"
-        },
-        {
-          "file": "libs/perceptron-core/vitest.config.ts",
-          "hash": "9903363322179040656",
-          "deps": [
-            "npm:vitest"
-          ]
-        }
-      ],
-      "perceptron-visuals": [
-        {
-          "file": "libs/perceptron-visuals/project.json",
-          "hash": "7309367567714086700"
-        },
-        {
-          "file": "libs/perceptron-visuals/src/index.ts",
-          "hash": "7647144716395893079"
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/ConfusionMatrix.tsx",
-          "hash": "5235399021487190780",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/DecisionBoundaryCanvas.tsx",
-          "hash": "8434360806242637109",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/GlossaryPanel.tsx",
-          "hash": "7387018669512942374",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/RocCurve.tsx",
-          "hash": "4596670095281705844",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/SparklineLoss.tsx",
-          "hash": "942798517299342719",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/coreAdapter.ts",
-          "hash": "3019064131126713394",
-          "deps": [
-            "perceptron-core"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/metrics.ts",
-          "hash": "9478122020157474620",
-          "deps": [
-            "perceptron-core"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/src/lib/usePerceptronTrainer.ts",
-          "hash": "16416149467083539626",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "libs/perceptron-visuals/tsconfig.json",
-          "hash": "9690182976240718486"
         }
       ],
       "prompt-maker": [
@@ -592,6 +479,119 @@
         {
           "file": "apps/prompt-maker/tsconfig.json",
           "hash": "1190035950690342656"
+        }
+      ],
+      "perceptron-core": [
+        {
+          "file": "libs/perceptron-core/project.json",
+          "hash": "15571648856739924981"
+        },
+        {
+          "file": "libs/perceptron-core/src/index.ts",
+          "hash": "8240860054729818693"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.test.ts",
+          "hash": "2763675980340157823",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.ts",
+          "hash": "10493328169959022042"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
+          "hash": "14897755387999689691",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.ts",
+          "hash": "801047537965533375"
+        },
+        {
+          "file": "libs/perceptron-core/tsconfig.json",
+          "hash": "16535889485124124979"
+        },
+        {
+          "file": "libs/perceptron-core/vitest.config.ts",
+          "hash": "9903363322179040656",
+          "deps": [
+            "npm:vitest"
+          ]
+        }
+      ],
+      "perceptron-visuals": [
+        {
+          "file": "libs/perceptron-visuals/project.json",
+          "hash": "7309367567714086700"
+        },
+        {
+          "file": "libs/perceptron-visuals/src/index.ts",
+          "hash": "7647144716395893079"
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/ConfusionMatrix.tsx",
+          "hash": "5235399021487190780",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/DecisionBoundaryCanvas.tsx",
+          "hash": "8434360806242637109",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/GlossaryPanel.tsx",
+          "hash": "7387018669512942374",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/RocCurve.tsx",
+          "hash": "4596670095281705844",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/SparklineLoss.tsx",
+          "hash": "942798517299342719",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/coreAdapter.ts",
+          "hash": "3019064131126713394",
+          "deps": [
+            "perceptron-core"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/metrics.ts",
+          "hash": "9478122020157474620",
+          "deps": [
+            "perceptron-core"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/usePerceptronTrainer.ts",
+          "hash": "16416149467083539626",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/tsconfig.json",
+          "hash": "9690182976240718486"
         }
       ]
     }
