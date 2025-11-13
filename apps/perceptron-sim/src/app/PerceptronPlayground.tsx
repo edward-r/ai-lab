@@ -125,6 +125,7 @@ export const PerceptronPlayground: React.FC = () => {
   const [overlayVisibility, setOverlayVisibility] = useState<Record<SnapshotLabel, boolean>>(() =>
     createOverlayVisibility(),
   )
+  const [resetSnapshotId, setResetSnapshotId] = useState<string | null>(null)
 
   const [addLabel, setAddLabel] = useState<0 | 1>(1)
 
@@ -162,6 +163,31 @@ export const PerceptronPlayground: React.FC = () => {
     resetHistories()
     reset()
   }, [reset, resetHistories])
+
+  useEffect(() => {
+    if (snapshots.length === 0) {
+      setResetSnapshotId(null)
+      return
+    }
+    setResetSnapshotId((current) => {
+      if (current && snapshots.some((entry) => entry.id === current)) {
+        return current
+      }
+      return snapshots[snapshots.length - 1]?.id ?? null
+    })
+  }, [snapshots])
+
+  const selectedSnapshot = useMemo(() => {
+    if (!resetSnapshotId) return null
+    return snapshots.find((entry) => entry.id === resetSnapshotId) ?? null
+  }, [resetSnapshotId, snapshots])
+
+  const handleResetToSnapshot = () => {
+    if (!selectedSnapshot) return
+    reset(selectedSnapshot.params)
+    setLossByStep([])
+    setLossByEpoch([])
+  }
 
   useEffect(() => {
     setLossByStep((prev) => {
@@ -447,6 +473,38 @@ export const PerceptronPlayground: React.FC = () => {
               </label>
             )
           })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Reset to snapshot
+        </span>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:max-w-[10rem]"
+            value={resetSnapshotId ?? ''}
+            onChange={(event) => setResetSnapshotId(event.target.value || null)}
+            disabled={snapshots.length === 0}
+          >
+            {snapshots.length === 0 ? (
+              <option value="">No snapshots saved</option>
+            ) : (
+              snapshots.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {`${entry.label} — w=[${entry.params.w[0].toFixed(2)}, ${entry.params.w[1].toFixed(2)}], b=${entry.params.b.toFixed(2)}`}
+                </option>
+              ))
+            )}
+          </select>
+          <button
+            type="button"
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:opacity-60"
+            onClick={handleResetToSnapshot}
+            disabled={!selectedSnapshot}
+          >
+            Reset to snapshot
+          </button>
         </div>
       </div>
     </div>

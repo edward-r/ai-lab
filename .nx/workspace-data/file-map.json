@@ -26,28 +26,12 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
-      },
-      {
         "file": ".github/workflows/pages.yml",
         "hash": "1716301107585681006"
       },
       {
-        "file": "package.json",
-        "hash": "13761242301549208884"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "13538891849197178099"
-      },
-      {
-        "file": "README.md",
-        "hash": "7275003167834257955"
+        "file": "tsconfig.json",
+        "hash": "14777241203059172914"
       },
       {
         "file": ".nvmrc",
@@ -58,30 +42,6 @@
         "hash": "14158514078548521926"
       },
       {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "10162619954131977335"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "14777241203059172914"
-      },
-      {
         "file": ".eslintrc.cjs",
         "hash": "1696669636883572046"
       },
@@ -90,12 +50,52 @@
         "hash": "5883521791101511980"
       },
       {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
         "file": "nx.json",
         "hash": "13064133220213869636"
       },
       {
+        "file": "package-lock.json",
+        "hash": "13538891849197178099"
+      },
+      {
+        "file": "package.json",
+        "hash": "13761242301549208884"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "10162619954131977335"
+      },
+      {
         "file": "tailwind.config.ts",
         "hash": "3771228352708915812"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "README.md",
+        "hash": "7275003167834257955"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
       }
     ],
     "projectFileMap": {
@@ -508,7 +508,7 @@
         },
         {
           "file": "apps/perceptron-sim/src/app/PerceptronPlayground.tsx",
-          "hash": "3874107420780510579",
+          "hash": "9259319928212697920",
           "deps": [
             "npm:react",
             "perceptron-visuals"
