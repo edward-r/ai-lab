@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DecisionBoundaryCanvas,
+  DatasetTabs,
   usePerceptronTrainer,
   type Activation,
   type LabeledPoint,
@@ -14,9 +15,13 @@ import {
   computeConfusion,
   computeRoc,
   usePersistentState,
+  makeSeparable,
+  makeXor,
+  makeNoisy,
+  type PresetKind,
 } from '@perceptron-visuals'
 
-type DatasetKind = 'separable' | 'xor' | 'custom'
+type DatasetKind = PresetKind
 type LossMode = 'steps' | 'epochs'
 
 type EpochSummary = {
@@ -26,39 +31,10 @@ type EpochSummary = {
 
 const DEFAULT_PARAMS: Params = { w: [0.2, -0.4], b: 0 }
 
-const makeSeparable = (): LabeledPoint[] => {
-  const points: LabeledPoint[] = []
-  for (let i = 0; i < 40; i += 1) {
-    points.push({ x: [-1 + Math.random() * 0.9, -1 + Math.random() * 0.9], y: 0 })
-  }
-  for (let i = 0; i < 40; i += 1) {
-    points.push({ x: [0.2 + Math.random() * 0.9, 0.2 + Math.random() * 0.9], y: 1 })
-  }
-  return points
-}
-
-const makeXor = (): LabeledPoint[] => {
-  const base: Array<[number, number, 0 | 1]> = [
-    [-0.8, -0.8, 0],
-    [-0.8, 0.8, 1],
-    [0.8, -0.8, 1],
-    [0.8, 0.8, 0],
-  ]
-  const points: LabeledPoint[] = []
-  for (const [x1, x2, label] of base) {
-    for (let i = 0; i < 30; i += 1) {
-      points.push({
-        x: [x1 + (Math.random() - 0.5) * 0.3, x2 + (Math.random() - 0.5) * 0.3],
-        y: label,
-      })
-    }
-  }
-  return points
-}
-
 const datasetFromKind = (kind: DatasetKind): LabeledPoint[] => {
   if (kind === 'separable') return makeSeparable()
   if (kind === 'xor') return makeXor()
+  if (kind === 'noisy') return makeNoisy()
   return []
 }
 
@@ -88,10 +64,6 @@ export const PerceptronPlayground: React.FC = () => {
   const [datasetKind, setDatasetKind] = useState<DatasetKind>('separable')
   const [dataset, setDataset] = useState<LabeledPoint[]>(() => datasetFromKind('separable'))
 
-  useEffect(() => {
-    setDataset(datasetFromKind(datasetKind))
-  }, [datasetKind])
-
   const [initial] = useState<Params>(DEFAULT_PARAMS)
   const [epochs, setEpochs] = usePersistentState<number>('pl.epochs', 50)
   const [learningRate, setLearningRate] = usePersistentState<number>(
@@ -107,11 +79,11 @@ export const PerceptronPlayground: React.FC = () => {
   const [threshold, setThreshold] = useState<number>(0.5)
   const [useThresholdBoundary, setUseThresholdBoundary] = useState<boolean>(false)
   const [showBaselineBoundary, setShowBaselineBoundary] = useState<boolean>(true)
+  const [showMarginBand, setShowMarginBand] = useState<boolean>(false)
   const [snapshotParams, setSnapshotParams] = useState<Params | null>(null)
   const [showSnapshotBoundary, setShowSnapshotBoundary] = useState<boolean>(false)
 
   const [addLabel, setAddLabel] = useState<0 | 1>(1)
-  const [importText, setImportText] = useState<string>('')
 
   const adapter = useMemo(() => makeCoreAdapter(initial), [initial])
 
@@ -183,18 +155,26 @@ export const PerceptronPlayground: React.FC = () => {
 
   const handleDatasetClick = (value: DatasetKind) => {
     setDatasetKind(value)
+    if (value === 'custom') {
+      setDataset([])
+    } else {
+      setDataset(datasetFromKind(value))
+    }
   }
 
   const handleAddPoint = (point: LabeledPoint) => {
-    const label = datasetKind === 'custom' ? addLabel : point.y
-    setDataset((prev) => [...prev, { x: point.x, y: label }])
+    const nextLabel = datasetKind === 'custom' ? addLabel : point.y
+    setDatasetKind('custom')
+    setDataset((prev) => [...prev, { x: point.x, y: nextLabel }])
   }
 
   const clearDataset = () => {
     setDataset([])
+    setDatasetKind('custom')
   }
 
   const addBlob = (center: [number, number], label: 0 | 1, count = 30) => {
+    setDatasetKind('custom')
     const [cx, cy] = center
     const points: LabeledPoint[] = []
     for (let i = 0; i < count; i += 1) {
@@ -206,48 +186,29 @@ export const PerceptronPlayground: React.FC = () => {
     setDataset((prev) => [...prev, ...points])
   }
 
-  const useXorPreset = () => {
-    const xorBlobs: Array<[number, number, 0 | 1]> = [
-      [-0.6, -0.6, 0],
-      [-0.6, 0.6, 1],
-      [0.6, -0.6, 1],
-      [0.6, 0.6, 0],
-    ]
-    const next: LabeledPoint[] = []
-    for (const [centerX, centerY, label] of xorBlobs) {
-      for (let i = 0; i < 28; i += 1) {
-        next.push({
-          x: [centerX + (Math.random() - 0.5) * 0.35, centerY + (Math.random() - 0.5) * 0.35],
-          y: label,
-        })
-      }
-    }
-    setDataset(next)
-  }
+  const exportDatasetJson = useCallback(() => JSON.stringify(dataset, null, 2), [dataset])
 
-  const copyDatasetJson = async () => {
-    const json = JSON.stringify(dataset, null, 2)
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+  const importDatasetJson = useCallback(
+    (json: string) => {
       try {
-        await navigator.clipboard.writeText(json)
-      } catch {
-        // swallow—clipboard not available
+        const parsed = JSON.parse(json) as unknown
+        if (!isLabeledPointArray(parsed)) {
+          throw new Error('Expected an array of { x: [number, number], y } objects')
+        }
+        setDataset(parsed.map((point) => ({ x: [point.x[0], point.x[1]], y: point.y })))
+        setDatasetKind('custom')
+      } catch (error) {
+        if (typeof window !== 'undefined') {
+          window.alert(`Import failed: ${(error as Error).message}`)
+        }
       }
-    }
-  }
+    },
+    [setDataset, setDatasetKind],
+  )
 
-  const importDatasetJson = () => {
-    try {
-      const parsed = JSON.parse(importText) as unknown
-      if (!isLabeledPointArray(parsed)) {
-        throw new Error('Expected an array of { x: [number, number], y } objects')
-      }
-      setDataset(parsed.map((point) => ({ x: [point.x[0], point.x[1]], y: point.y })))
-    } catch (error) {
-      if (typeof window !== 'undefined') {
-        window.alert(`Import failed: ${(error as Error).message}`)
-      }
-    }
+  const handlePresetSelection = (kind: PresetKind, points: LabeledPoint[]) => {
+    setDatasetKind(kind)
+    setDataset(points)
   }
 
   const saveSnapshot = () => {
@@ -259,6 +220,102 @@ export const PerceptronPlayground: React.FC = () => {
     setSnapshotParams(null)
     setShowSnapshotBoundary(false)
   }
+
+  const customControls = (
+    <div className="space-y-6 text-sm text-slate-700">
+      <div className="flex flex-col gap-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Add label
+        </span>
+        <div className="flex items-center gap-4">
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              name="addLabel"
+              checked={addLabel === 0}
+              onChange={() => setAddLabel(0)}
+            />
+            0
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              name="addLabel"
+              checked={addLabel === 1}
+              onChange={() => setAddLabel(1)}
+            />
+            1
+          </label>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
+          onClick={() => addBlob([-0.6, -0.6], 0)}
+        >
+          + Blob 0 (−0.6, −0.6)
+        </button>
+        <button
+          type="button"
+          className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
+          onClick={() => addBlob([0.6, 0.6], 1)}
+        >
+          + Blob 1 (0.6, 0.6)
+        </button>
+        <button
+          type="button"
+          className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
+          onClick={() => addBlob([0.6, -0.6], 1)}
+        >
+          + Blob 1 (0.6, −0.6)
+        </button>
+        <button
+          type="button"
+          className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
+          onClick={() => addBlob([-0.6, 0.6], 0)}
+        >
+          + Blob 0 (−0.6, 0.6)
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-100"
+          onClick={clearDataset}
+        >
+          Clear dataset
+        </button>
+        <button
+          type="button"
+          className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100"
+          onClick={saveSnapshot}
+        >
+          Save snapshot
+        </button>
+        <button
+          type="button"
+          className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:opacity-60"
+          onClick={clearSnapshot}
+          disabled={!snapshotParams}
+        >
+          Clear snapshot
+        </button>
+      </div>
+
+      <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={showSnapshotBoundary}
+          onChange={(event) => setShowSnapshotBoundary(event.target.checked)}
+          disabled={!snapshotParams}
+        />
+        Show snapshot boundary
+      </label>
+    </div>
+  )
 
   useEffect(() => {
     setTrainerLearningRate(learningRate)
@@ -313,6 +370,7 @@ export const PerceptronPlayground: React.FC = () => {
                   >
                     <option value="separable">linearly separable</option>
                     <option value="xor">XOR</option>
+                    <option value="noisy">noisy separable</option>
                     <option value="custom">custom (editable)</option>
                   </select>
                 </label>
@@ -501,6 +559,14 @@ export const PerceptronPlayground: React.FC = () => {
               </div>
             </div>
             <div className="px-6 pb-6">
+              <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={showMarginBand}
+                  onChange={(event) => setShowMarginBand(event.target.checked)}
+                />
+                Show margin band
+              </label>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <DecisionBoundaryCanvas
                   data={dataset}
@@ -509,6 +575,7 @@ export const PerceptronPlayground: React.FC = () => {
                   width={720}
                   height={520}
                   threshold={threshold}
+                  showMarginBand={showMarginBand}
                   adjustBoundaryByThreshold={activation === 'sigmoid' && useThresholdBoundary}
                   showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
                   baselineThreshold={0.5}
@@ -534,125 +601,19 @@ export const PerceptronPlayground: React.FC = () => {
                 Curate points, toggle labels, and manage presets.
               </p>
             </div>
-            <div className="space-y-6 px-6 pb-6">
-              <div className="flex flex-col gap-3 text-sm text-slate-700">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Add label
-                </span>
-                <div className="flex items-center gap-4">
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="addLabel"
-                      checked={addLabel === 0}
-                      onChange={() => setAddLabel(0)}
-                    />
-                    0
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="addLabel"
-                      checked={addLabel === 1}
-                      onChange={() => setAddLabel(1)}
-                    />
-                    1
-                  </label>
-                </div>
-              </div>
-
-              <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
-                  onClick={() => addBlob([-0.6, -0.6], 0)}
-                >
-                  + Blob 0 (−0.6, −0.6)
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
-                  onClick={() => addBlob([0.6, 0.6], 1)}
-                >
-                  + Blob 1 (0.6, 0.6)
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
-                  onClick={() => addBlob([0.6, -0.6], 1)}
-                >
-                  + Blob 1 (0.6, −0.6)
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
-                  onClick={() => addBlob([-0.6, 0.6], 0)}
-                >
-                  + Blob 0 (−0.6, 0.6)
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
-                  onClick={useXorPreset}
-                >
-                  + XOR (four blobs)
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-100"
-                  onClick={clearDataset}
-                >
-                  Clear dataset
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100"
-                  onClick={copyDatasetJson}
-                >
-                  Copy JSON
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100"
-                  onClick={saveSnapshot}
-                >
-                  Save snapshot
-                </button>
-                <button
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:opacity-60"
-                  onClick={clearSnapshot}
-                  disabled={!snapshotParams}
-                >
-                  Clear snapshot
-                </button>
-              </div>
-
-              <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-                Import JSON
-                <textarea
-                  className="h-32 rounded-xl border border-slate-200 px-3 py-2 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder='[{"x":[0.1,0.2],"y":1}, …]'
-                  value={importText}
-                  onChange={(event) => setImportText(event.target.value)}
-                />
-                <button
-                  className="self-start rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100"
-                  onClick={importDatasetJson}
-                >
-                  Import dataset
-                </button>
-              </label>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-                <span>Count: {dataset.length} points</span>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showSnapshotBoundary}
-                    onChange={(event) => setShowSnapshotBoundary(event.target.checked)}
-                    disabled={!snapshotParams}
-                  />
-                  Show snapshot boundary
-                </label>
-              </div>
+            <div className="px-6 pb-6">
+              <DatasetTabs
+                active={datasetKind}
+                dataset={dataset}
+                customControls={customControls}
+                onPreset={handlePresetSelection}
+                onImport={importDatasetJson}
+                onExport={exportDatasetJson}
+                onClear={clearDataset}
+              />
 
               {activation === 'sigmoid' ? (
-                <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <h3 className="text-sm font-semibold text-slate-800">
                     Thresholded metrics (τ = {threshold.toFixed(2)})
                   </h3>
