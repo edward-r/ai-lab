@@ -9,9 +9,11 @@ import {
   makeCoreAdapter,
   ConfusionMatrix,
   RocCurve,
+  Tooltip,
   GlossaryPanel,
   computeConfusion,
   computeRoc,
+  usePersistentState,
 } from '@perceptron-visuals'
 
 type DatasetKind = 'separable' | 'xor' | 'custom'
@@ -82,7 +84,7 @@ const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
 )
 
 export const PerceptronPlayground: React.FC = () => {
-  const [activation, setActivation] = useState<Activation>('step')
+  const [activation, setActivation] = usePersistentState<Activation>('pl.activation', 'step')
   const [datasetKind, setDatasetKind] = useState<DatasetKind>('separable')
   const [dataset, setDataset] = useState<LabeledPoint[]>(() => datasetFromKind('separable'))
 
@@ -91,9 +93,12 @@ export const PerceptronPlayground: React.FC = () => {
   }, [datasetKind])
 
   const [initial] = useState<Params>(DEFAULT_PARAMS)
-  const [epochs, setEpochs] = useState<number>(50)
-  const [learningRate, setLearningRate] = useState<number>(defaultLearningRate('step'))
-  const [rngSeed, setRngSeed] = useState<number>(12345)
+  const [epochs, setEpochs] = usePersistentState<number>('pl.epochs', 50)
+  const [learningRate, setLearningRate] = usePersistentState<number>(
+    'pl.lr',
+    defaultLearningRate('step'),
+  )
+  const [rngSeed, setRngSeed] = usePersistentState<number>('pl.seed', 12345)
 
   const [lossByStep, setLossByStep] = useState<number[]>([])
   const [lossByEpoch, setLossByEpoch] = useState<number[]>([])
@@ -199,6 +204,25 @@ export const PerceptronPlayground: React.FC = () => {
       })
     }
     setDataset((prev) => [...prev, ...points])
+  }
+
+  const useXorPreset = () => {
+    const xorBlobs: Array<[number, number, 0 | 1]> = [
+      [-0.6, -0.6, 0],
+      [-0.6, 0.6, 1],
+      [0.6, -0.6, 1],
+      [0.6, 0.6, 0],
+    ]
+    const next: LabeledPoint[] = []
+    for (const [centerX, centerY, label] of xorBlobs) {
+      for (let i = 0; i < 28; i += 1) {
+        next.push({
+          x: [centerX + (Math.random() - 0.5) * 0.35, centerY + (Math.random() - 0.5) * 0.35],
+          y: label,
+        })
+      }
+    }
+    setDataset(next)
   }
 
   const copyDatasetJson = async () => {
@@ -312,7 +336,10 @@ export const PerceptronPlayground: React.FC = () => {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  RNG seed
+                  <span className="inline-flex items-center">
+                    RNG seed
+                    <Tooltip label="Makes runs reproducible." />
+                  </span>
                   <input
                     type="number"
                     className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -373,7 +400,15 @@ export const PerceptronPlayground: React.FC = () => {
                     </label>
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                  <span className="font-medium text-slate-500">τ controls disabled</span>
+                  <Tooltip label="Why disabled?">
+                    τ and ROC require probabilities from σ(𝑧). The perceptron’s step activation is
+                    not probabilistic.
+                  </Tooltip>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <button
@@ -550,6 +585,12 @@ export const PerceptronPlayground: React.FC = () => {
                   onClick={() => addBlob([-0.6, 0.6], 0)}
                 >
                   + Blob 0 (−0.6, 0.6)
+                </button>
+                <button
+                  className="rounded-xl border border-slate-200 px-3 py-2 font-medium shadow-sm transition hover:bg-slate-100"
+                  onClick={useXorPreset}
+                >
+                  + XOR (four blobs)
                 </button>
               </div>
 

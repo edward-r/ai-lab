@@ -14,9 +14,11 @@ type DecisionBoundaryCanvasProps = {
   width?: number
   height?: number
   onAddPoint?: (point: LabeledPoint) => void
-  activation?: Activation
+  activation: Activation
   threshold?: number
+  haloRadius?: number
   adjustBoundaryByThreshold?: boolean
+
   showBaselineBoundary?: boolean
   baselineThreshold?: number
   snapshotParams?: Params | null
@@ -166,6 +168,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
   onAddPoint,
   activation = 'step',
   threshold = 0.5,
+  haloRadius = 11,
   adjustBoundaryByThreshold = false,
   showBaselineBoundary = false,
   baselineThreshold = 0.5,
@@ -215,10 +218,32 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
       const cx = sx(point.x[0])
       const cy = sy(point.x[1])
       const z = params.w[0] * point.x[0] + params.w[1] * point.x[1] + params.b
-      const probability = activation === 'sigmoid' ? sigmoid(z) : z > 0 ? 1 : 0
-      const ringColor = `rgba(${Math.round((1 - probability) * 255)}, ${Math.round(
-        probability * 255,
+      const isSigmoid = activation === 'sigmoid'
+      const probability = isSigmoid ? sigmoid(z) : null
+      const predicted: 0 | 1 = isSigmoid
+        ? probability !== null && probability >= threshold
+          ? 1
+          : 0
+        : z > 0
+          ? 1
+          : 0
+      const confidence = isSigmoid && probability !== null ? probability : predicted
+      const ringColor = `rgba(${Math.round((1 - confidence) * 255)}, ${Math.round(
+        confidence * 255,
       )}, 0, 0.5)`
+
+      if (predicted !== point.y) {
+        context.save()
+        const haloGradient = context.createRadialGradient(cx, cy, 0, cx, cy, haloRadius)
+        const haloBase = point.y === 1 ? '59, 130, 246' : '220, 38, 38'
+        haloGradient.addColorStop(0, `rgba(${haloBase}, 0.32)`)
+        haloGradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+        context.beginPath()
+        context.fillStyle = haloGradient
+        context.arc(cx, cy, haloRadius, 0, Math.PI * 2)
+        context.fill()
+        context.restore()
+      }
 
       context.beginPath()
       context.arc(cx, cy, 7, 0, Math.PI * 2)
@@ -276,6 +301,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
     sy,
     threshold,
     width,
+    haloRadius,
   ])
 
   const handleClick: React.MouseEventHandler<HTMLCanvasElement> = (event) => {
