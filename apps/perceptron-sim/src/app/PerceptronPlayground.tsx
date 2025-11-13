@@ -56,6 +56,36 @@ const SNAPSHOT_LIMIT = SNAPSHOT_LABELS.length
 const createSnapshotId = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
+type SnapshotLabel = (typeof SNAPSHOT_LABELS)[number]
+
+type SnapshotEntry = {
+  id: string
+  label: SnapshotLabel
+  params: { w: [number, number]; b: number }
+}
+
+const createOverlayVisibility = (): Record<SnapshotLabel, boolean> => ({
+  init: false,
+  mid: false,
+  final: false,
+})
+
+const overlayStyleLookup: Record<SnapshotLabel, { color: string; dash: [number, number] }> = {
+  init: { color: '#7c3aed', dash: [4, 4] },
+  mid: { color: '#0ea5e9', dash: [2, 6] },
+  final: { color: '#22c55e', dash: [8, 4] },
+}
+
+const overlaySwatchStyle = (label: SnapshotLabel): React.CSSProperties => {
+  const { color, dash } = overlayStyleLookup[label]
+  const [dashLength, gapLength] = dash
+  const patternWidth = dashLength + gapLength
+  return {
+    backgroundImage: `repeating-linear-gradient(to right, ${color}, ${color} ${dashLength}px, transparent ${dashLength}px, transparent ${patternWidth}px)`,
+    backgroundSize: `${patternWidth}px 2px`,
+  }
+}
+
 const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
     <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
@@ -91,10 +121,10 @@ export const PerceptronPlayground: React.FC = () => {
   const [useThresholdBoundary, setUseThresholdBoundary] = useState<boolean>(false)
   const [showBaselineBoundary, setShowBaselineBoundary] = useState<boolean>(true)
   const [showMarginBand, setShowMarginBand] = useState<boolean>(false)
-  const [snapshots, setSnapshots] = useState<
-    Array<{ id: string; label: string; params: { w: [number, number]; b: number } }>
-  >([])
-  const [showSnapshotBoundary, setShowSnapshotBoundary] = useState<boolean>(false)
+  const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([])
+  const [overlayVisibility, setOverlayVisibility] = useState<Record<SnapshotLabel, boolean>>(() =>
+    createOverlayVisibility(),
+  )
 
   const [addLabel, setAddLabel] = useState<0 | 1>(1)
 
@@ -125,7 +155,7 @@ export const PerceptronPlayground: React.FC = () => {
     setLossByStep([])
     setLossByEpoch([])
     setSnapshots([])
-    setShowSnapshotBoundary(false)
+    setOverlayVisibility(createOverlayVisibility())
   }, [])
 
   const resetAll = useCallback(() => {
@@ -238,7 +268,7 @@ export const PerceptronPlayground: React.FC = () => {
   }
 
   const saveSnapshot = () => {
-    const entry = {
+    const entry: SnapshotEntry = {
       id: createSnapshotId(),
       label: 'final',
       params: {
@@ -252,20 +282,26 @@ export const PerceptronPlayground: React.FC = () => {
         appended.length > SNAPSHOT_LIMIT
           ? appended.slice(appended.length - SNAPSHOT_LIMIT)
           : appended
-      return capped.map((item, index) => {
-        const label = SNAPSHOT_LABELS[index] ?? SNAPSHOT_LABELS[SNAPSHOT_LABELS.length - 1]!
-        return {
-          ...item,
-          label,
+      const normalized = capped.map<SnapshotEntry>((item, index) => ({
+        ...item,
+        label: SNAPSHOT_LABELS[Math.min(index, SNAPSHOT_LABELS.length - 1)] as SnapshotLabel,
+      }))
+      setOverlayVisibility((prevVisibility) => {
+        const nextVisibility: Record<SnapshotLabel, boolean> = { ...prevVisibility }
+        for (const label of SNAPSHOT_LABELS) {
+          if (!normalized.some((candidate) => candidate.label === label)) {
+            nextVisibility[label] = false
+          }
         }
+        return nextVisibility
       })
+      return normalized
     })
-    setShowSnapshotBoundary(true)
   }
 
   const clearSnapshot = () => {
     setSnapshots([])
-    setShowSnapshotBoundary(false)
+    setOverlayVisibility(createOverlayVisibility())
   }
 
   const customControls = (
@@ -361,8 +397,14 @@ export const PerceptronPlayground: React.FC = () => {
         ) : (
           <ul className="space-y-1 text-xs text-slate-600">
             {snapshots.map((entry) => (
-              <li key={entry.id} className="flex items-center justify-between">
-                <span className="font-medium text-slate-700">{entry.label}</span>
+              <li key={entry.id} className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 font-medium text-slate-700 capitalize">
+                  <span
+                    className="inline-block h-0.5 w-6 rounded-full"
+                    style={overlaySwatchStyle(entry.label)}
+                  />
+                  {entry.label}
+                </span>
                 <code className="rounded bg-slate-100 px-2 py-0.5 text-[10px]">
                   {`w=[${entry.params.w[0].toFixed(2)}, ${entry.params.w[1].toFixed(2)}] b=${entry.params.b.toFixed(2)}`}
                 </code>
@@ -372,15 +414,41 @@ export const PerceptronPlayground: React.FC = () => {
         )}
       </div>
 
-      <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-        <input
-          type="checkbox"
-          checked={showSnapshotBoundary}
-          onChange={(event) => setShowSnapshotBoundary(event.target.checked)}
-          disabled={snapshots.length === 0}
-        />
-        Show snapshot boundary
-      </label>
+      <div className="space-y-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Overlay visibility
+        </span>
+        <div className="space-y-1">
+          {SNAPSHOT_LABELS.map((label) => {
+            const available = snapshots.some((entry) => entry.label === label)
+            return (
+              <label
+                key={label}
+                className="flex items-center gap-2 text-sm text-slate-600 capitalize"
+              >
+                <input
+                  type="checkbox"
+                  checked={overlayVisibility[label]}
+                  onChange={(event) =>
+                    setOverlayVisibility((prev) => ({
+                      ...prev,
+                      [label]: event.target.checked,
+                    }))
+                  }
+                  disabled={!available}
+                />
+                <span className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-0.5 w-6 rounded-full"
+                    style={overlaySwatchStyle(label)}
+                  />
+                  {label}
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 
@@ -402,10 +470,10 @@ export const PerceptronPlayground: React.FC = () => {
     return computeRoc(state.params, dataset, 121)
   }, [activation, dataset, state.params])
 
-  const latestSnapshot = useMemo(() => {
-    if (snapshots.length === 0) return null
-    return snapshots[snapshots.length - 1]
-  }, [snapshots])
+  const activeSnapshotParams = useMemo(
+    () => snapshots.filter((entry) => overlayVisibility[entry.label]).map((entry) => entry.params),
+    [snapshots, overlayVisibility],
+  )
 
   const sparklineValues = lossMode === 'steps' ? lossByStep : lossByEpoch
 
@@ -624,12 +692,18 @@ export const PerceptronPlayground: React.FC = () => {
                   <span className="inline-block h-0.5 w-6 rounded-full border-b border-slate-400" />{' '}
                   Baseline τ=0.5
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-0.5 w-6 rounded-full border-b border-dotted border-violet-500" />{' '}
-                  Snapshot
-                </span>
+                {SNAPSHOT_LABELS.map((label) => (
+                  <span key={label} className="inline-flex items-center gap-2 capitalize">
+                    <span
+                      className="inline-block h-0.5 w-6 rounded-full"
+                      style={overlaySwatchStyle(label)}
+                    />
+                    {label}
+                  </span>
+                ))}
               </div>
             </div>
+
             <div className="px-6 pb-6">
               <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-600">
                 <input
@@ -651,8 +725,7 @@ export const PerceptronPlayground: React.FC = () => {
                   adjustBoundaryByThreshold={activation === 'sigmoid' && useThresholdBoundary}
                   showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
                   baselineThreshold={0.5}
-                  snapshotParams={latestSnapshot ? latestSnapshot.params : null}
-                  showSnapshotBoundary={showSnapshotBoundary && Boolean(latestSnapshot)}
+                  snapshotParams={activeSnapshotParams}
                   {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
                 />
               </div>

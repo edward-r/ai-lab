@@ -8,6 +8,11 @@ type Bounds = {
   ymax: number
 }
 
+export type SnapshotParams = {
+  w: [number, number]
+  b: number
+}
+
 type DecisionBoundaryCanvasProps = {
   data: LabeledPoint[]
   params: Params
@@ -22,8 +27,7 @@ type DecisionBoundaryCanvasProps = {
 
   showBaselineBoundary?: boolean
   baselineThreshold?: number
-  snapshotParams?: Params | null
-  showSnapshotBoundary?: boolean
+  snapshotParams?: SnapshotParams[]
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -66,6 +70,12 @@ const useDevicePixelRatio = (): number => {
   }
   return window.devicePixelRatio || 1
 }
+
+const SNAPSHOT_BOUNDARY_STYLES: Array<{ color: string; width: number; dash: number[] }> = [
+  { color: '#7c3aed', width: 2, dash: [4, 4] },
+  { color: '#0ea5e9', width: 2, dash: [2, 6] },
+  { color: '#22c55e', width: 2, dash: [8, 4] },
+]
 
 const drawBoundary = (
   ctx: CanvasRenderingContext2D,
@@ -174,8 +184,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
   showMarginBand = false,
   showBaselineBoundary = false,
   baselineThreshold = 0.5,
-  snapshotParams = null,
-  showSnapshotBoundary = false,
+  snapshotParams = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const dpr = useDevicePixelRatio()
@@ -295,15 +304,14 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
         })
       }
 
-      if (snapshotParams && showSnapshotBoundary) {
-        const snapshotBias =
-          activation === 'sigmoid' && adjustBoundaryByThreshold
-            ? snapshotParams.b - logit(threshold)
-            : snapshotParams.b
-        drawBoundary(context, width, height, bounds, snapshotParams.w, snapshotBias, sx, sy, {
-          color: '#7c3aed',
-          width: 2,
-          dash: [3, 3],
+      if (snapshotParams.length > 0) {
+        const shouldAdjustBias = activation === 'sigmoid' && adjustBoundaryByThreshold
+        snapshotParams.forEach((overlay, index) => {
+          const snapshotBias = shouldAdjustBias ? overlay.b - logit(threshold) : overlay.b
+          const styleIndex = index % SNAPSHOT_BOUNDARY_STYLES.length
+          const style = SNAPSHOT_BOUNDARY_STYLES[styleIndex]
+          if (!style) return
+          drawBoundary(context, width, height, bounds, overlay.w, snapshotBias, sx, sy, style)
         })
       }
     }
@@ -328,7 +336,6 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
     params,
     showMarginBand,
     showBaselineBoundary,
-    showSnapshotBoundary,
     snapshotParams,
     sx,
     sy,
