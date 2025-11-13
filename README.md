@@ -24,6 +24,34 @@ npm run dev
 # open http://localhost:5173
 ```
 
+## Perceptron Lab
+
+![Perceptron Lab demo](docs/perceptron-lab-demo.gif)
+
+- Interactive dataset presets (linearly separable, XOR, noisy, custom drawing)
+- Live decision boundary, margin band overlays, and saved snapshot comparisons
+- Loss tracking per step/epoch with ROC, confusion matrix, and threshold controls
+- Keyboard-driven workflow with snapshot management and quick reset options
+
+Live demo (GitHub Pages): https://edward-r.github.io/perceptron-lab
+
+### Keyboard Shortcuts
+
+- `Space` – Toggle start/pause training
+- `N` – Step once while paused
+- `R` – Reset training and stats
+- `S` – Save the current snapshot parameters
+
+### Threshold Logit Note
+
+When shifting the decision boundary by a probability threshold τ, the effective bias becomes
+
+```
+b′ = b - logit(τ)
+```
+
+Adjusting τ inside the simulator applies this offset automatically.
+
 ## Scripts (Nx powered)
 
 | Command               | Description                                                                         |

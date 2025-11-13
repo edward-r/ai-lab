@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import {
   DecisionBoundaryCanvas,
   DatasetTabs,
@@ -95,8 +95,11 @@ const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
 
 export const PerceptronPlayground: React.FC = () => {
   const [activation, setActivation] = usePersistentState<Activation>('pl.activation', 'step')
-  const [datasetKind, setDatasetKind] = useState<DatasetKind>('separable')
-  const [dataset, setDataset] = useState<LabeledPoint[]>(() => datasetFromKind('separable'))
+  const [datasetKind, setDatasetKind] = usePersistentState<DatasetKind>(
+    'pl.datasetKind',
+    'separable',
+  )
+  const [dataset, setDataset] = useState<LabeledPoint[]>(() => datasetFromKind(datasetKind))
 
   const [initial] = useState<Params>(DEFAULT_PARAMS)
   const [epochs, setEpochs] = usePersistentState<number>('pl.epochs', 50)
@@ -108,9 +111,9 @@ export const PerceptronPlayground: React.FC = () => {
 
   const [lossByStep, setLossByStep] = useState<number[]>([])
   const [lossByEpoch, setLossByEpoch] = useState<number[]>([])
-  const [lossMode, setLossMode] = useState<LossMode>('steps')
+  const [lossMode, setLossMode] = usePersistentState<LossMode>('pl.lossGranularity', 'steps')
 
-  const [threshold, setThreshold] = useState<number>(0.5)
+  const [threshold, setThreshold] = usePersistentState<number>('pl.tau', 0.5)
   const handleThresholdChange = useCallback((value: number) => {
     setThreshold((current) => {
       const next = Number.isFinite(value) ? value : current
@@ -120,12 +123,18 @@ export const PerceptronPlayground: React.FC = () => {
   }, [])
   const [useThresholdBoundary, setUseThresholdBoundary] = useState<boolean>(false)
   const [showBaselineBoundary, setShowBaselineBoundary] = useState<boolean>(true)
-  const [showMarginBand, setShowMarginBand] = useState<boolean>(false)
+  const [showMarginBand, setShowMarginBand] = usePersistentState<boolean>(
+    'pl.showMarginBand',
+    false,
+  )
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([])
-  const [overlayVisibility, setOverlayVisibility] = useState<Record<SnapshotLabel, boolean>>(() =>
-    createOverlayVisibility(),
+  const [visibleOverlayIds, setVisibleOverlayIds] = usePersistentState<string[]>(
+    'pl.snapshotOverlayIds',
+    [],
   )
   const [resetSnapshotId, setResetSnapshotId] = useState<string | null>(null)
+
+  const resetSelectId = useId()
 
   const [addLabel, setAddLabel] = useState<0 | 1>(1)
 
@@ -150,14 +159,22 @@ export const PerceptronPlayground: React.FC = () => {
     },
   })
 
+  const overlayVisibility = useMemo<Record<SnapshotLabel, boolean>>(() => {
+    const base = createOverlayVisibility()
+    snapshots.forEach((entry) => {
+      base[entry.label] = visibleOverlayIds.includes(entry.id)
+    })
+    return base
+  }, [snapshots, visibleOverlayIds])
+
   const { start, pause, reset, stepOnce, setLr: setTrainerLearningRate } = controls
 
   const resetHistories = useCallback(() => {
     setLossByStep([])
     setLossByEpoch([])
     setSnapshots([])
-    setOverlayVisibility(createOverlayVisibility())
-  }, [])
+    setVisibleOverlayIds([])
+  }, [setVisibleOverlayIds])
 
   const resetAll = useCallback(() => {
     resetHistories()
@@ -293,7 +310,7 @@ export const PerceptronPlayground: React.FC = () => {
     setDataset(points)
   }
 
-  const saveSnapshot = () => {
+  const saveSnapshot = useCallback(() => {
     const entry: SnapshotEntry = {
       id: createSnapshotId(),
       label: 'final',
@@ -303,6 +320,12 @@ export const PerceptronPlayground: React.FC = () => {
       },
     }
     setSnapshots((prev) => {
+      const activeLabels = new Set<SnapshotLabel>()
+      for (const item of prev) {
+        if (visibleOverlayIds.includes(item.id)) {
+          activeLabels.add(item.label)
+        }
+      }
       const appended = [...prev, entry]
       const capped =
         appended.length > SNAPSHOT_LIMIT
@@ -312,23 +335,74 @@ export const PerceptronPlayground: React.FC = () => {
         ...item,
         label: SNAPSHOT_LABELS[Math.min(index, SNAPSHOT_LABELS.length - 1)] as SnapshotLabel,
       }))
-      setOverlayVisibility((prevVisibility) => {
-        const nextVisibility: Record<SnapshotLabel, boolean> = { ...prevVisibility }
-        for (const label of SNAPSHOT_LABELS) {
-          if (!normalized.some((candidate) => candidate.label === label)) {
-            nextVisibility[label] = false
-          }
-        }
-        return nextVisibility
-      })
+      const nextVisibleIds = normalized
+        .filter((item) => activeLabels.has(item.label))
+        .map((item) => item.id)
+      setVisibleOverlayIds(nextVisibleIds)
       return normalized
     })
-  }
+  }, [setSnapshots, setVisibleOverlayIds, state.params, visibleOverlayIds])
 
   const clearSnapshot = () => {
     setSnapshots([])
-    setOverlayVisibility(createOverlayVisibility())
+    setVisibleOverlayIds([])
   }
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+
+      const target = event.target as HTMLElement | null
+      const tagName = target?.tagName.toLowerCase()
+      const isEditable =
+        tagName === 'input' ||
+        tagName === 'textarea' ||
+        tagName === 'select' ||
+        tagName === 'button' ||
+        target?.getAttribute('contenteditable') === 'true' ||
+        target?.isContentEditable === true
+
+      if (isEditable) {
+        return
+      }
+
+      if (event.key === ' ') {
+        event.preventDefault()
+        if (state.running) {
+          pause()
+        } else {
+          start()
+        }
+        return
+      }
+
+      const normalized = event.key.toLowerCase()
+      if (normalized === 'n') {
+        if (!state.running) {
+          event.preventDefault()
+          stepOnce()
+        }
+        return
+      }
+
+      if (normalized === 'r') {
+        event.preventDefault()
+        resetAll()
+        return
+      }
+
+      if (normalized === 's') {
+        event.preventDefault()
+        saveSnapshot()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [pause, resetAll, saveSnapshot, start, state.running, stepOnce])
 
   const customControls = (
     <div className="space-y-6 text-sm text-slate-700">
@@ -455,12 +529,23 @@ export const PerceptronPlayground: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={overlayVisibility[label]}
-                  onChange={(event) =>
-                    setOverlayVisibility((prev) => ({
-                      ...prev,
-                      [label]: event.target.checked,
-                    }))
-                  }
+                  onChange={(event) => {
+                    const enabled = event.target.checked
+                    const targetSnapshot = snapshots.find((entry) => entry.label === label)
+                    if (!targetSnapshot) return
+                    setVisibleOverlayIds((prevIds) => {
+                      const sanitized = prevIds.filter((id) =>
+                        snapshots.some((entry) => entry.id === id),
+                      )
+                      if (enabled) {
+                        if (sanitized.includes(targetSnapshot.id)) {
+                          return sanitized
+                        }
+                        return [...sanitized, targetSnapshot.id]
+                      }
+                      return sanitized.filter((id) => id !== targetSnapshot.id)
+                    })
+                  }}
                   disabled={!available}
                 />
                 <span className="flex items-center gap-2">
@@ -477,11 +562,15 @@ export const PerceptronPlayground: React.FC = () => {
       </div>
 
       <div className="space-y-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <label
+          className="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          htmlFor={resetSelectId}
+        >
           Reset to snapshot
-        </span>
+        </label>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <select
+            id={resetSelectId}
             className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:max-w-[10rem]"
             value={resetSnapshotId ?? ''}
             onChange={(event) => setResetSnapshotId(event.target.value || null)}
@@ -529,8 +618,11 @@ export const PerceptronPlayground: React.FC = () => {
   }, [activation, dataset, state.params])
 
   const activeSnapshotParams = useMemo(
-    () => snapshots.filter((entry) => overlayVisibility[entry.label]).map((entry) => entry.params),
-    [snapshots, overlayVisibility],
+    () =>
+      snapshots
+        .filter((entry) => visibleOverlayIds.includes(entry.id))
+        .map((entry) => entry.params),
+    [snapshots, visibleOverlayIds],
   )
 
   const sparklineValues = lossMode === 'steps' ? lossByStep : lossByEpoch
