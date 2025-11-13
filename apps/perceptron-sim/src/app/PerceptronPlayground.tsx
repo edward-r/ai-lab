@@ -617,13 +617,46 @@ export const PerceptronPlayground: React.FC = () => {
                   <h3 className="text-sm font-semibold text-slate-800">
                     Thresholded metrics (τ = {threshold.toFixed(2)})
                   </h3>
-                  {confusion ? (
-                    <ConfusionMatrix metrics={confusion} />
-                  ) : (
-                    <p className="text-sm">—</p>
-                  )}
-                  <h3 className="text-sm font-semibold text-slate-800">ROC curve</h3>
-                  <RocCurve points={roc.points} auc={roc.auc} width={300} height={300} />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 overflow-hidden">
+                      {confusion ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <ConfusionMatrix metrics={confusion} />
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">
+                          Add data to view confusion metrics.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 overflow-hidden">
+                      {roc.points.length > 0 ? (
+                        <div className="flex justify-center">
+                          <RocCurve points={roc.points} auc={roc.auc} width={240} height={240} />
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">
+                          Add data to generate the ROC curve.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                    <span>
+                      Precision: {confusion ? `${(confusion.precision * 100).toFixed(1)}%` : '—'}
+                    </span>
+                    <span>
+                      Recall (TPR): {confusion ? `${(confusion.recall * 100).toFixed(1)}%` : '—'}
+                    </span>
+                    <span>F₁: {confusion ? confusion.f1.toFixed(3) : '—'}</span>
+                    <span>
+                      Specificity (TNR):{' '}
+                      {confusion ? `${(confusion.specificity * 100).toFixed(1)}%` : '—'}
+                    </span>
+                  </div>
                 </div>
               ) : null}
             </div>

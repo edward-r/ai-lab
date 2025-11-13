@@ -26,40 +26,20 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "tsconfig.json",
-        "hash": "14777241203059172914"
+        "file": "AGENTS.md",
+        "hash": "10162619954131977335"
       },
       {
-        "file": "eslint.config.mjs",
-        "hash": "14158514078548521926"
+        "file": "README.md",
+        "hash": "7275003167834257955"
       },
       {
-        "file": "tsconfig.base.json",
-        "hash": "5883521791101511980"
+        "file": "package-lock.json",
+        "hash": "13538891849197178099"
       },
       {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": "package.json",
-        "hash": "13761242301549208884"
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
       },
       {
         "file": ".editorconfig",
@@ -70,32 +50,52 @@
         "hash": "11834113634521185343"
       },
       {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
       },
       {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "10162619954131977335"
-      },
-      {
-        "file": "README.md",
-        "hash": "7275003167834257955"
+        "file": "package.json",
+        "hash": "13761242301549208884"
       },
       {
         "file": "nx.json",
         "hash": "13064133220213869636"
       },
       {
-        "file": "package-lock.json",
-        "hash": "13538891849197178099"
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
+      },
+      {
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "14777241203059172914"
+      },
+      {
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "5883521791101511980"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "14158514078548521926"
       }
     ],
     "projectFileMap": {
@@ -430,7 +430,7 @@
         },
         {
           "file": "libs/perceptron-visuals/src/lib/RocCurve.tsx",
-          "hash": "4596670095281705844",
+          "hash": "13615223955833734765",
           "deps": [
             "npm:react"
           ]
@@ -508,7 +508,7 @@
         },
         {
           "file": "apps/perceptron-sim/src/app/PerceptronPlayground.tsx",
-          "hash": "10720929984369977515",
+          "hash": "15546466090345616213",
           "deps": [
             "npm:react",
             "perceptron-visuals"
