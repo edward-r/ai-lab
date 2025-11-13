@@ -77,6 +77,13 @@ export const PerceptronPlayground: React.FC = () => {
   const [lossMode, setLossMode] = useState<LossMode>('steps')
 
   const [threshold, setThreshold] = useState<number>(0.5)
+  const handleThresholdChange = useCallback((value: number) => {
+    setThreshold((current) => {
+      const next = Number.isFinite(value) ? value : current
+      if (Number.isNaN(next)) return current
+      return Math.min(1, Math.max(0, next))
+    })
+  }, [])
   const [useThresholdBoundary, setUseThresholdBoundary] = useState<boolean>(false)
   const [showBaselineBoundary, setShowBaselineBoundary] = useState<boolean>(true)
   const [showMarginBand, setShowMarginBand] = useState<boolean>(false)
@@ -152,6 +159,16 @@ export const PerceptronPlayground: React.FC = () => {
     if (Number.isNaN(parsed)) return
     setEpochs(parsed)
   }
+
+  const handleThresholdSlider = (raw: string) => {
+    const parsed = Number.parseFloat(raw)
+    if (Number.isNaN(parsed)) return
+    setThreshold(parsed)
+  }
+
+  const handleThresholdGuide = useCallback((value: number) => {
+    setThreshold(value)
+  }, [])
 
   const handleDatasetClick = (value: DatasetKind) => {
     setDatasetKind(value)
@@ -433,7 +450,7 @@ export const PerceptronPlayground: React.FC = () => {
                       max={1}
                       step={0.01}
                       value={threshold}
-                      onChange={(event) => setThreshold(Number.parseFloat(event.target.value))}
+                      onChange={(event) => handleThresholdSlider(event.target.value)}
                     />
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       τ = {threshold.toFixed(2)}
@@ -634,7 +651,14 @@ export const PerceptronPlayground: React.FC = () => {
                     <div className="rounded-xl border border-slate-200 bg-white p-4 overflow-hidden">
                       {roc.points.length > 0 ? (
                         <div className="flex justify-center">
-                          <RocCurve points={roc.points} auc={roc.auc} width={240} height={240} />
+                          <RocCurve
+                            points={roc.points}
+                            auc={roc.auc}
+                            width={240}
+                            height={240}
+                            threshold={threshold}
+                            onThresholdChange={handleThresholdGuide}
+                          />
                         </div>
                       ) : (
                         <p className="text-sm text-slate-500">
