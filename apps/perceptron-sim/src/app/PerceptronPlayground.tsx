@@ -51,6 +51,10 @@ const isLabeledPointArray = (value: unknown): value is LabeledPoint[] => {
 }
 
 const defaultLearningRate = (mode: Activation): number => (mode === 'sigmoid' ? 0.5 : 0.1)
+const SNAPSHOT_LABELS = ['init', 'mid', 'final'] as const
+const SNAPSHOT_LIMIT = SNAPSHOT_LABELS.length
+const createSnapshotId = (): string =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -87,7 +91,9 @@ export const PerceptronPlayground: React.FC = () => {
   const [useThresholdBoundary, setUseThresholdBoundary] = useState<boolean>(false)
   const [showBaselineBoundary, setShowBaselineBoundary] = useState<boolean>(true)
   const [showMarginBand, setShowMarginBand] = useState<boolean>(false)
-  const [snapshotParams, setSnapshotParams] = useState<Params | null>(null)
+  const [snapshots, setSnapshots] = useState<
+    Array<{ id: string; label: string; params: { w: [number, number]; b: number } }>
+  >([])
   const [showSnapshotBoundary, setShowSnapshotBoundary] = useState<boolean>(false)
 
   const [addLabel, setAddLabel] = useState<0 | 1>(1)
@@ -118,7 +124,7 @@ export const PerceptronPlayground: React.FC = () => {
   const resetHistories = useCallback(() => {
     setLossByStep([])
     setLossByEpoch([])
-    setSnapshotParams(null)
+    setSnapshots([])
     setShowSnapshotBoundary(false)
   }, [])
 
@@ -163,12 +169,15 @@ export const PerceptronPlayground: React.FC = () => {
   const handleThresholdSlider = (raw: string) => {
     const parsed = Number.parseFloat(raw)
     if (Number.isNaN(parsed)) return
-    setThreshold(parsed)
+    handleThresholdChange(parsed)
   }
 
-  const handleThresholdGuide = useCallback((value: number) => {
-    setThreshold(value)
-  }, [])
+  const handleThresholdGuide = useCallback(
+    (value: number) => {
+      handleThresholdChange(value)
+    },
+    [handleThresholdChange],
+  )
 
   const handleDatasetClick = (value: DatasetKind) => {
     setDatasetKind(value)
@@ -229,12 +238,33 @@ export const PerceptronPlayground: React.FC = () => {
   }
 
   const saveSnapshot = () => {
-    setSnapshotParams({ w: [state.params.w[0], state.params.w[1]], b: state.params.b })
+    const entry = {
+      id: createSnapshotId(),
+      label: 'final',
+      params: {
+        w: [state.params.w[0], state.params.w[1]] as [number, number],
+        b: state.params.b,
+      },
+    }
+    setSnapshots((prev) => {
+      const appended = [...prev, entry]
+      const capped =
+        appended.length > SNAPSHOT_LIMIT
+          ? appended.slice(appended.length - SNAPSHOT_LIMIT)
+          : appended
+      return capped.map((item, index) => {
+        const label = SNAPSHOT_LABELS[index] ?? SNAPSHOT_LABELS[SNAPSHOT_LABELS.length - 1]!
+        return {
+          ...item,
+          label,
+        }
+      })
+    })
     setShowSnapshotBoundary(true)
   }
 
   const clearSnapshot = () => {
-    setSnapshotParams(null)
+    setSnapshots([])
     setShowSnapshotBoundary(false)
   }
 
@@ -316,10 +346,30 @@ export const PerceptronPlayground: React.FC = () => {
           type="button"
           className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:opacity-60"
           onClick={clearSnapshot}
-          disabled={!snapshotParams}
+          disabled={snapshots.length === 0}
         >
-          Clear snapshot
+          Clear snapshots
         </button>
+      </div>
+
+      <div className="space-y-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Saved snapshots
+        </span>
+        {snapshots.length === 0 ? (
+          <p className="text-xs text-slate-500">No snapshots yet.</p>
+        ) : (
+          <ul className="space-y-1 text-xs text-slate-600">
+            {snapshots.map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between">
+                <span className="font-medium text-slate-700">{entry.label}</span>
+                <code className="rounded bg-slate-100 px-2 py-0.5 text-[10px]">
+                  {`w=[${entry.params.w[0].toFixed(2)}, ${entry.params.w[1].toFixed(2)}] b=${entry.params.b.toFixed(2)}`}
+                </code>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <label className="inline-flex items-center gap-2 text-sm text-slate-600">
@@ -327,7 +377,7 @@ export const PerceptronPlayground: React.FC = () => {
           type="checkbox"
           checked={showSnapshotBoundary}
           onChange={(event) => setShowSnapshotBoundary(event.target.checked)}
-          disabled={!snapshotParams}
+          disabled={snapshots.length === 0}
         />
         Show snapshot boundary
       </label>
@@ -351,6 +401,11 @@ export const PerceptronPlayground: React.FC = () => {
     if (activation !== 'sigmoid' || dataset.length === 0) return { points: [], auc: null }
     return computeRoc(state.params, dataset, 121)
   }, [activation, dataset, state.params])
+
+  const latestSnapshot = useMemo(() => {
+    if (snapshots.length === 0) return null
+    return snapshots[snapshots.length - 1]
+  }, [snapshots])
 
   const sparklineValues = lossMode === 'steps' ? lossByStep : lossByEpoch
 
@@ -596,8 +651,8 @@ export const PerceptronPlayground: React.FC = () => {
                   adjustBoundaryByThreshold={activation === 'sigmoid' && useThresholdBoundary}
                   showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
                   baselineThreshold={0.5}
-                  snapshotParams={snapshotParams}
-                  showSnapshotBoundary={showSnapshotBoundary}
+                  snapshotParams={latestSnapshot ? latestSnapshot.params : null}
+                  showSnapshotBoundary={showSnapshotBoundary && Boolean(latestSnapshot)}
                   {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
                 />
               </div>
