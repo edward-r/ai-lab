@@ -1,10 +1,54 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-
 export type Point2 = [number, number]
 export type LabeledPoint = { x: Point2; y: 0 | 1 }
 export type Params = { w: [number, number]; b: number }
 export type Activation = 'step' | 'sigmoid'
 
+export type PerceptronAdapter = {
+  getParams: () => Params
+  setParams: (params: Params) => void
+  predict: (x: Point2) => number
+  trainStep: (x: Point2, y: 0 | 1, lr: number, activation: Activation) => Params
+}
+
+export type TrainerState = {
+  running: boolean
+  epoch: number
+  step: number
+  params: Params
+  acc: number
+  loss: number
+}
+
+export type TrainerControls = {
+  start: () => void
+  pause: () => void
+  reset: (params?: Params) => void
+  stepOnce: () => void
+  setLr: (lr: number) => void
+}
+
+export const usePerceptronTrainer = (_options: unknown): [TrainerState, TrainerControls] => {
+  const state: TrainerState = {
+    running: false,
+    epoch: 0,
+    step: 0,
+    params: { w: [0, 0], b: 0 },
+    acc: 0,
+    loss: 0,
+  }
+
+  const controls: TrainerControls = {
+    start: () => undefined,
+    pause: () => undefined,
+    reset: () => undefined,
+    stepOnce: () => undefined,
+    setLr: () => undefined,
+  }
+
+  return [state, controls]
+}
+
+/*
 export type PerceptronAdapter = {
   getParams: () => Params
   setParams: (params: Params) => void
@@ -334,3 +378,4 @@ export const usePerceptronTrainer = (options: TrainerOpts): [TrainerState, Train
 
   return [state, { start, pause, reset, stepOnce, setLr }]
 }
+*/

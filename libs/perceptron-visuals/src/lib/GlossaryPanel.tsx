@@ -1,31 +1,12 @@
-import React from 'react'
+import type { FC } from 'react'
 
-type GlossaryPanelProps = {
-  compact?: boolean
+type GlossaryPanelProps = Record<string, unknown>
+
+export const GlossaryPanel: FC<GlossaryPanelProps> = () => <div>Glossary</div>
+/*
+
+
 }
-
-type SectionProps = {
-  title: string
-  defaultOpen: boolean
-  children: React.ReactNode
-}
-
-type CodeBlockProps = {
-  code: string
-}
-
-const CodeBlock: React.FC<CodeBlockProps> = ({ code }) => {
-  const handleCopy = async () => {
-    if (typeof navigator === 'undefined' || !navigator.clipboard) {
-      return
-    }
-
-    try {
-      await navigator.clipboard.writeText(code)
-    } catch {
-      // no-op
-    }
-  }
 
   return (
     <div className="relative">
@@ -119,3 +100,4 @@ export const GlossaryPanel: React.FC<GlossaryPanelProps> = ({ compact = false })
     </div>
   )
 }
+*/
