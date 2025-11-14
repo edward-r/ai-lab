@@ -32,6 +32,8 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
 }) => {
   const [tab, setTab] = useState<TabKey>('presets')
   const [importText, setImportText] = useState<string>('')
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importHasError, setImportHasError] = useState<boolean>(false)
 
   const presetButtons = useMemo(() => {
     return presetOptions.map((preset) => {
@@ -59,7 +61,21 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
 
   const handleImport = () => {
     if (!importText.trim()) return
-    onImport(importText)
+
+    try {
+      onImport(importText)
+      setImportError(null)
+      setImportHasError(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown import error'
+      setImportError(message)
+      setImportHasError(true)
+
+      window.setTimeout(() => {
+        setImportHasError(false)
+        setImportError(null)
+      }, 3000)
+    }
   }
 
   const handleExport = async () => {
@@ -123,11 +139,18 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
             <InfoTip k="jsonImportExport" />
           </div>
           <textarea
-            className="h-32 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`h-32 w-full rounded-xl border px-3 py-2 text-xs shadow-sm focus:outline-none focus:ring-2 ${
+              importHasError
+                ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500'
+            }`}
             placeholder='[{"x":[0.1,0.2],"y":1}, …]'
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
           />
+          {importError ? (
+            <p className="text-xs text-red-600">Import failed: {importError}</p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"

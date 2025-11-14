@@ -26,56 +26,32 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
+        "file": "package-lock.json",
+        "hash": "13538891849197178099"
       },
       {
         "file": ".prettierrc",
         "hash": "4872122421842301431"
       },
       {
-        "file": "AGENTS.md",
-        "hash": "10162619954131977335"
-      },
-      {
-        "file": "README.md",
-        "hash": "2139653527659314484"
+        "file": "tsconfig.base.json",
+        "hash": "5883521791101511980"
       },
       {
         "file": "eslint.config.mjs",
         "hash": "14158514078548521926"
       },
       {
-        "file": "nx.json",
-        "hash": "13064133220213869636"
+        "file": "README.md",
+        "hash": "2139653527659314484"
       },
       {
-        "file": "package-lock.json",
-        "hash": "13538891849197178099"
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
       },
       {
-        "file": "package.json",
-        "hash": "13761242301549208884"
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
       },
       {
         "file": "postcss.config.js",
@@ -86,19 +62,86 @@
         "hash": "3771228352708915812"
       },
       {
-        "file": "tsconfig.base.json",
-        "hash": "5883521791101511980"
+        "file": "package.json",
+        "hash": "13761242301549208884"
+      },
+      {
+        "file": "nx.json",
+        "hash": "13064133220213869636"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "10162619954131977335"
+      },
+      {
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
       },
       {
         "file": "tsconfig.json",
         "hash": "14777241203059172914"
       },
       {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
       }
     ],
     "projectFileMap": {
+      "perceptron-core": [
+        {
+          "file": "libs/perceptron-core/project.json",
+          "hash": "15571648856739924981"
+        },
+        {
+          "file": "libs/perceptron-core/src/index.ts",
+          "hash": "8240860054729818693"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.test.ts",
+          "hash": "2763675980340157823",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.ts",
+          "hash": "10493328169959022042"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
+          "hash": "14897755387999689691",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.ts",
+          "hash": "801047537965533375"
+        },
+        {
+          "file": "libs/perceptron-core/tsconfig.json",
+          "hash": "16535889485124124979"
+        },
+        {
+          "file": "libs/perceptron-core/vitest.config.ts",
+          "hash": "9903363322179040656",
+          "deps": [
+            "npm:vitest"
+          ]
+        }
+      ],
       "perceptron-visuals": [
         {
           "file": "libs/perceptron-visuals/project.json",
@@ -128,7 +171,7 @@
         },
         {
           "file": "libs/perceptron-visuals/src/lib/DatasetTabs.tsx",
-          "hash": "18142501015128854973",
+          "hash": "5727787860758360256",
           "deps": [
             "npm:react"
           ]
@@ -195,7 +238,7 @@
         },
         {
           "file": "libs/perceptron-visuals/src/lib/help/InfoTip.tsx",
-          "hash": "9611186535758496610",
+          "hash": "17312460164660377323",
           "deps": [
             "npm:react"
           ]
@@ -206,7 +249,7 @@
         },
         {
           "file": "libs/perceptron-visuals/src/lib/hooks/usePersistentState.ts",
-          "hash": "14318613508177865224",
+          "hash": "16918494074051176818",
           "deps": [
             "npm:react"
           ]
@@ -219,6 +262,14 @@
           ]
         },
         {
+          "file": "libs/perceptron-visuals/src/lib/ui/Portal.tsx",
+          "hash": "14666405049345916423",
+          "deps": [
+            "npm:react",
+            "npm:react-dom"
+          ]
+        },
+        {
           "file": "libs/perceptron-visuals/src/lib/usePerceptronTrainer.ts",
           "hash": "16416149467083539626",
           "deps": [
@@ -228,6 +279,97 @@
         {
           "file": "libs/perceptron-visuals/tsconfig.json",
           "hash": "9690182976240718486"
+        }
+      ],
+      "perceptron-sim": [
+        {
+          "file": "apps/perceptron-sim/index.html",
+          "hash": "1543403856268149580"
+        },
+        {
+          "file": "apps/perceptron-sim/project.json",
+          "hash": "3520926284126263116"
+        },
+        {
+          "file": "apps/perceptron-sim/public/CNAME.example",
+          "hash": "421561306736021015"
+        },
+        {
+          "file": "apps/perceptron-sim/src/App.tsx",
+          "hash": "11016205686774023061",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/src/app/PerceptronPlayground.tsx",
+          "hash": "10893746228157745059",
+          "deps": [
+            "npm:react",
+            "perceptron-visuals"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/src/components/Dial.tsx",
+          "hash": "11620245318319219035",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/src/components/Led.tsx",
+          "hash": "14586902516838100310",
+          "deps": [
+            "npm:react",
+            "npm:clsx"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/src/features/Perceptron/PerceptronSimulator.tsx",
+          "hash": "6300572927548611586",
+          "deps": [
+            "npm:react",
+            "perceptron-core",
+            "perceptron-visuals"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/src/index.css",
+          "hash": "13925587943965220874"
+        },
+        {
+          "file": "apps/perceptron-sim/src/main.tsx",
+          "hash": "9122809098184079428",
+          "deps": [
+            "npm:react",
+            "npm:react-dom"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/src/test/setup.ts",
+          "hash": "4941352530169676329",
+          "deps": [
+            "npm:@testing-library/jest-dom"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/tsconfig.json",
+          "hash": "4071664928602438292"
+        },
+        {
+          "file": "apps/perceptron-sim/vite.config.ts",
+          "hash": "2253971724967443099",
+          "deps": [
+            "npm:vite",
+            "npm:@vitejs/plugin-react"
+          ]
+        },
+        {
+          "file": "apps/perceptron-sim/vitest.config.ts",
+          "hash": "11043035261381918575",
+          "deps": [
+            "npm:vitest"
+          ]
         }
       ],
       "prompt-maker": [
@@ -520,140 +662,6 @@
         {
           "file": "apps/prompt-maker/tsconfig.json",
           "hash": "1190035950690342656"
-        }
-      ],
-      "perceptron-core": [
-        {
-          "file": "libs/perceptron-core/project.json",
-          "hash": "15571648856739924981"
-        },
-        {
-          "file": "libs/perceptron-core/src/index.ts",
-          "hash": "8240860054729818693"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.test.ts",
-          "hash": "2763675980340157823",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.ts",
-          "hash": "10493328169959022042"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
-          "hash": "14897755387999689691",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.ts",
-          "hash": "801047537965533375"
-        },
-        {
-          "file": "libs/perceptron-core/tsconfig.json",
-          "hash": "16535889485124124979"
-        },
-        {
-          "file": "libs/perceptron-core/vitest.config.ts",
-          "hash": "9903363322179040656",
-          "deps": [
-            "npm:vitest"
-          ]
-        }
-      ],
-      "perceptron-sim": [
-        {
-          "file": "apps/perceptron-sim/index.html",
-          "hash": "1543403856268149580"
-        },
-        {
-          "file": "apps/perceptron-sim/project.json",
-          "hash": "3520926284126263116"
-        },
-        {
-          "file": "apps/perceptron-sim/public/CNAME.example",
-          "hash": "421561306736021015"
-        },
-        {
-          "file": "apps/perceptron-sim/src/App.tsx",
-          "hash": "11016205686774023061",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/src/app/PerceptronPlayground.tsx",
-          "hash": "16890654674728251749",
-          "deps": [
-            "npm:react",
-            "perceptron-visuals"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/src/components/Dial.tsx",
-          "hash": "11620245318319219035",
-          "deps": [
-            "npm:react"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/src/components/Led.tsx",
-          "hash": "14586902516838100310",
-          "deps": [
-            "npm:react",
-            "npm:clsx"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/src/features/Perceptron/PerceptronSimulator.tsx",
-          "hash": "6300572927548611586",
-          "deps": [
-            "npm:react",
-            "perceptron-core",
-            "perceptron-visuals"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/src/index.css",
-          "hash": "13925587943965220874"
-        },
-        {
-          "file": "apps/perceptron-sim/src/main.tsx",
-          "hash": "9122809098184079428",
-          "deps": [
-            "npm:react",
-            "npm:react-dom"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/src/test/setup.ts",
-          "hash": "4941352530169676329",
-          "deps": [
-            "npm:@testing-library/jest-dom"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/tsconfig.json",
-          "hash": "4071664928602438292"
-        },
-        {
-          "file": "apps/perceptron-sim/vite.config.ts",
-          "hash": "2253971724967443099",
-          "deps": [
-            "npm:vite",
-            "npm:@vitejs/plugin-react"
-          ]
-        },
-        {
-          "file": "apps/perceptron-sim/vitest.config.ts",
-          "hash": "11043035261381918575",
-          "deps": [
-            "npm:vitest"
-          ]
         }
       ]
     }

@@ -18,6 +18,7 @@ import {
   computeRoc,
   type ConfusionMetrics,
   usePersistentState,
+  clearPersisted,
   makeSeparable,
   makeXor,
   makeNoisy,
@@ -342,18 +343,12 @@ export const PerceptronLabPanel: React.FC = () => {
 
   const importDatasetJson = useCallback(
     (json: string) => {
-      try {
-        const parsed = JSON.parse(json) as unknown
-        if (!isLabeledPointArray(parsed)) {
-          throw new Error('Expected an array of { x: [number, number], y } objects')
-        }
-        setDataset(parsed.map((point) => ({ x: [point.x[0], point.x[1]], y: point.y })))
-        setDatasetKind('custom')
-      } catch (error) {
-        if (typeof window !== 'undefined') {
-          window.alert(`Import failed: ${(error as Error).message}`)
-        }
+      const parsed = JSON.parse(json) as unknown
+      if (!isLabeledPointArray(parsed)) {
+        throw new Error('Expected an array of { x: [number, number], y } objects')
       }
+      setDataset(parsed.map((point) => ({ x: [point.x[0], point.x[1]], y: point.y })))
+      setDatasetKind('custom')
     },
     [setDataset, setDatasetKind],
   )
@@ -685,10 +680,22 @@ export const PerceptronLabPanel: React.FC = () => {
 
   const sparklineValues = lossMode === 'steps' ? lossByStep : lossByEpoch
 
+  const handleResetUi = () => {
+    clearPersisted('pl.')
+    window.location.reload()
+  }
+
   return (
     <InfoTipProvider enabled={labTooltipsEnabled}>
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-4 flex justify-end text-xs text-slate-600">
+        <div className="mb-4 flex items-center justify-between text-xs text-slate-600">
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-3 py-1 font-medium text-slate-600 shadow-sm transition hover:bg-slate-100"
+            onClick={handleResetUi}
+          >
+            Reset UI
+          </button>
           <label className="inline-flex items-center gap-1">
             <input
               type="checkbox"
@@ -891,6 +898,59 @@ export const PerceptronLabPanel: React.FC = () => {
                     <InfoTip k="trainControls" />
                   </span>
                 </div>
+
+                {activation === 'step' ? (
+                  <div className="mt-4 space-y-2">
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={showStepConfusion}
+                        onChange={(event) => setShowStepConfusion(event.target.checked)}
+                      />
+                      <span>Show confusion in step mode</span>
+                    </label>
+
+                    {showStepConfusion ? (
+                      <Card className="mt-1" title="Confusion (step mode)">
+                        <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
+                          <div className="min-w-0 overflow-hidden">
+                            {confusionStep ? (
+                              <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
+                                <ConfusionMatrix metrics={confusionStep} showSummary={false} />
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-500">
+                                Add data to view confusion metrics.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
+                          <div>
+                            Accuracy:{' '}
+                            {confusionStep ? `${(confusionStep.accuracy * 100).toFixed(1)}%` : '—'}
+                          </div>
+                          <div>
+                            Precision:{' '}
+                            {confusionStep ? `${(confusionStep.precision * 100).toFixed(1)}%` : '—'}
+                          </div>
+                          <div>
+                            Recall (TPR):{' '}
+                            {confusionStep ? `${(confusionStep.recall * 100).toFixed(1)}%` : '—'}
+                          </div>
+                          <div>F₁: {confusionStep ? confusionStep.f1.toFixed(3) : '—'}</div>
+                          <div>
+                            Specificity (TNR):{' '}
+                            {confusionStep
+                              ? `${(confusionStep.specificity * 100).toFixed(1)}%`
+                              : '—'}
+                          </div>
+                        </div>
+                      </Card>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </Card>
 
@@ -1140,58 +1200,7 @@ export const PerceptronLabPanel: React.FC = () => {
                       </div>
                     </div>
                   </Card>
-                ) : (
-                  <div className="mt-6 space-y-2">
-                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={showStepConfusion}
-                        onChange={(event) => setShowStepConfusion(event.target.checked)}
-                      />
-                      <span>Show confusion in step mode</span>
-                    </label>
-
-                    {showStepConfusion ? (
-                      <Card className="mt-2" title="Confusion (step mode)">
-                        <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
-                          <div className="min-w-0 overflow-hidden">
-                            {confusionStep ? (
-                              <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
-                                <ConfusionMatrix metrics={confusionStep} showSummary={false} />
-                              </div>
-                            ) : (
-                              <p className="text-sm text-slate-500">
-                                Add data to view confusion metrics.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
-                          <div>
-                            Accuracy:{' '}
-                            {confusionStep ? `${(confusionStep.accuracy * 100).toFixed(1)}%` : '—'}
-                          </div>
-                          <div>
-                            Precision:{' '}
-                            {confusionStep ? `${(confusionStep.precision * 100).toFixed(1)}%` : '—'}
-                          </div>
-                          <div>
-                            Recall (TPR):{' '}
-                            {confusionStep ? `${(confusionStep.recall * 100).toFixed(1)}%` : '—'}
-                          </div>
-                          <div>F₁: {confusionStep ? confusionStep.f1.toFixed(3) : '—'}</div>
-                          <div>
-                            Specificity (TNR):{' '}
-                            {confusionStep
-                              ? `${(confusionStep.specificity * 100).toFixed(1)}%`
-                              : '—'}
-                          </div>
-                        </div>
-                      </Card>
-                    ) : null}
-                  </div>
-                )}
+                ) : null}
               </div>
             </Card>
           </aside>
@@ -1203,7 +1212,7 @@ export const PerceptronLabPanel: React.FC = () => {
 }
 
 export const ClassicWeightTablePanel: React.FC = () => {
-  const [classicTooltipsEnabled, setClassicTooltipsEnabled] = usePersistentState<boolean>(
+  const [classicTooltipsEnabled, setClassicTooltipsEnabled] = usePersistentState(
     'pl.classicTooltips',
     true,
   )

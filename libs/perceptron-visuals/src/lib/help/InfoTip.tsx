@@ -1,5 +1,6 @@
-import React, { useContext, useId, useState } from 'react'
+import React, { useContext, useId, useLayoutEffect, useRef, useState } from 'react'
 import { HELP, HelpKey } from './helpText'
+import { Portal } from '../ui/Portal'
 
 const InfoTipContext = React.createContext<boolean>(true)
 
@@ -16,12 +17,26 @@ type Props = { k: HelpKey; className?: string }
 export const InfoTip: React.FC<Props> = ({ k, className }) => {
   const label = HELP[k]
   const [open, setOpen] = useState<boolean>(false)
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
   const tooltipId = useId()
   const enabled = useContext(InfoTipContext)
+  const triggerRef = useRef<HTMLSpanElement | null>(null)
 
   if (!enabled) {
     return null
   }
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) {
+      return
+    }
+
+    const rect = triggerRef.current.getBoundingClientRect()
+    const top = rect.bottom + 8
+    const left = rect.left
+
+    setPosition({ top, left })
+  }, [open])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>): void => {
     if (event.key === 'Escape') {
@@ -40,9 +55,18 @@ export const InfoTip: React.FC<Props> = ({ k, className }) => {
     setOpen(false)
   }
 
+  const handleMouseEnter = (): void => {
+    setOpen(true)
+  }
+
+  const handleMouseLeave = (): void => {
+    setOpen(false)
+  }
+
   return (
     <span className={`group relative inline-flex align-middle ${className ?? ''}`}>
       <span
+        ref={triggerRef}
         tabIndex={0}
         role="button"
         aria-label={label}
@@ -50,19 +74,24 @@ export const InfoTip: React.FC<Props> = ({ k, className }) => {
         aria-describedby={tooltipId}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] leading-none select-none"
       >
         i
       </span>
-      <span
-        id={tooltipId}
-        role="tooltip"
-        className={`absolute z-40 mt-2 w-72 max-w-[80vw] rounded border bg-white p-2 text-xs shadow transition-opacity duration-100 ${
-          open ? 'visible opacity-100' : 'invisible opacity-0'
-        } group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100`}
-      >
-        {label}
-      </span>
+      <Portal>
+        {open && position ? (
+          <span
+            id={tooltipId}
+            role="tooltip"
+            style={{ top: position.top, left: position.left }}
+            className="fixed z-50 w-72 max-w-[80vw] rounded border bg-white p-2 text-xs shadow-lg"
+          >
+            {label}
+          </span>
+        ) : null}
+      </Portal>
     </span>
   )
 }
