@@ -15,7 +15,7 @@ export const TopTabs: React.FC<{ tabs: TopTabConfig[] }> = ({ tabs }) => {
   return (
     <div className="space-y-4">
       <div className="border-b border-gray-200 pb-2">
-        <div className="inline-flex gap-2">
+        <div className="flex gap-2 max-w-7xl mx-auto px-6">
           {tabs.map((tab) => {
             const isActive = tab.key === active
             return (
