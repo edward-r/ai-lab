@@ -30,72 +30,72 @@
         "hash": "2779288990582231472"
       },
       {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
-      },
-      {
         "file": ".nvmrc",
         "hash": "16951876268857922555"
       },
       {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "10162619954131977335"
-      },
-      {
-        "file": "README.md",
-        "hash": "7275003167834257955"
-      },
-      {
-        "file": "eslint.config.mjs",
-        "hash": "14158514078548521926"
-      },
-      {
-        "file": "nx.json",
-        "hash": "13064133220213869636"
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
       },
       {
         "file": "package-lock.json",
         "hash": "13538891849197178099"
       },
       {
-        "file": "package.json",
-        "hash": "13761242301549208884"
+        "file": "tsconfig.json",
+        "hash": "14777241203059172914"
       },
       {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
+        "file": "eslint.config.mjs",
+        "hash": "14158514078548521926"
       },
       {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": "README.md",
+        "hash": "2139653527659314484"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
       },
       {
         "file": "tsconfig.base.json",
         "hash": "5883521791101511980"
       },
       {
-        "file": "tsconfig.json",
-        "hash": "14777241203059172914"
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
+      },
+      {
+        "file": "nx.json",
+        "hash": "13064133220213869636"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "10162619954131977335"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
+      },
+      {
+        "file": "package.json",
+        "hash": "13761242301549208884"
       },
       {
         "file": "tsconfig.node.json",
         "hash": "8684776726152056264"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
       }
     ],
     "projectFileMap": {
@@ -114,14 +114,14 @@
         },
         {
           "file": "apps/perceptron-sim/src/App.tsx",
-          "hash": "2599573395043418941",
+          "hash": "11016205686774023061",
           "deps": [
             "npm:react"
           ]
         },
         {
           "file": "apps/perceptron-sim/src/app/PerceptronPlayground.tsx",
-          "hash": "6646116866074879789",
+          "hash": "4060890461833617672",
           "deps": [
             "npm:react",
             "perceptron-visuals"
@@ -531,32 +531,39 @@
         },
         {
           "file": "libs/perceptron-visuals/src/index.ts",
-          "hash": "7647144716395893079"
+          "hash": "15267731527027471629"
         },
         {
           "file": "libs/perceptron-visuals/src/lib/ConfusionMatrix.tsx",
-          "hash": "5235399021487190780",
+          "hash": "1366681037843822635",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/DatasetTabs.tsx",
+          "hash": "11950783399859112688",
           "deps": [
             "npm:react"
           ]
         },
         {
           "file": "libs/perceptron-visuals/src/lib/DecisionBoundaryCanvas.tsx",
-          "hash": "8434360806242637109",
+          "hash": "13118597389521312534",
           "deps": [
             "npm:react"
           ]
         },
         {
           "file": "libs/perceptron-visuals/src/lib/GlossaryPanel.tsx",
-          "hash": "7387018669512942374",
+          "hash": "6606907014857685271",
           "deps": [
             "npm:react"
           ]
         },
         {
           "file": "libs/perceptron-visuals/src/lib/RocCurve.tsx",
-          "hash": "4596670095281705844",
+          "hash": "15876732445246992871",
           "deps": [
             "npm:react"
           ]
@@ -569,10 +576,28 @@
           ]
         },
         {
+          "file": "libs/perceptron-visuals/src/lib/Tooltip.tsx",
+          "hash": "1250579927845090475",
+          "deps": [
+            "npm:react"
+          ]
+        },
+        {
           "file": "libs/perceptron-visuals/src/lib/coreAdapter.ts",
           "hash": "3019064131126713394",
           "deps": [
             "perceptron-core"
+          ]
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/datasetPresets.ts",
+          "hash": "7629648139011302503"
+        },
+        {
+          "file": "libs/perceptron-visuals/src/lib/hooks/usePersistentState.ts",
+          "hash": "14318613508177865224",
+          "deps": [
+            "npm:react"
           ]
         },
         {

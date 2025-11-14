@@ -8,19 +8,26 @@ type Bounds = {
   ymax: number
 }
 
+export type SnapshotParams = {
+  w: [number, number]
+  b: number
+}
+
 type DecisionBoundaryCanvasProps = {
   data: LabeledPoint[]
   params: Params
   width?: number
   height?: number
   onAddPoint?: (point: LabeledPoint) => void
-  activation?: Activation
+  activation: Activation
   threshold?: number
+  haloRadius?: number
   adjustBoundaryByThreshold?: boolean
+  showMarginBand?: boolean
+
   showBaselineBoundary?: boolean
   baselineThreshold?: number
-  snapshotParams?: Params | null
-  showSnapshotBoundary?: boolean
+  snapshotParams?: SnapshotParams[]
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -63,6 +70,12 @@ const useDevicePixelRatio = (): number => {
   }
   return window.devicePixelRatio || 1
 }
+
+const SNAPSHOT_BOUNDARY_STYLES: Array<{ color: string; width: number; dash: number[] }> = [
+  { color: '#7c3aed', width: 2, dash: [4, 4] },
+  { color: '#0ea5e9', width: 2, dash: [2, 6] },
+  { color: '#22c55e', width: 2, dash: [8, 4] },
+]
 
 const drawBoundary = (
   ctx: CanvasRenderingContext2D,
@@ -166,11 +179,12 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
   onAddPoint,
   activation = 'step',
   threshold = 0.5,
+  haloRadius = 11,
   adjustBoundaryByThreshold = false,
+  showMarginBand = false,
   showBaselineBoundary = false,
   baselineThreshold = 0.5,
-  snapshotParams = null,
-  showSnapshotBoundary = false,
+  snapshotParams = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const dpr = useDevicePixelRatio()
@@ -198,67 +212,118 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas) return undefined
     const context = canvas.getContext('2d')
-    if (!context) return
+    if (!context) return undefined
 
-    canvas.width = Math.floor(width * dpr)
-    canvas.height = Math.floor(height * dpr)
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
-    context.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const draw = () => {
+      canvas.width = Math.floor(width * dpr)
+      canvas.height = Math.floor(height * dpr)
+      canvas.style.width = `${width}px`
+      canvas.style.height = `${height}px`
+      context.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    context.clearRect(0, 0, width, height)
-    drawGrid(context, width, height, sx, sy, bounds)
+      context.clearRect(0, 0, width, height)
+      drawGrid(context, width, height, sx, sy, bounds)
 
-    for (const point of data) {
-      const cx = sx(point.x[0])
-      const cy = sy(point.x[1])
-      const z = params.w[0] * point.x[0] + params.w[1] * point.x[1] + params.b
-      const probability = activation === 'sigmoid' ? sigmoid(z) : z > 0 ? 1 : 0
-      const ringColor = `rgba(${Math.round((1 - probability) * 255)}, ${Math.round(
-        probability * 255,
-      )}, 0, 0.5)`
+      const scaleX = width / (bounds.xmax - bounds.xmin || 1)
+      const scaleY = height / (bounds.ymax - bounds.ymin || 1)
 
-      context.beginPath()
-      context.arc(cx, cy, 7, 0, Math.PI * 2)
-      context.strokeStyle = ringColor
-      context.lineWidth = 2
-      context.stroke()
+      for (const point of data) {
+        const cx = sx(point.x[0])
+        const cy = sy(point.x[1])
+        const z = params.w[0] * point.x[0] + params.w[1] * point.x[1] + params.b
+        const isSigmoid = activation === 'sigmoid'
+        const probability = isSigmoid ? sigmoid(z) : null
+        const predicted: 0 | 1 = isSigmoid
+          ? probability !== null && probability >= threshold
+            ? 1
+            : 0
+          : z > 0
+            ? 1
+            : 0
+        const confidence = isSigmoid && probability !== null ? probability : predicted
+        const ringColor = `rgba(${Math.round((1 - confidence) * 255)}, ${Math.round(
+          confidence * 255,
+        )}, 0, 0.5)`
 
-      context.beginPath()
-      context.arc(cx, cy, 4, 0, Math.PI * 2)
-      context.fillStyle = point.y === 1 ? '#2563eb' : '#dc2626'
-      context.fill()
-    }
+        if (predicted !== point.y) {
+          context.save()
+          const haloGradient = context.createRadialGradient(cx, cy, 0, cx, cy, haloRadius)
+          const haloBase = point.y === 1 ? '59, 130, 246' : '220, 38, 38'
+          haloGradient.addColorStop(0, `rgba(${haloBase}, 0.32)`)
+          haloGradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+          context.beginPath()
+          context.fillStyle = haloGradient
+          context.arc(cx, cy, haloRadius, 0, Math.PI * 2)
+          context.fill()
+          context.restore()
+        }
 
-    const effectiveBias =
-      activation === 'sigmoid' && adjustBoundaryByThreshold ? params.b - logit(threshold) : params.b
+        context.beginPath()
+        context.arc(cx, cy, 7, 0, Math.PI * 2)
+        context.strokeStyle = ringColor
+        context.lineWidth = 2
+        context.stroke()
 
-    drawBoundary(context, width, height, bounds, params.w, effectiveBias, sx, sy, {
-      color: '#111827',
-      width: 2,
-    })
+        context.beginPath()
+        context.arc(cx, cy, 4, 0, Math.PI * 2)
+        context.fillStyle = point.y === 1 ? '#2563eb' : '#dc2626'
+        context.fill()
+      }
 
-    if (activation === 'sigmoid' && showBaselineBoundary) {
-      const baselineBias = params.b - logit(baselineThreshold)
-      drawBoundary(context, width, height, bounds, params.w, baselineBias, sx, sy, {
-        color: '#6b7280',
-        width: 2,
-        dash: [6, 4],
-      })
-    }
-
-    if (snapshotParams && showSnapshotBoundary) {
-      const snapshotBias =
+      const effectiveBias =
         activation === 'sigmoid' && adjustBoundaryByThreshold
-          ? snapshotParams.b - logit(threshold)
-          : snapshotParams.b
-      drawBoundary(context, width, height, bounds, snapshotParams.w, snapshotBias, sx, sy, {
-        color: '#7c3aed',
+          ? params.b - logit(threshold)
+          : params.b
+
+      if (showMarginBand) {
+        const norm = Math.hypot(params.w[0], params.w[1])
+        if (norm > 1e-6) {
+          const scaledNormal = Math.sqrt((params.w[0] * scaleX) ** 2 + (params.w[1] * scaleY) ** 2)
+          const pixelHalfWidth = scaledNormal / (norm * norm)
+          const bandWidth = clamp(pixelHalfWidth * 2, 6, 72)
+          drawBoundary(context, width, height, bounds, params.w, effectiveBias, sx, sy, {
+            color: 'rgba(59, 130, 246, 0.12)',
+            width: bandWidth,
+          })
+        }
+      }
+
+      drawBoundary(context, width, height, bounds, params.w, effectiveBias, sx, sy, {
+        color: '#111827',
         width: 2,
-        dash: [3, 3],
       })
+
+      if (activation === 'sigmoid' && showBaselineBoundary) {
+        const baselineBias = params.b - logit(baselineThreshold)
+        drawBoundary(context, width, height, bounds, params.w, baselineBias, sx, sy, {
+          color: '#6b7280',
+          width: 2,
+          dash: [6, 4],
+        })
+      }
+
+      if (snapshotParams.length > 0) {
+        const shouldAdjustBias = activation === 'sigmoid' && adjustBoundaryByThreshold
+        snapshotParams.forEach((overlay, index) => {
+          const snapshotBias = shouldAdjustBias ? overlay.b - logit(threshold) : overlay.b
+          const styleIndex = index % SNAPSHOT_BOUNDARY_STYLES.length
+          const style = SNAPSHOT_BOUNDARY_STYLES[styleIndex]
+          if (!style) return
+          drawBoundary(context, width, height, bounds, overlay.w, snapshotBias, sx, sy, style)
+        })
+      }
+    }
+
+    if (typeof window === 'undefined') {
+      draw()
+      return undefined
+    }
+
+    const frame = window.requestAnimationFrame(draw)
+    return () => {
+      window.cancelAnimationFrame(frame)
     }
   }, [
     activation,
@@ -269,13 +334,14 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
     dpr,
     height,
     params,
+    showMarginBand,
     showBaselineBoundary,
-    showSnapshotBoundary,
     snapshotParams,
     sx,
     sy,
     threshold,
     width,
+    haloRadius,
   ])
 
   const handleClick: React.MouseEventHandler<HTMLCanvasElement> = (event) => {
