@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import type { LabeledPoint } from './usePerceptronTrainer'
 import { presetOptions, type PresetKind } from './datasetPresets'
-import { usePersistentState } from './hooks/usePersistentState'
+import { InfoTip } from './help/InfoTip'
 
 type TabKey = 'presets' | 'custom' | 'json'
 
@@ -36,6 +36,7 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
   const presetButtons = useMemo(() => {
     return presetOptions.map((preset) => {
       const isActive = active === preset.kind
+      const infoKey = preset.kind === 'xor' ? 'xor' : preset.kind === 'noisy' ? 'noisy' : null
       return (
         <button
           key={preset.kind}
@@ -47,7 +48,10 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
           }`}
           onClick={() => onPreset(preset.kind, preset.make())}
         >
-          {preset.label}
+          <span className="inline-flex items-center gap-1">
+            {preset.label}
+            {infoKey ? <InfoTip k={infoKey} /> : null}
+          </span>
         </button>
       )
     })
@@ -89,6 +93,12 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
 
       {tab === 'presets' ? (
         <div className="space-y-3 text-sm text-slate-600">
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-1">
+              Presets
+              <InfoTip k="presets" />
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">{presetButtons}</div>
           <p className="text-xs text-slate-500">
             Tip: XOR is not linearly separable. Watch the perceptron struggle and try sigmoid mode.
@@ -108,6 +118,10 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
 
       {tab === 'json' ? (
         <div className="space-y-3 text-sm text-slate-600">
+          <div className="flex items-center gap-1 text-xs font-medium text-slate-600">
+            <span>Import JSON</span>
+            <InfoTip k="jsonImportExport" />
+          </div>
           <textarea
             className="h-32 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder='[{"x":[0.1,0.2],"y":1}, …]'
@@ -143,45 +157,6 @@ export const DatasetTabs: React.FC<DatasetTabsProps> = ({
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         Count: {dataset.length} points
       </div>
-    </div>
-  )
-}
-
-export type TopTabConfig = {
-  key: string
-  label: string
-  render: () => React.ReactNode
-}
-
-export const TopTabs: React.FC<{ tabs: TopTabConfig[] }> = ({ tabs }) => {
-  const [active, setActive] = usePersistentState<string>('pl.topTab', tabs[0]?.key ?? 'lab')
-
-  const current = tabs.find((tab) => tab.key === active) ?? tabs[0]
-
-  return (
-    <div className="space-y-4">
-      <div className="border-b border-gray-200 pb-2">
-        <div className="inline-flex gap-2">
-          {tabs.map((tab) => {
-            const isActive = tab.key === active
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                }`}
-                onClick={() => setActive(tab.key)}
-              >
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-      <div>{current ? current.render() : null}</div>
     </div>
   )
 }

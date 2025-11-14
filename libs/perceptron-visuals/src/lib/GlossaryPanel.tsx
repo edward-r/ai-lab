@@ -1,5 +1,4 @@
 import React from 'react'
-import { usePersistentState } from './hooks/usePersistentState'
 
 type GlossaryPanelProps = {
   compact?: boolean
@@ -14,19 +13,6 @@ type SectionProps = {
 type CodeBlockProps = {
   code: string
 }
-
-type CardProps = {
-  title?: string
-  children: React.ReactNode
-  className?: string
-}
-
-export const Card: React.FC<CardProps> = ({ title, children, className }) => (
-  <section className={`rounded-lg border p-3 min-w-0 ${className ?? ''}`}>
-    {title ? <h3 className="mb-2 font-semibold">{title}</h3> : null}
-    {children}
-  </section>
-)
 
 const CodeBlock: React.FC<CodeBlockProps> = ({ code }) => {
   const onCopy = async () => {
@@ -127,55 +113,5 @@ export const GlossaryPanel: React.FC<GlossaryPanelProps> = ({ compact = false })
         <CodeBlock code={codeRoc} />
       </Section>
     </div>
-  )
-}
-
-export const GlossaryDrawer: React.FC = () => {
-  const [open, setOpen] = usePersistentState<boolean>('pl.glossaryOpen', false)
-  const [pinned, setPinned] = usePersistentState<boolean>('pl.glossaryPinned', false)
-
-  const isVisible = open || pinned
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="fixed right-3 bottom-3 z-40 rounded-full bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow"
-        aria-expanded={isVisible}
-      >
-        Cheat sheet
-      </button>
-
-      <aside
-        className={`fixed top-0 right-0 z-40 h-screen w-[360px] max-w-[90vw] border-l bg-white shadow-xl transition-transform duration-200 ${
-          isVisible ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        <div className="flex items-center justify-between border-b px-3 py-2">
-          <div className="font-semibold">Cheat sheet</div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-sm">
-              <input
-                type="checkbox"
-                checked={pinned}
-                onChange={(event) => setPinned(event.target.checked)}
-              />
-              Pin
-            </label>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded border px-2 py-1 text-sm"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-        <div className="h-[calc(100vh-42px)] overflow-y-auto p-3">
-          <GlossaryPanel compact={false} />
-        </div>
-      </aside>
-    </>
   )
 }

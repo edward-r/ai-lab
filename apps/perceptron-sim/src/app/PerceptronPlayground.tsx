@@ -16,12 +16,14 @@ import {
   Card,
   computeConfusion,
   computeRoc,
+  type ConfusionMetrics,
   usePersistentState,
   makeSeparable,
   makeXor,
   makeNoisy,
   type PresetKind,
 } from '@perceptron-visuals'
+import { InfoTip } from '@perceptron-visuals/help/InfoTip'
 import { PerceptronSimulator } from '../features/Perceptron/PerceptronSimulator'
 
 type DatasetKind = PresetKind
@@ -33,6 +35,32 @@ type EpochSummary = {
 }
 
 const DEFAULT_PARAMS: Params = { w: [0.2, -0.4], b: 0 }
+
+const computeStepConfusion = (params: Params, data: LabeledPoint[]): ConfusionMetrics => {
+  let TP = 0
+  let TN = 0
+  let FP = 0
+  let FN = 0
+
+  for (const sample of data) {
+    const z = params.w[0] * sample.x[0] + params.w[1] * sample.x[1] + params.b
+    const predicted = z >= 0 ? 1 : 0
+
+    if (predicted === 1 && sample.y === 1) TP += 1
+    else if (predicted === 0 && sample.y === 0) TN += 1
+    else if (predicted === 1 && sample.y === 0) FP += 1
+    else FN += 1
+  }
+
+  const total = data.length
+  const accuracy = total === 0 ? 0 : (TP + TN) / total
+  const precision = TP + FP === 0 ? 0 : TP / (TP + FP)
+  const recall = TP + FN === 0 ? 0 : TP / (TP + FN)
+  const specificity = TN + FP === 0 ? 0 : TN / (TN + FP)
+  const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall)
+
+  return { TP, TN, FP, FN, accuracy, precision, recall, specificity, f1 }
+}
 
 const datasetFromKind = (kind: DatasetKind): LabeledPoint[] => {
   if (kind === 'separable') return makeSeparable()
@@ -89,9 +117,20 @@ const overlaySwatchStyle = (label: SnapshotLabel): React.CSSProperties => {
   }
 }
 
-const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+type StatProps = {
+  label: string
+  value: string
+  infoKey?: 'accuracy' | 'loss' | 'parameters'
+}
+
+const Stat: React.FC<StatProps> = ({ label, value, infoKey }) => (
   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-    <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+    <p className="text-xs uppercase tracking-wide text-slate-500">
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {infoKey ? <InfoTip k={infoKey} /> : null}
+      </span>
+    </p>
     <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
   </div>
 )
@@ -124,12 +163,19 @@ export const PerceptronLabPanel: React.FC = () => {
       return Math.min(1, Math.max(0, next))
     })
   }, [])
-  const [useThresholdBoundary, setUseThresholdBoundary] = useState<boolean>(false)
-  const [showBaselineBoundary, setShowBaselineBoundary] = useState<boolean>(true)
+  const [useThresholdBoundary, setUseThresholdBoundary] = usePersistentState<boolean>(
+    'pl.useThresholdBoundary',
+    false,
+  )
+  const [showBaselineBoundary, setShowBaselineBoundary] = usePersistentState<boolean>(
+    'pl.showBaselineBoundary',
+    true,
+  )
   const [showMarginBand, setShowMarginBand] = usePersistentState<boolean>(
     'pl.showMarginBand',
     false,
   )
+  const [showStepConfusion, setShowStepConfusion] = useState<boolean>(false)
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([])
   const [visibleOverlayIds, setVisibleOverlayIds] = usePersistentState<string[]>(
     'pl.snapshotOverlayIds',
@@ -610,10 +656,15 @@ export const PerceptronLabPanel: React.FC = () => {
     reset()
   }, [adapter, reset])
 
-  const confusion = useMemo(() => {
+  const confusionSigmoid = useMemo(() => {
     if (activation !== 'sigmoid' || dataset.length === 0) return null
     return computeConfusion(state.params, dataset, threshold)
   }, [activation, dataset, state.params, threshold])
+
+  const confusionStep = useMemo(() => {
+    if (activation !== 'step' || !showStepConfusion || dataset.length === 0) return null
+    return computeStepConfusion(state.params, dataset)
+  }, [activation, dataset, showStepConfusion, state.params])
 
   const roc = useMemo(() => {
     if (activation !== 'sigmoid' || dataset.length === 0) return { points: [], auc: null }
@@ -644,7 +695,10 @@ export const PerceptronLabPanel: React.FC = () => {
             <div className="space-y-6 px-6 py-6">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Activation
+                  <span className="inline-flex items-center gap-1">
+                    Activation
+                    <InfoTip k="activation" />
+                  </span>
                   <select
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={activation}
@@ -655,7 +709,10 @@ export const PerceptronLabPanel: React.FC = () => {
                   </select>
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Dataset
+                  <span className="inline-flex items-center gap-1">
+                    Dataset
+                    <InfoTip k="dataset" />
+                  </span>
                   <select
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={datasetKind}
@@ -668,7 +725,10 @@ export const PerceptronLabPanel: React.FC = () => {
                   </select>
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  η (learning-rate)
+                  <span className="inline-flex items-center gap-1">
+                    η (learning-rate)
+                    <InfoTip k="eta" />
+                  </span>
                   <input
                     type="number"
                     step="0.01"
@@ -678,7 +738,10 @@ export const PerceptronLabPanel: React.FC = () => {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Epochs
+                  <span className="inline-flex items-center gap-1">
+                    Epochs
+                    <InfoTip k="epochs" />
+                  </span>
                   <input
                     type="number"
                     className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -687,9 +750,10 @@ export const PerceptronLabPanel: React.FC = () => {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  <span className="inline-flex items-center">
+                  <span className="inline-flex items-center gap-1">
                     RNG seed
                     <Tooltip label="Makes runs reproducible." />
+                    <InfoTip k="rngSeed" />
                   </span>
                   <input
                     type="number"
@@ -704,7 +768,10 @@ export const PerceptronLabPanel: React.FC = () => {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Loss granularity
+                  <span className="inline-flex items-center gap-1">
+                    Loss granularity
+                    <InfoTip k="lossGranularity" />
+                  </span>
                   <select
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={lossMode}
@@ -720,7 +787,10 @@ export const PerceptronLabPanel: React.FC = () => {
                 <Card className="rounded-2xl border-slate-200 bg-slate-50">
                   <div className="min-w-0 grid gap-4 md:grid-cols-2">
                     <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-                      Threshold τ
+                      <span className="inline-flex items-center gap-1">
+                        Threshold τ
+                        <InfoTip k="tau" />
+                      </span>
                       <input
                         type="range"
                         min={0}
@@ -740,7 +810,10 @@ export const PerceptronLabPanel: React.FC = () => {
                           checked={useThresholdBoundary}
                           onChange={(event) => setUseThresholdBoundary(event.target.checked)}
                         />
-                        Use τ for decision boundary (logit shift)
+                        <span className="inline-flex items-center gap-1">
+                          Use τ for decision boundary (logit shift)
+                          <InfoTip k="useTauBoundary" />
+                        </span>
                       </label>
                       <label className="inline-flex items-center gap-2">
                         <input
@@ -748,7 +821,10 @@ export const PerceptronLabPanel: React.FC = () => {
                           checked={showBaselineBoundary}
                           onChange={(event) => setShowBaselineBoundary(event.target.checked)}
                         />
-                        Show baseline τ = 0.5
+                        <span className="inline-flex items-center gap-1">
+                          Show baseline τ = 0.5
+                          <InfoTip k="baselineTau" />
+                        </span>
                       </label>
                     </div>
                   </div>
@@ -794,12 +870,21 @@ export const PerceptronLabPanel: React.FC = () => {
                   Reset
                 </button>
               </div>
+              <div className="mt-2 text-xs text-slate-500">
+                <span className="inline-flex items-center gap-1">
+                  Controls
+                  <InfoTip k="trainControls" />
+                </span>
+              </div>
             </div>
           </Card>
 
           <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
             <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-lg font-semibold text-slate-900">Training snapshot</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Training snapshot</h2>
+                <InfoTip k="trainingSnapshot" />
+              </div>
               <p className="mt-1 text-sm text-slate-500">
                 Track epoch progress, accuracy, loss, and current parameters in real time.
               </p>
@@ -808,17 +893,25 @@ export const PerceptronLabPanel: React.FC = () => {
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                 <Stat label="Epoch" value={state.epoch.toString()} />
                 <Stat label="Step" value={state.step.toString()} />
-                <Stat label="Accuracy" value={`${(state.acc * 100).toFixed(1)}%`} />
-                <Stat label="Loss" value={state.loss.toFixed(4)} />
+                <Stat
+                  label="Accuracy"
+                  value={`${(state.acc * 100).toFixed(1)}%`}
+                  infoKey="accuracy"
+                />
+                <Stat label="Loss" value={state.loss.toFixed(4)} infoKey="loss" />
                 <Stat
                   label="Parameters"
                   value={`w=[${state.params.w[0].toFixed(2)}, ${state.params.w[1].toFixed(2)}], b=${state.params.b.toFixed(2)}`}
+                  infoKey="parameters"
                 />
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-slate-900">Loss trend</h3>
+                  <span className="inline-flex items-center gap-1">
+                    <h3 className="text-base font-semibold text-slate-900">Loss trend</h3>
+                    <InfoTip k="lossTrend" />
+                  </span>
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     {lossMode === 'steps' ? 'Per update' : 'Per epoch'}
                   </span>
@@ -835,10 +928,15 @@ export const PerceptronLabPanel: React.FC = () => {
             </div>
           </Card>
 
-          <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
             <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Decision boundary</h2>
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1">
+                    <h2 className="text-lg font-semibold text-slate-900">Decision boundary</h2>
+                    <InfoTip k="decisionBoundary" />
+                  </span>
+                </div>
                 <p className="mt-1 text-sm text-slate-500">
                   Observe how the separating line evolves as the perceptron trains.
                 </p>
@@ -849,7 +947,10 @@ export const PerceptronLabPanel: React.FC = () => {
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block h-0.5 w-6 rounded-full border-b border-slate-400" />{' '}
-                  Baseline τ=0.5
+                  <span className="inline-flex items-center gap-1">
+                    Baseline τ=0.5
+                    <InfoTip k="baselineTau" />
+                  </span>
                 </span>
                 {SNAPSHOT_LABELS.map((label) => (
                   <span key={label} className="inline-flex items-center gap-2 capitalize">
@@ -870,7 +971,10 @@ export const PerceptronLabPanel: React.FC = () => {
                   checked={showMarginBand}
                   onChange={(event) => setShowMarginBand(event.target.checked)}
                 />
-                Show margin band
+                <span className="inline-flex items-center gap-1">
+                  Show margin band
+                  <InfoTip k="marginBand" />
+                </span>
               </label>
               <Card className="overflow-x-auto rounded-2xl border-slate-200 bg-slate-50">
                 <div className="min-w-0">
@@ -896,13 +1000,16 @@ export const PerceptronLabPanel: React.FC = () => {
                 the controls on the right to swap labels or generate clusters.
               </p>
             </div>
-          </section>
+          </Card>
         </div>
 
         <aside className="space-y-10 lg:sticky lg:top-24">
           <Card className="space-y-6 rounded-3xl border-slate-200 bg-white shadow-sm p-0">
             <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-lg font-semibold text-slate-900">Dataset studio</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-900">Dataset studio</h2>
+                <InfoTip k="datasetStudio" />
+              </div>
               <p className="mt-1 text-sm text-slate-500">
                 Curate points, toggle labels, and manage presets.
               </p>
@@ -919,12 +1026,24 @@ export const PerceptronLabPanel: React.FC = () => {
               />
 
               {activation === 'sigmoid' ? (
-                <Card className="mt-6" title={`Thresholded metrics (τ = ${threshold.toFixed(2)})`}>
+                <Card className="mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-800">
+                      Thresholded metrics (τ = {threshold.toFixed(2)})
+                      <InfoTip k="tau" />
+                    </span>
+                  </div>
                   <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
-                    <div className="min-w-0 overflow-hidden">
-                      {confusion ? (
+                    <div className="min-w-0 overflow-hidden space-y-1">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                        <span className="inline-flex items-center gap-1">
+                          Confusion matrix
+                          <InfoTip k="confusion" />
+                        </span>
+                      </div>
+                      {confusionSigmoid ? (
                         <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
-                          <ConfusionMatrix metrics={confusion} showSummary={false} />
+                          <ConfusionMatrix metrics={confusionSigmoid} showSummary={false} />
                         </div>
                       ) : (
                         <p className="text-sm text-slate-500">
@@ -932,7 +1051,17 @@ export const PerceptronLabPanel: React.FC = () => {
                         </p>
                       )}
                     </div>
-                    <div className="min-w-0 overflow-hidden">
+                    <div className="min-w-0 overflow-hidden space-y-1">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                        <span className="inline-flex items-center gap-1">
+                          ROC curve
+                          <InfoTip k="roc" />
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          AUC: {roc.auc !== null ? roc.auc.toFixed(3) : '—'}
+                          <InfoTip k="auc" />
+                        </span>
+                      </div>
                       {roc.points.length > 0 ? (
                         <div className="rounded-lg border p-2">
                           <RocCurve
@@ -954,22 +1083,93 @@ export const PerceptronLabPanel: React.FC = () => {
 
                   <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
                     <div>
-                      Accuracy: {confusion ? `${(confusion.accuracy * 100).toFixed(1)}%` : '—'}
+                      Accuracy:{' '}
+                      {confusionSigmoid ? `${(confusionSigmoid.accuracy * 100).toFixed(1)}%` : '—'}
                     </div>
                     <div>
-                      Precision: {confusion ? `${(confusion.precision * 100).toFixed(1)}%` : '—'}
+                      <span className="inline-flex items-center gap-1">
+                        Precision
+                        <InfoTip k="precision" />
+                      </span>
+                      :{' '}
+                      {confusionSigmoid ? `${(confusionSigmoid.precision * 100).toFixed(1)}%` : '—'}
                     </div>
                     <div>
-                      Recall (TPR): {confusion ? `${(confusion.recall * 100).toFixed(1)}%` : '—'}
+                      <span className="inline-flex items-center gap-1">
+                        Recall (TPR)
+                        <InfoTip k="recall" />
+                      </span>
+                      : {confusionSigmoid ? `${(confusionSigmoid.recall * 100).toFixed(1)}%` : '—'}
                     </div>
-                    <div>F₁: {confusion ? confusion.f1.toFixed(3) : '—'}</div>
                     <div>
-                      Specificity (TNR):{' '}
-                      {confusion ? `${(confusion.specificity * 100).toFixed(1)}%` : '—'}
+                      <span className="inline-flex items-center gap-1">
+                        F₁
+                        <InfoTip k="f1" />
+                      </span>
+                      : {confusionSigmoid ? confusionSigmoid.f1.toFixed(3) : '—'}
+                    </div>
+                    <div>
+                      <span className="inline-flex items-center gap-1">
+                        Specificity (TNR)
+                        <InfoTip k="specificity" />
+                      </span>
+                      :{' '}
+                      {confusionSigmoid
+                        ? `${(confusionSigmoid.specificity * 100).toFixed(1)}%`
+                        : '—'}
                     </div>
                   </div>
                 </Card>
-              ) : null}
+              ) : (
+                <div className="mt-6 space-y-2">
+                  <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={showStepConfusion}
+                      onChange={(event) => setShowStepConfusion(event.target.checked)}
+                    />
+                    <span>Show confusion in step mode</span>
+                  </label>
+
+                  {showStepConfusion ? (
+                    <Card className="mt-2" title="Confusion (step mode)">
+                      <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
+                        <div className="min-w-0 overflow-hidden">
+                          {confusionStep ? (
+                            <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
+                              <ConfusionMatrix metrics={confusionStep} showSummary={false} />
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500">
+                              Add data to view confusion metrics.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
+                        <div>
+                          Accuracy:{' '}
+                          {confusionStep ? `${(confusionStep.accuracy * 100).toFixed(1)}%` : '—'}
+                        </div>
+                        <div>
+                          Precision:{' '}
+                          {confusionStep ? `${(confusionStep.precision * 100).toFixed(1)}%` : '—'}
+                        </div>
+                        <div>
+                          Recall (TPR):{' '}
+                          {confusionStep ? `${(confusionStep.recall * 100).toFixed(1)}%` : '—'}
+                        </div>
+                        <div>F₁: {confusionStep ? confusionStep.f1.toFixed(3) : '—'}</div>
+                        <div>
+                          Specificity (TNR):{' '}
+                          {confusionStep ? `${(confusionStep.specificity * 100).toFixed(1)}%` : '—'}
+                        </div>
+                      </div>
+                    </Card>
+                  ) : null}
+                </div>
+              )}
             </div>
           </Card>
         </aside>

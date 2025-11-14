@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Dial } from '../../components/Dial'
 import { Led } from '../../components/Led'
 import { binaryCombinations, sigmoid, step, weightedSum } from '@perceptron/core'
+import { InfoTip } from '@perceptron-visuals/help/InfoTip'
 
 type ActivationKey = 'step' | 'sigmoid'
 
@@ -71,6 +72,13 @@ export function PerceptronSimulator(): JSX.Element {
         ))}
       </div>
 
+      <div className="flex justify-center">
+        <span className="inline-flex items-center gap-1 text-sm text-gray-700">
+          w₁, w₂, b
+          <InfoTip k="classicDials" />
+        </span>
+      </div>
+
       <div className="grid grid-cols-3 gap-4">
         {weights.map((weight, index) => (
           <Dial
@@ -105,8 +113,11 @@ export function PerceptronSimulator(): JSX.Element {
 
       <div className="flex items-center justify-between rounded border bg-gray-50 p-3">
         <div>
-          <p>
-            z = ∑ᵢ wᵢxᵢ + b = <strong>{z.toFixed(2)}</strong>
+          <p className="flex items-center gap-1">
+            <span>
+              z = ∑ᵢ wᵢxᵢ + b = <strong>{z.toFixed(2)}</strong>
+            </span>
+            <InfoTip k="classicDials" />
           </p>
           <p>
             φ(z) = <strong>{y.toFixed(2)}</strong>
@@ -128,7 +139,10 @@ export function PerceptronSimulator(): JSX.Element {
           onChange={setLearningRate}
         />
         <button className="rounded border px-3 py-1" type="button" onClick={trainEpoch}>
-          Train Epoch
+          <span className="inline-flex items-center gap-1">
+            Train Epoch
+            <InfoTip k="trainEpoch" />
+          </span>
         </button>
         <span>Epoch: {epoch}</span>
       </div>
@@ -145,6 +159,10 @@ export function PerceptronSimulator(): JSX.Element {
 
       {showTable && (
         <div className="overflow-x-auto">
+          <div className="mb-2 flex items-center gap-1 text-xs font-medium text-gray-700">
+            <span>Truth table</span>
+            <InfoTip k="truthTable" />
+          </div>
           <table className="mt-4 w-full table-auto border-collapse">
             <thead>
               <tr>
