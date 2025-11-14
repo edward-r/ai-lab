@@ -1,4 +1,5 @@
 import React from 'react'
+import { usePersistentState } from './hooks/usePersistentState'
 
 type GlossaryPanelProps = {
   compact?: boolean
@@ -14,12 +15,21 @@ type CodeBlockProps = {
   code: string
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ code }) => {
-  const handleCopy = async () => {
-    if (typeof navigator === 'undefined' || !navigator.clipboard) {
-      return
-    }
+type CardProps = {
+  title?: string
+  children: React.ReactNode
+  className?: string
+}
 
+export const Card: React.FC<CardProps> = ({ title, children, className }) => (
+  <section className={`rounded-lg border p-3 min-w-0 ${className ?? ''}`}>
+    {title ? <h3 className="mb-2 font-semibold">{title}</h3> : null}
+    {children}
+  </section>
+)
+
+const CodeBlock: React.FC<CodeBlockProps> = ({ code }) => {
+  const onCopy = async () => {
     try {
       await navigator.clipboard.writeText(code)
     } catch {
@@ -28,18 +38,18 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code }) => {
   }
 
   return (
-    <div className="relative">
+    <div className="relative w-full max-w-full overflow-hidden rounded border bg-gray-50">
       <button
         type="button"
-        onClick={handleCopy}
-        className="absolute right-2 top-2 rounded bg-gray-200 px-2 py-0.5 text-xs hover:bg-gray-300"
+        onClick={onCopy}
+        className="absolute right-2 top-2 text-xs px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300"
         aria-label="Copy code"
         title="Copy"
       >
         Copy
       </button>
-      <pre className="border bg-gray-50 p-3 text-xs leading-relaxed">
-        <code>{code}</code>
+      <pre className="font-mono text-xs leading-relaxed whitespace-pre overflow-x-auto overflow-y-hidden p-3 pr-10">
+        <code className="block min-w-max">{code}</code>
       </pre>
     </div>
   )
@@ -117,5 +127,55 @@ export const GlossaryPanel: React.FC<GlossaryPanelProps> = ({ compact = false })
         <CodeBlock code={codeRoc} />
       </Section>
     </div>
+  )
+}
+
+export const GlossaryDrawer: React.FC = () => {
+  const [open, setOpen] = usePersistentState<boolean>('pl.glossaryOpen', false)
+  const [pinned, setPinned] = usePersistentState<boolean>('pl.glossaryPinned', false)
+
+  const isVisible = open || pinned
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="fixed right-3 bottom-3 z-40 rounded-full bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow"
+        aria-expanded={isVisible}
+      >
+        Cheat sheet
+      </button>
+
+      <aside
+        className={`fixed top-0 right-0 z-40 h-screen w-[360px] max-w-[90vw] border-l bg-white shadow-xl transition-transform duration-200 ${
+          isVisible ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between border-b px-3 py-2">
+          <div className="font-semibold">Cheat sheet</div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={pinned}
+                onChange={(event) => setPinned(event.target.checked)}
+              />
+              Pin
+            </label>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded border px-2 py-1 text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <div className="h-[calc(100vh-42px)] overflow-y-auto p-3">
+          <GlossaryPanel compact={false} />
+        </div>
+      </aside>
+    </>
   )
 }

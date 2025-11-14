@@ -11,7 +11,9 @@ import {
   ConfusionMatrix,
   RocCurve,
   Tooltip,
-  GlossaryPanel,
+  GlossaryDrawer,
+  TopTabs,
+  Card,
   computeConfusion,
   computeRoc,
   usePersistentState,
@@ -20,6 +22,7 @@ import {
   makeNoisy,
   type PresetKind,
 } from '@perceptron-visuals'
+import { PerceptronSimulator } from '../features/Perceptron/PerceptronSimulator'
 
 type DatasetKind = PresetKind
 type LossMode = 'steps' | 'epochs'
@@ -93,7 +96,7 @@ const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   </div>
 )
 
-export const PerceptronPlayground: React.FC = () => {
+export const PerceptronLabPanel: React.FC = () => {
   const [activation, setActivation] = usePersistentState<Activation>('pl.activation', 'step')
   const [datasetKind, setDatasetKind] = usePersistentState<DatasetKind>(
     'pl.datasetKind',
@@ -631,7 +634,7 @@ export const PerceptronPlayground: React.FC = () => {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:gap-12">
         <div className="space-y-10">
-          <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
             <div className="border-b border-slate-200 px-6 py-5">
               <h2 className="text-lg font-semibold text-slate-900">Simulation controls</h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -714,48 +717,52 @@ export const PerceptronPlayground: React.FC = () => {
               </div>
 
               {activation === 'sigmoid' ? (
-                <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 md:grid-cols-2">
-                  <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-                    Threshold τ
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={threshold}
-                      onChange={(event) => handleThresholdSlider(event.target.value)}
-                    />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      τ = {threshold.toFixed(2)}
-                    </span>
-                  </label>
-                  <div className="flex flex-col gap-3 text-sm text-slate-600">
-                    <label className="inline-flex items-center gap-2">
+                <Card className="rounded-2xl border-slate-200 bg-slate-50">
+                  <div className="min-w-0 grid gap-4 md:grid-cols-2">
+                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                      Threshold τ
                       <input
-                        type="checkbox"
-                        checked={useThresholdBoundary}
-                        onChange={(event) => setUseThresholdBoundary(event.target.checked)}
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={threshold}
+                        onChange={(event) => handleThresholdSlider(event.target.value)}
                       />
-                      Use τ for decision boundary (logit shift)
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        τ = {threshold.toFixed(2)}
+                      </span>
                     </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={showBaselineBoundary}
-                        onChange={(event) => setShowBaselineBoundary(event.target.checked)}
-                      />
-                      Show baseline τ = 0.5
-                    </label>
+                    <div className="min-w-0 flex flex-col gap-3 text-sm text-slate-600">
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={useThresholdBoundary}
+                          onChange={(event) => setUseThresholdBoundary(event.target.checked)}
+                        />
+                        Use τ for decision boundary (logit shift)
+                      </label>
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={showBaselineBoundary}
+                          onChange={(event) => setShowBaselineBoundary(event.target.checked)}
+                        />
+                        Show baseline τ = 0.5
+                      </label>
+                    </div>
                   </div>
-                </div>
+                </Card>
               ) : (
-                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                  <span className="font-medium text-slate-500">τ controls disabled</span>
-                  <Tooltip label="Why disabled?">
-                    τ and ROC require probabilities from σ(𝑧). The perceptron’s step activation is
-                    not probabilistic.
-                  </Tooltip>
-                </div>
+                <Card className="rounded-2xl border-slate-200 bg-slate-50 text-sm text-slate-500">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="font-medium text-slate-500">τ controls disabled</span>
+                    <Tooltip label="Why disabled?">
+                      τ and ROC require probabilities from σ(𝑧). The perceptron’s step activation is
+                      not probabilistic.
+                    </Tooltip>
+                  </div>
+                </Card>
               )}
 
               <div className="flex flex-wrap gap-2">
@@ -788,9 +795,9 @@ export const PerceptronPlayground: React.FC = () => {
                 </button>
               </div>
             </div>
-          </section>
+          </Card>
 
-          <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
             <div className="border-b border-slate-200 px-6 py-5">
               <h2 className="text-lg font-semibold text-slate-900">Training snapshot</h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -816,15 +823,17 @@ export const PerceptronPlayground: React.FC = () => {
                     {lossMode === 'steps' ? 'Per update' : 'Per epoch'}
                   </span>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <SparklineLoss values={sparklineValues} width={720} height={72} />
-                </div>
+                <Card className="border-slate-200 bg-slate-50 rounded-2xl">
+                  <div className="min-w-0">
+                    <SparklineLoss values={sparklineValues} width={720} height={72} />
+                  </div>
+                </Card>
                 <p className="text-xs text-slate-500">
                   Switch granularity to compare micro-updates with per-epoch trends.
                 </p>
               </div>
             </div>
-          </section>
+          </Card>
 
           <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
@@ -863,22 +872,24 @@ export const PerceptronPlayground: React.FC = () => {
                 />
                 Show margin band
               </label>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <DecisionBoundaryCanvas
-                  data={dataset}
-                  params={state.params}
-                  activation={activation}
-                  width={720}
-                  height={520}
-                  threshold={threshold}
-                  showMarginBand={showMarginBand}
-                  adjustBoundaryByThreshold={activation === 'sigmoid' && useThresholdBoundary}
-                  showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
-                  baselineThreshold={0.5}
-                  snapshotParams={activeSnapshotParams}
-                  {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
-                />
-              </div>
+              <Card className="overflow-x-auto rounded-2xl border-slate-200 bg-slate-50">
+                <div className="min-w-0">
+                  <DecisionBoundaryCanvas
+                    data={dataset}
+                    params={state.params}
+                    activation={activation}
+                    width={720}
+                    height={520}
+                    threshold={threshold}
+                    showMarginBand={showMarginBand}
+                    adjustBoundaryByThreshold={activation === 'sigmoid' && useThresholdBoundary}
+                    showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
+                    baselineThreshold={0.5}
+                    snapshotParams={activeSnapshotParams}
+                    {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
+                  />
+                </div>
+              </Card>
               <p className="mt-3 text-sm text-slate-500">
                 In <span className="font-semibold text-slate-700">custom</span> mode, click the
                 plane to add class <span className="font-semibold">{addLabel}</span> examples. Use
@@ -889,7 +900,7 @@ export const PerceptronPlayground: React.FC = () => {
         </div>
 
         <aside className="space-y-10 lg:sticky lg:top-24">
-          <section className="space-y-6 rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <Card className="space-y-6 rounded-3xl border-slate-200 bg-white shadow-sm p-0">
             <div className="border-b border-slate-200 px-6 py-5">
               <h2 className="text-lg font-semibold text-slate-900">Dataset studio</h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -908,16 +919,12 @@ export const PerceptronPlayground: React.FC = () => {
               />
 
               {activation === 'sigmoid' ? (
-                <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <h3 className="text-sm font-semibold text-slate-800">
-                    Thresholded metrics (τ = {threshold.toFixed(2)})
-                  </h3>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 overflow-hidden">
+                <Card className="mt-6" title={`Thresholded metrics (τ = ${threshold.toFixed(2)})`}>
+                  <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
+                    <div className="min-w-0 overflow-hidden">
                       {confusion ? (
-                        <div className="flex flex-col items-center gap-3">
-                          <ConfusionMatrix metrics={confusion} />
+                        <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
+                          <ConfusionMatrix metrics={confusion} showSummary={false} />
                         </div>
                       ) : (
                         <p className="text-sm text-slate-500">
@@ -925,15 +932,14 @@ export const PerceptronPlayground: React.FC = () => {
                         </p>
                       )}
                     </div>
-
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 overflow-hidden">
+                    <div className="min-w-0 overflow-hidden">
                       {roc.points.length > 0 ? (
-                        <div className="flex justify-center">
+                        <div className="rounded-lg border p-2">
                           <RocCurve
                             points={roc.points}
                             auc={roc.auc}
-                            width={240}
-                            height={240}
+                            width={280}
+                            height={220}
                             threshold={threshold}
                             onThresholdChange={handleThresholdGuide}
                           />
@@ -946,35 +952,60 @@ export const PerceptronPlayground: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                    <span>
+                  <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
+                    <div>
+                      Accuracy: {confusion ? `${(confusion.accuracy * 100).toFixed(1)}%` : '—'}
+                    </div>
+                    <div>
                       Precision: {confusion ? `${(confusion.precision * 100).toFixed(1)}%` : '—'}
-                    </span>
-                    <span>
+                    </div>
+                    <div>
                       Recall (TPR): {confusion ? `${(confusion.recall * 100).toFixed(1)}%` : '—'}
-                    </span>
-                    <span>F₁: {confusion ? confusion.f1.toFixed(3) : '—'}</span>
-                    <span>
+                    </div>
+                    <div>F₁: {confusion ? confusion.f1.toFixed(3) : '—'}</div>
+                    <div>
                       Specificity (TNR):{' '}
                       {confusion ? `${(confusion.specificity * 100).toFixed(1)}%` : '—'}
-                    </span>
+                    </div>
                   </div>
-                </div>
+                </Card>
               ) : null}
             </div>
-          </section>
-
-          <section className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Cheat sheet</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Snapshot of the math that powers the trainer, complete with copy-ready code blocks.
-            </p>
-            <div className="mt-4 max-h-[32rem] overflow-y-auto pr-2">
-              <GlossaryPanel compact={false} />
-            </div>
-          </section>
+          </Card>
         </aside>
       </div>
+      <GlossaryDrawer />
     </div>
   )
 }
+
+export const ClassicWeightTablePanel: React.FC = () => (
+  <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mb-6 space-y-2">
+      <h2 className="text-2xl font-semibold text-slate-900">Classic Weight Table</h2>
+      <p className="text-sm text-slate-600">
+        Prefer the original dial-and-table flow? It is still available for focused explorations.
+      </p>
+    </div>
+    <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
+      <div className="min-w-0">
+        <PerceptronSimulator />
+      </div>
+    </Card>
+  </div>
+)
+
+export const PerceptronPlayground: React.FC = () => (
+  <TopTabs
+    tabs={[
+      { key: 'lab', label: 'Perceptron Lab', render: () => <PerceptronLabPanel /> },
+      {
+        key: 'classic',
+        label: 'Classic Weight Table',
+        render: () => <ClassicWeightTablePanel />,
+      },
+    ]}
+  />
+)
+
+export default PerceptronPlayground
