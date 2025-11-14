@@ -1,11 +1,27 @@
-import React, { useId, useState } from 'react'
+import React, { useContext, useId, useState } from 'react'
 import { HELP, HelpKey } from './helpText'
+
+const InfoTipContext = React.createContext<boolean>(true)
+
+type ProviderProps = {
+  enabled: boolean
+  children: React.ReactNode
+}
+
+export const InfoTipProvider: React.FC<ProviderProps> = ({ enabled, children }) => (
+  <InfoTipContext.Provider value={enabled}>{children}</InfoTipContext.Provider>
+)
 
 type Props = { k: HelpKey; className?: string }
 export const InfoTip: React.FC<Props> = ({ k, className }) => {
   const label = HELP[k]
   const [open, setOpen] = useState<boolean>(false)
   const tooltipId = useId()
+  const enabled = useContext(InfoTipContext)
+
+  if (!enabled) {
+    return null
+  }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>): void => {
     if (event.key === 'Escape') {

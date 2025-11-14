@@ -1,322 +1,4 @@
 {
-  "apps/perceptron-sim": {
-    "root": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "projectType": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.options": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.metadata": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.executor": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.options.cwd": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.options.command": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.metadata.technologies": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.metadata.technologies.0": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.metadata.description": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.metadata.help": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.metadata.help.command": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.dev.metadata.help.example": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.cache": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.inputs": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.options": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.executor": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.options.cwd": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.options.command": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.description": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.technologies": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.technologies.0": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.help": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.help.command": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.help.example": [
-      "apps/perceptron-sim/vite.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.dependsOn": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.executor": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.options": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.watch-deps.options.command": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "targets.typecheck.metadata.technologies.1": [
-      "apps/perceptron-sim/vitest.config.ts",
-      "@nx/vite/plugin"
-    ],
-    "name": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "$schema": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "sourceRoot": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "tags": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "implicitDependencies": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "implicitDependencies.perceptron-core": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.build": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.build.executor": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.build.outputs": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.build.options": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.build.options.outputPath": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.build.options.configFile": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.serve": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.serve.executor": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.serve.options": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.serve.options.buildTarget": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.serve.options.configFile": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.serve.options.port": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.serve.options.hmr": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.preview": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.preview.executor": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.preview.options": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.preview.options.buildTarget": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.preview.options.configFile": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.preview.options.port": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.executor": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.outputs": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.options": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.test.options.configFile": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.executor": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.outputs": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.options": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.lint.options.lintFilePatterns": [
-      "apps/perceptron-sim/project.json",
-      "nx/core/project-json"
-    ],
-    "targets.build.dependsOn": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.build.inputs": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.build.parallelism": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.preview.inputs": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.preview.parallelism": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.test.inputs": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.test.parallelism": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.lint.inputs": [
-      "nx.json",
-      "nx/target-defaults"
-    ],
-    "targets.lint.parallelism": [
-      "nx.json",
-      "nx/target-defaults"
-    ]
-  },
   "libs/perceptron-core": {
     "root": [
       "libs/perceptron-core/project.json",
@@ -475,6 +157,324 @@
       "nx/target-defaults"
     ],
     "targets.test.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.lint.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.lint.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ]
+  },
+  "apps/perceptron-sim": {
+    "root": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets": [
+      "apps/perceptron-sim/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.cache": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.inputs": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.options": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.executor": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.options.cwd": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.options.command": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.description": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.technologies": [
+      "apps/perceptron-sim/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.technologies.0": [
+      "apps/perceptron-sim/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.help": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.help.command": [
+      "apps/perceptron-sim/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.help.example": [
+      "apps/perceptron-sim/vitest.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.dependsOn": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.executor": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.options": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.watch-deps.options.command": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "projectType": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.dev": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.options": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.metadata": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.executor": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.options.cwd": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.options.command": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.metadata.technologies": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.metadata.technologies.0": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.metadata.description": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.metadata.help": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.metadata.help.command": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.dev.metadata.help.example": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "targets.typecheck.metadata.technologies.1": [
+      "apps/perceptron-sim/vite.config.ts",
+      "@nx/vite/plugin"
+    ],
+    "name": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "$schema": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "sourceRoot": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "tags": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "implicitDependencies.perceptron-core": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.build": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.build.executor": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.build.outputs": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.build.options": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.build.options.outputPath": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.build.options.configFile": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve.executor": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve.options": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve.options.buildTarget": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve.options.configFile": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve.options.port": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve.options.hmr": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.preview": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.preview.executor": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.preview.options": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.preview.options.buildTarget": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.preview.options.configFile": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.preview.options.port": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.executor": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.outputs": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.options": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.options.configFile": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.executor": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.outputs": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.options": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.lint.options.lintFilePatterns": [
+      "apps/perceptron-sim/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.test.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.test.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.dependsOn": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.build.parallelism": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.preview.inputs": [
+      "nx.json",
+      "nx/target-defaults"
+    ],
+    "targets.preview.parallelism": [
       "nx.json",
       "nx/target-defaults"
     ],

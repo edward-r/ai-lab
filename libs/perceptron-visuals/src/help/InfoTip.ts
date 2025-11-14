@@ -1,1 +1,1 @@
-export { InfoTip } from '../lib/help/InfoTip'
+export { InfoTip, InfoTipProvider } from '../lib/help/InfoTip'
