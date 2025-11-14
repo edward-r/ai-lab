@@ -12662,6 +12662,11 @@
         "source": "perceptron-visuals",
         "target": "perceptron-core",
         "type": "static"
+      },
+      {
+        "source": "perceptron-visuals",
+        "target": "npm:react-dom",
+        "type": "static"
       }
     ],
     "perceptron-core": [
@@ -29197,5 +29202,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1763138775152
+  "computedAt": 1763160432476
 }

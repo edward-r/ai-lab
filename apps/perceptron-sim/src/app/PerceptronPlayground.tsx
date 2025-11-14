@@ -16,12 +16,15 @@ import {
   Card,
   computeConfusion,
   computeRoc,
+  type ConfusionMetrics,
   usePersistentState,
+  clearPersisted,
   makeSeparable,
   makeXor,
   makeNoisy,
   type PresetKind,
 } from '@perceptron-visuals'
+import { InfoTip, InfoTipProvider } from '@perceptron-visuals/help/InfoTip'
 import { PerceptronSimulator } from '../features/Perceptron/PerceptronSimulator'
 
 type DatasetKind = PresetKind
@@ -33,6 +36,32 @@ type EpochSummary = {
 }
 
 const DEFAULT_PARAMS: Params = { w: [0.2, -0.4], b: 0 }
+
+const computeStepConfusion = (params: Params, data: LabeledPoint[]): ConfusionMetrics => {
+  let TP = 0
+  let TN = 0
+  let FP = 0
+  let FN = 0
+
+  for (const sample of data) {
+    const z = params.w[0] * sample.x[0] + params.w[1] * sample.x[1] + params.b
+    const predicted = z >= 0 ? 1 : 0
+
+    if (predicted === 1 && sample.y === 1) TP += 1
+    else if (predicted === 0 && sample.y === 0) TN += 1
+    else if (predicted === 1 && sample.y === 0) FP += 1
+    else FN += 1
+  }
+
+  const total = data.length
+  const accuracy = total === 0 ? 0 : (TP + TN) / total
+  const precision = TP + FP === 0 ? 0 : TP / (TP + FP)
+  const recall = TP + FN === 0 ? 0 : TP / (TP + FN)
+  const specificity = TN + FP === 0 ? 0 : TN / (TN + FP)
+  const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall)
+
+  return { TP, TN, FP, FN, accuracy, precision, recall, specificity, f1 }
+}
 
 const datasetFromKind = (kind: DatasetKind): LabeledPoint[] => {
   if (kind === 'separable') return makeSeparable()
@@ -89,9 +118,20 @@ const overlaySwatchStyle = (label: SnapshotLabel): React.CSSProperties => {
   }
 }
 
-const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+type StatProps = {
+  label: string
+  value: string
+  infoKey?: 'accuracy' | 'loss' | 'parameters'
+}
+
+const Stat: React.FC<StatProps> = ({ label, value, infoKey }) => (
   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-    <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+    <p className="text-xs uppercase tracking-wide text-slate-500">
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {infoKey ? <InfoTip k={infoKey} /> : null}
+      </span>
+    </p>
     <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
   </div>
 )
@@ -124,13 +164,25 @@ export const PerceptronLabPanel: React.FC = () => {
       return Math.min(1, Math.max(0, next))
     })
   }, [])
-  const [useThresholdBoundary, setUseThresholdBoundary] = useState<boolean>(false)
-  const [showBaselineBoundary, setShowBaselineBoundary] = useState<boolean>(true)
+  const [useThresholdBoundary, setUseThresholdBoundary] = usePersistentState<boolean>(
+    'pl.useThresholdBoundary',
+    false,
+  )
+  const [showBaselineBoundary, setShowBaselineBoundary] = usePersistentState<boolean>(
+    'pl.showBaselineBoundary',
+    true,
+  )
   const [showMarginBand, setShowMarginBand] = usePersistentState<boolean>(
     'pl.showMarginBand',
     false,
   )
+  const [showStepConfusion, setShowStepConfusion] = useState<boolean>(false)
+  const [labTooltipsEnabled, setLabTooltipsEnabled] = usePersistentState<boolean>(
+    'pl.labTooltips',
+    true,
+  )
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([])
+  const [isMdUp, setIsMdUp] = useState<boolean>(true)
   const [visibleOverlayIds, setVisibleOverlayIds] = usePersistentState<string[]>(
     'pl.snapshotOverlayIds',
     [],
@@ -292,18 +344,12 @@ export const PerceptronLabPanel: React.FC = () => {
 
   const importDatasetJson = useCallback(
     (json: string) => {
-      try {
-        const parsed = JSON.parse(json) as unknown
-        if (!isLabeledPointArray(parsed)) {
-          throw new Error('Expected an array of { x: [number, number], y } objects')
-        }
-        setDataset(parsed.map((point) => ({ x: [point.x[0], point.x[1]], y: point.y })))
-        setDatasetKind('custom')
-      } catch (error) {
-        if (typeof window !== 'undefined') {
-          window.alert(`Import failed: ${(error as Error).message}`)
-        }
+      const parsed = JSON.parse(json) as unknown
+      if (!isLabeledPointArray(parsed)) {
+        throw new Error('Expected an array of { x: [number, number], y } objects')
       }
+      setDataset(parsed.map((point) => ({ x: [point.x[0], point.x[1]], y: point.y })))
+      setDatasetKind('custom')
     },
     [setDataset, setDatasetKind],
   )
@@ -610,10 +656,15 @@ export const PerceptronLabPanel: React.FC = () => {
     reset()
   }, [adapter, reset])
 
-  const confusion = useMemo(() => {
+  const confusionSigmoid = useMemo(() => {
     if (activation !== 'sigmoid' || dataset.length === 0) return null
     return computeConfusion(state.params, dataset, threshold)
   }, [activation, dataset, state.params, threshold])
+
+  const confusionStep = useMemo(() => {
+    if (activation !== 'step' || !showStepConfusion || dataset.length === 0) return null
+    return computeStepConfusion(state.params, dataset)
+  }, [activation, dataset, showStepConfusion, state.params])
 
   const roc = useMemo(() => {
     if (activation !== 'sigmoid' || dataset.length === 0) return { points: [], auc: null }
@@ -630,370 +681,608 @@ export const PerceptronLabPanel: React.FC = () => {
 
   const sparklineValues = lossMode === 'steps' ? lossByStep : lossByEpoch
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(min-width: 768px)')
+
+    const update = () => {
+      setIsMdUp(mediaQuery.matches)
+    }
+
+    update()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', update)
+    } else if (typeof mediaQuery.addListener === 'function') {
+      mediaQuery.addListener(update)
+    }
+
+    return () => {
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', update)
+      } else if (typeof mediaQuery.removeListener === 'function') {
+        mediaQuery.removeListener(update)
+      }
+    }
+  }, [])
+
+  const rocWidth = isMdUp ? 280 : 260
+
+  const handleResetUi = () => {
+    clearPersisted('pl.')
+    window.location.reload()
+  }
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:gap-12">
-        <div className="space-y-10">
-          <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-lg font-semibold text-slate-900">Simulation controls</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Configure the activation rule, choose a dataset, and tune the training cadence.
-              </p>
-            </div>
-            <div className="space-y-6 px-6 py-6">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Activation
-                  <select
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={activation}
-                    onChange={(event) => handleActivationChange(event.target.value as Activation)}
-                  >
-                    <option value="step">step (perceptron)</option>
-                    <option value="sigmoid">sigmoid (logistic)</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Dataset
-                  <select
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={datasetKind}
-                    onChange={(event) => handleDatasetClick(event.target.value as DatasetKind)}
-                  >
-                    <option value="separable">linearly separable</option>
-                    <option value="xor">XOR</option>
-                    <option value="noisy">noisy separable</option>
-                    <option value="custom">custom (editable)</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  η (learning-rate)
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={learningRate}
-                    onChange={(event) => handleLearningRateInput(event.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Epochs
-                  <input
-                    type="number"
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={epochs}
-                    onChange={(event) => handleEpochsInput(event.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  <span className="inline-flex items-center">
-                    RNG seed
-                    <Tooltip label="Makes runs reproducible." />
-                  </span>
-                  <input
-                    type="number"
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={rngSeed}
-                    onChange={(event) => {
-                      const next = Number.parseInt(event.target.value, 10)
-                      if (Number.isNaN(next)) return
-                      setRngSeed(next)
-                      resetAll()
-                    }}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Loss granularity
-                  <select
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={lossMode}
-                    onChange={(event) => setLossMode(event.target.value as LossMode)}
-                  >
-                    <option value="steps">per-step</option>
-                    <option value="epochs">per-epoch</option>
-                  </select>
-                </label>
-              </div>
-
-              {activation === 'sigmoid' ? (
-                <Card className="rounded-2xl border-slate-200 bg-slate-50">
-                  <div className="min-w-0 grid gap-4 md:grid-cols-2">
-                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-                      Threshold τ
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={threshold}
-                        onChange={(event) => handleThresholdSlider(event.target.value)}
-                      />
-                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        τ = {threshold.toFixed(2)}
-                      </span>
-                    </label>
-                    <div className="min-w-0 flex flex-col gap-3 text-sm text-slate-600">
-                      <label className="inline-flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={useThresholdBoundary}
-                          onChange={(event) => setUseThresholdBoundary(event.target.checked)}
-                        />
-                        Use τ for decision boundary (logit shift)
-                      </label>
-                      <label className="inline-flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={showBaselineBoundary}
-                          onChange={(event) => setShowBaselineBoundary(event.target.checked)}
-                        />
-                        Show baseline τ = 0.5
-                      </label>
-                    </div>
-                  </div>
-                </Card>
-              ) : (
-                <Card className="rounded-2xl border-slate-200 bg-slate-50 text-sm text-slate-500">
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span className="font-medium text-slate-500">τ controls disabled</span>
-                    <Tooltip label="Why disabled?">
-                      τ and ROC require probabilities from σ(𝑧). The perceptron’s step activation is
-                      not probabilistic.
-                    </Tooltip>
-                  </div>
-                </Card>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60"
-                  onClick={start}
-                  disabled={state.running}
-                >
-                  Start training
-                </button>
-                <button
-                  className="rounded-full bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60"
-                  onClick={pause}
-                  disabled={!state.running}
-                >
-                  Pause
-                </button>
-                <button
-                  className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-300 disabled:opacity-60"
-                  onClick={() => stepOnce()}
-                  disabled={state.running}
-                >
-                  Step once
-                </button>
-                <button
-                  className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-200"
-                  onClick={resetAll}
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-lg font-semibold text-slate-900">Training snapshot</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Track epoch progress, accuracy, loss, and current parameters in real time.
-              </p>
-            </div>
-            <div className="space-y-6 px-6 py-6">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                <Stat label="Epoch" value={state.epoch.toString()} />
-                <Stat label="Step" value={state.step.toString()} />
-                <Stat label="Accuracy" value={`${(state.acc * 100).toFixed(1)}%`} />
-                <Stat label="Loss" value={state.loss.toFixed(4)} />
-                <Stat
-                  label="Parameters"
-                  value={`w=[${state.params.w[0].toFixed(2)}, ${state.params.w[1].toFixed(2)}], b=${state.params.b.toFixed(2)}`}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-slate-900">Loss trend</h3>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {lossMode === 'steps' ? 'Per update' : 'Per epoch'}
-                  </span>
-                </div>
-                <Card className="border-slate-200 bg-slate-50 rounded-2xl">
-                  <div className="min-w-0">
-                    <SparklineLoss values={sparklineValues} width={720} height={72} />
-                  </div>
-                </Card>
-                <p className="text-xs text-slate-500">
-                  Switch granularity to compare micro-updates with per-epoch trends.
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Decision boundary</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Observe how the separating line evolves as the perceptron trains.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-0.5 w-6 rounded-full bg-slate-900" /> Active
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-0.5 w-6 rounded-full border-b border-slate-400" />{' '}
-                  Baseline τ=0.5
-                </span>
-                {SNAPSHOT_LABELS.map((label) => (
-                  <span key={label} className="inline-flex items-center gap-2 capitalize">
-                    <span
-                      className="inline-block h-0.5 w-6 rounded-full"
-                      style={overlaySwatchStyle(label)}
-                    />
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="px-6 pb-6">
-              <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={showMarginBand}
-                  onChange={(event) => setShowMarginBand(event.target.checked)}
-                />
-                Show margin band
-              </label>
-              <Card className="overflow-x-auto rounded-2xl border-slate-200 bg-slate-50">
-                <div className="min-w-0">
-                  <DecisionBoundaryCanvas
-                    data={dataset}
-                    params={state.params}
-                    activation={activation}
-                    width={720}
-                    height={520}
-                    threshold={threshold}
-                    showMarginBand={showMarginBand}
-                    adjustBoundaryByThreshold={activation === 'sigmoid' && useThresholdBoundary}
-                    showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
-                    baselineThreshold={0.5}
-                    snapshotParams={activeSnapshotParams}
-                    {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
-                  />
-                </div>
-              </Card>
-              <p className="mt-3 text-sm text-slate-500">
-                In <span className="font-semibold text-slate-700">custom</span> mode, click the
-                plane to add class <span className="font-semibold">{addLabel}</span> examples. Use
-                the controls on the right to swap labels or generate clusters.
-              </p>
-            </div>
-          </section>
+    <InfoTipProvider enabled={labTooltipsEnabled}>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-4 flex items-center justify-between text-xs text-slate-600">
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-3 py-1 font-medium text-slate-600 shadow-sm transition hover:bg-slate-100"
+            onClick={handleResetUi}
+          >
+            Reset UI
+          </button>
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={labTooltipsEnabled}
+              onChange={(event) => setLabTooltipsEnabled(event.target.checked)}
+            />
+            Show help tooltips
+          </label>
         </div>
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:gap-12">
+          <div className="space-y-10">
+            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
+              <div className="border-b border-slate-200 px-6 py-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-slate-900">Simulation controls</h2>
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  Configure the activation rule, choose a dataset, and tune the training cadence.
+                </p>
+              </div>
+              <div className="space-y-6 px-6 py-6">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      Activation
+                      <InfoTip k="activation" />
+                    </span>
+                    <select
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={activation}
+                      onChange={(event) => handleActivationChange(event.target.value as Activation)}
+                    >
+                      <option value="step">step (perceptron)</option>
+                      <option value="sigmoid">sigmoid (logistic)</option>
+                    </select>
+                  </label>
 
-        <aside className="space-y-10 lg:sticky lg:top-24">
-          <Card className="space-y-6 rounded-3xl border-slate-200 bg-white shadow-sm p-0">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-lg font-semibold text-slate-900">Dataset studio</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Curate points, toggle labels, and manage presets.
-              </p>
-            </div>
-            <div className="px-6 pb-6">
-              <DatasetTabs
-                active={datasetKind}
-                dataset={dataset}
-                customControls={customControls}
-                onPreset={handlePresetSelection}
-                onImport={importDatasetJson}
-                onExport={exportDatasetJson}
-                onClear={clearDataset}
-              />
+                  <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      Dataset
+                      <InfoTip k="dataset" />
+                    </span>
+                    <select
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={datasetKind}
+                      onChange={(event) => handleDatasetClick(event.target.value as DatasetKind)}
+                    >
+                      <option value="separable">linearly separable</option>
+                      <option value="xor">XOR</option>
+                      <option value="noisy">noisy separable</option>
+                      <option value="custom">custom (editable)</option>
+                    </select>
+                  </label>
 
-              {activation === 'sigmoid' ? (
-                <Card className="mt-6" title={`Thresholded metrics (τ = ${threshold.toFixed(2)})`}>
-                  <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
-                    <div className="min-w-0 overflow-hidden">
-                      {confusion ? (
-                        <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
-                          <ConfusionMatrix metrics={confusion} showSummary={false} />
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          Add data to view confusion metrics.
-                        </p>
-                      )}
-                    </div>
-                    <div className="min-w-0 overflow-hidden">
-                      {roc.points.length > 0 ? (
-                        <div className="rounded-lg border p-2">
-                          <RocCurve
-                            points={roc.points}
-                            auc={roc.auc}
-                            width={280}
-                            height={220}
-                            threshold={threshold}
-                            onThresholdChange={handleThresholdGuide}
+                  <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      η (learning-rate)
+                      <InfoTip k="eta" />
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={learningRate}
+                      onChange={(event) => handleLearningRateInput(event.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      Epochs
+                      <InfoTip k="epochs" />
+                    </span>
+                    <input
+                      type="number"
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={epochs}
+                      onChange={(event) => handleEpochsInput(event.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      RNG seed
+                      <Tooltip label="Makes runs reproducible." />
+                      <InfoTip k="rngSeed" />
+                    </span>
+                    <input
+                      type="number"
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={rngSeed}
+                      onChange={(event) => {
+                        const next = Number.parseInt(event.target.value, 10)
+                        if (Number.isNaN(next)) return
+                        setRngSeed(next)
+                        resetAll()
+                      }}
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                    <span className="inline-flex items-center gap-1">
+                      Loss granularity
+                      <InfoTip k="lossGranularity" />
+                    </span>
+                    <select
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={lossMode}
+                      onChange={(event) => setLossMode(event.target.value as LossMode)}
+                    >
+                      <option value="steps">per-step</option>
+                      <option value="epochs">per-epoch</option>
+                    </select>
+                  </label>
+                </div>
+
+                {activation === 'sigmoid' ? (
+                  <Card className="rounded-2xl border-slate-200 bg-slate-50">
+                    <div className="min-w-0 grid gap-4 md:grid-cols-2">
+                      <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                        <span className="inline-flex items-center gap-1">
+                          Threshold τ
+                          <InfoTip k="tau" />
+                        </span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={threshold}
+                          onChange={(event) => handleThresholdSlider(event.target.value)}
+                        />
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          τ = {threshold.toFixed(2)}
+                        </span>
+                      </label>
+                      <div className="min-w-0 flex flex-col gap-3 text-sm text-slate-600">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={useThresholdBoundary}
+                            onChange={(event) => setUseThresholdBoundary(event.target.checked)}
                           />
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          Add data to generate the ROC curve.
-                        </p>
-                      )}
+                          <span className="inline-flex items-center gap-1">
+                            Use τ for decision boundary (logit shift)
+                            <InfoTip k="useTauBoundary" />
+                          </span>
+                        </label>
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={showBaselineBoundary}
+                            onChange={(event) => setShowBaselineBoundary(event.target.checked)}
+                          />
+                          <span className="inline-flex items-center gap-1">
+                            Show baseline τ = 0.5
+                            <InfoTip k="baselineTau" />
+                          </span>
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  </Card>
+                ) : (
+                  <Card className="rounded-2xl border-slate-200 bg-slate-50 text-sm text-slate-500">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className="font-medium text-slate-500">τ controls disabled</span>
+                      <Tooltip label="Why disabled?">
+                        τ and ROC are unavailable for perceptron step activation because it produces
+                        hard 0/1 outputs, not probabilities σ(z).
+                      </Tooltip>
+                    </div>
+                  </Card>
+                )}
 
-                  <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
-                    <div>
-                      Accuracy: {confusion ? `${(confusion.accuracy * 100).toFixed(1)}%` : '—'}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-500 disabled:opacity-60"
+                    onClick={start}
+                    disabled={state.running}
+                  >
+                    Start training
+                  </button>
+                  <button
+                    className="rounded-full bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60"
+                    onClick={pause}
+                    disabled={!state.running}
+                  >
+                    Pause
+                  </button>
+                  <button
+                    className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-300 disabled:opacity-60"
+                    onClick={() => stepOnce()}
+                    disabled={state.running}
+                  >
+                    Step once
+                  </button>
+                  <button
+                    className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-200"
+                    onClick={resetAll}
+                  >
+                    Reset
+                  </button>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1">
+                    Controls
+                    <InfoTip k="trainControls" />
+                  </span>
+                </div>
+
+                {activation === 'step' ? (
+                  <div className="mt-4 space-y-2">
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={showStepConfusion}
+                        onChange={(event) => setShowStepConfusion(event.target.checked)}
+                      />
+                      <span>Show confusion in step mode</span>
+                    </label>
+
+                    {showStepConfusion ? (
+                      <Card className="mt-1" title="Confusion (step mode)">
+                        <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
+                          <div className="min-w-0 overflow-hidden">
+                            {confusionStep ? (
+                              <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
+                                <ConfusionMatrix metrics={confusionStep} showSummary={false} />
+                              </div>
+                            ) : (
+                              <p className="text-sm text-slate-500">
+                                Add data to view confusion metrics.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
+                          <div>
+                            Accuracy:{' '}
+                            {confusionStep ? `${(confusionStep.accuracy * 100).toFixed(1)}%` : '—'}
+                          </div>
+                          <div>
+                            Precision:{' '}
+                            {confusionStep ? `${(confusionStep.precision * 100).toFixed(1)}%` : '—'}
+                          </div>
+                          <div>
+                            Recall (TPR):{' '}
+                            {confusionStep ? `${(confusionStep.recall * 100).toFixed(1)}%` : '—'}
+                          </div>
+                          <div>F₁: {confusionStep ? confusionStep.f1.toFixed(3) : '—'}</div>
+                          <div>
+                            Specificity (TNR):{' '}
+                            {confusionStep
+                              ? `${(confusionStep.specificity * 100).toFixed(1)}%`
+                              : '—'}
+                          </div>
+                        </div>
+                      </Card>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+
+            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
+              <div className="border-b border-slate-200 px-6 py-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-slate-900">Training snapshot</h2>
+                  <InfoTip k="trainingSnapshot" />
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  Track epoch progress, accuracy, loss, and current parameters in real time.
+                </p>
+              </div>
+              <div className="space-y-6 px-6 py-6">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                  <Stat label="Epoch" value={state.epoch.toString()} />
+                  <Stat label="Step" value={state.step.toString()} />
+                  <Stat
+                    label="Accuracy"
+                    value={`${(state.acc * 100).toFixed(1)}%`}
+                    infoKey="accuracy"
+                  />
+                  <Stat label="Loss" value={state.loss.toFixed(4)} infoKey="loss" />
+                  <Stat
+                    label="Parameters"
+                    value={`w=[${state.params.w[0].toFixed(2)}, ${state.params.w[1].toFixed(2)}], b=${state.params.b.toFixed(2)}`}
+                    infoKey="parameters"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1">
+                      <h3 className="text-base font-semibold text-slate-900">Loss trend</h3>
+                      <InfoTip k="lossTrend" />
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {lossMode === 'steps' ? 'Per update' : 'Per epoch'}
+                    </span>
+                  </div>
+                  <Card className="border-slate-200 bg-slate-50 rounded-2xl">
+                    <div className="min-w-0">
+                      <SparklineLoss values={sparklineValues} width={720} height={72} />
                     </div>
-                    <div>
-                      Precision: {confusion ? `${(confusion.precision * 100).toFixed(1)}%` : '—'}
-                    </div>
-                    <div>
-                      Recall (TPR): {confusion ? `${(confusion.recall * 100).toFixed(1)}%` : '—'}
-                    </div>
-                    <div>F₁: {confusion ? confusion.f1.toFixed(3) : '—'}</div>
-                    <div>
-                      Specificity (TNR):{' '}
-                      {confusion ? `${(confusion.specificity * 100).toFixed(1)}%` : '—'}
-                    </div>
+                  </Card>
+                  <p className="text-xs text-slate-500">
+                    Switch granularity to compare micro-updates with per-epoch trends.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
+              <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1">
+                      <h2 className="text-lg font-semibold text-slate-900">Decision boundary</h2>
+                      <InfoTip k="decisionBoundary" />
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Observe how the separating line evolves as the perceptron trains.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-0.5 w-6 rounded-full bg-slate-900" /> Active
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block h-0.5 w-6 rounded-full border-b border-slate-400" />{' '}
+                    <span className="inline-flex items-center gap-1">
+                      Baseline τ=0.5
+                      <InfoTip k="baselineTau" />
+                    </span>
+                  </span>
+                  {SNAPSHOT_LABELS.map((label) => (
+                    <span key={label} className="inline-flex items-center gap-2 capitalize">
+                      <span
+                        className="inline-block h-0.5 w-6 rounded-full"
+                        style={overlaySwatchStyle(label)}
+                      />
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="px-6 pb-6">
+                <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={showMarginBand}
+                    onChange={(event) => setShowMarginBand(event.target.checked)}
+                  />
+                  <span className="inline-flex items-center gap-1">
+                    Show margin band
+                    <InfoTip k="marginBand" />
+                  </span>
+                </label>
+                <Card className="overflow-x-auto rounded-2xl border-slate-200 bg-slate-50">
+                  <div className="min-w-0">
+                    <DecisionBoundaryCanvas
+                      data={dataset}
+                      params={state.params}
+                      activation={activation}
+                      width={720}
+                      height={520}
+                      threshold={threshold}
+                      showMarginBand={showMarginBand}
+                      adjustBoundaryByThreshold={activation === 'sigmoid' && useThresholdBoundary}
+                      showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
+                      baselineThreshold={0.5}
+                      snapshotParams={activeSnapshotParams}
+                      {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
+                    />
                   </div>
                 </Card>
-              ) : null}
-            </div>
-          </Card>
-        </aside>
+                <p className="mt-3 text-sm text-slate-500">
+                  In <span className="font-semibold text-slate-700">custom</span> mode, click the
+                  plane to add class <span className="font-semibold">{addLabel}</span> examples. Use
+                  the controls on the right to swap labels or generate clusters.
+                </p>
+              </div>
+            </Card>
+          </div>
+
+          <aside className="space-y-10 lg:sticky lg:top-24">
+            <Card className="space-y-6 rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
+              <div className="border-b border-slate-200 px-6 py-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-slate-900">Dataset studio</h2>
+                  <InfoTip k="datasetStudio" />
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  Curate points, toggle labels, and manage presets.
+                </p>
+              </div>
+              <div className="px-6 pb-6">
+                <DatasetTabs
+                  active={datasetKind}
+                  dataset={dataset}
+                  customControls={customControls}
+                  onPreset={handlePresetSelection}
+                  onImport={importDatasetJson}
+                  onExport={exportDatasetJson}
+                  onClear={clearDataset}
+                />
+
+                {activation === 'sigmoid' ? (
+                  <Card className="mt-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-800">
+                        Thresholded metrics (τ = {threshold.toFixed(2)})
+                        <InfoTip k="tau" />
+                      </span>
+                    </div>
+                    <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
+                      <div className="min-w-0 overflow-hidden space-y-1">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                          <span className="inline-flex items-center gap-1">
+                            Confusion matrix
+                            <InfoTip k="confusion" />
+                          </span>
+                        </div>
+                        {confusionSigmoid ? (
+                          <div className="rounded-lg border p-2 text-xs leading-tight overflow-x-auto">
+                            <ConfusionMatrix metrics={confusionSigmoid} showSummary={false} />
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-500">
+                            Add data to view confusion metrics.
+                          </p>
+                        )}
+                      </div>
+                      <div className="min-w-0 overflow-hidden space-y-1">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                          <span className="inline-flex items-center gap-1">
+                            ROC curve
+                            <InfoTip k="roc" />
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            AUC: {roc.auc !== null ? roc.auc.toFixed(3) : '—'}
+                            <InfoTip k="auc" />
+                          </span>
+                        </div>
+                        {roc.points.length > 0 ? (
+                          <div className="rounded-lg border p-2">
+                            <RocCurve
+                              points={roc.points}
+                              auc={roc.auc}
+                              width={rocWidth}
+                              height={220}
+                              threshold={threshold}
+                              onThresholdChange={handleThresholdGuide}
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-500">
+                            Add data to generate the ROC curve.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm leading-snug sm:grid-cols-2">
+                      <div>
+                        Accuracy:{' '}
+                        {confusionSigmoid
+                          ? `${(confusionSigmoid.accuracy * 100).toFixed(1)}%`
+                          : '—'}
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1">
+                          Precision
+                          <InfoTip k="precision" />
+                        </span>
+                        :{' '}
+                        {confusionSigmoid
+                          ? `${(confusionSigmoid.precision * 100).toFixed(1)}%`
+                          : '—'}
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1">
+                          Recall (TPR)
+                          <InfoTip k="recall" />
+                        </span>
+                        :{' '}
+                        {confusionSigmoid ? `${(confusionSigmoid.recall * 100).toFixed(1)}%` : '—'}
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1">
+                          F₁
+                          <InfoTip k="f1" />
+                        </span>
+                        : {confusionSigmoid ? confusionSigmoid.f1.toFixed(3) : '—'}
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1">
+                          Specificity (TNR)
+                          <InfoTip k="specificity" />
+                        </span>
+                        :{' '}
+                        {confusionSigmoid
+                          ? `${(confusionSigmoid.specificity * 100).toFixed(1)}%`
+                          : '—'}
+                      </div>
+                    </div>
+                  </Card>
+                ) : null}
+              </div>
+            </Card>
+          </aside>
+        </div>
+        <GlossaryDrawer />
       </div>
-      <GlossaryDrawer />
-    </div>
+    </InfoTipProvider>
   )
 }
 
-export const ClassicWeightTablePanel: React.FC = () => (
-  <div className="mx-auto max-w-5xl px-6 py-10">
-    <div className="mb-6 space-y-2">
-      <h2 className="text-2xl font-semibold text-slate-900">Classic Weight Table</h2>
-      <p className="text-sm text-slate-600">
-        Prefer the original dial-and-table flow? It is still available for focused explorations.
-      </p>
-    </div>
-    <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
-      <div className="min-w-0">
-        <PerceptronSimulator />
+export const ClassicWeightTablePanel: React.FC = () => {
+  const [classicTooltipsEnabled, setClassicTooltipsEnabled] = usePersistentState(
+    'pl.classicTooltips',
+    true,
+  )
+
+  return (
+    <InfoTipProvider enabled={classicTooltipsEnabled}>
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mb-6 space-y-2">
+          <h2 className="text-2xl font-semibold text-slate-900">Classic Weight Table</h2>
+          <p className="text-sm text-slate-600">
+            Prefer the original dial-and-table flow? It is still available for focused explorations.
+          </p>
+        </div>
+        <div className="mb-4 flex justify-end text-xs text-slate-600">
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={classicTooltipsEnabled}
+              onChange={(event) => setClassicTooltipsEnabled(event.target.checked)}
+            />
+            Show help tooltips
+          </label>
+        </div>
+        <Card className="rounded-3xl border-slate-200 bg-white shadow-sm sm:p-3 md:p-4 lg:p-6">
+          <div className="min-w-0">
+            <PerceptronSimulator />
+          </div>
+        </Card>
       </div>
-    </Card>
-  </div>
-)
+    </InfoTipProvider>
+  )
+}
 
 export const PerceptronPlayground: React.FC = () => (
   <TopTabs
