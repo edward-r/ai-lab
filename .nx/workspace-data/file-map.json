@@ -26,12 +26,28 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "package-lock.json",
-        "hash": "13538891849197178099"
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
       },
       {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "10162619954131977335"
+      },
+      {
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
       },
       {
         "file": "tsconfig.base.json",
@@ -42,60 +58,44 @@
         "hash": "14158514078548521926"
       },
       {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
         "file": "package.json",
         "hash": "13761242301549208884"
-      },
-      {
-        "file": "nx.json",
-        "hash": "13064133220213869636"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "10162619954131977335"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "14777241203059172914"
       },
       {
         "file": ".editorconfig",
         "hash": "2779288990582231472"
       },
       {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
+        "file": "README.md",
+        "hash": "2139653527659314484"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
+        "file": "nx.json",
+        "hash": "13064133220213869636"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "13538891849197178099"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "14777241203059172914"
       }
     ],
     "projectFileMap": {
@@ -164,7 +164,7 @@
         },
         {
           "file": "libs/perceptron-visuals/src/lib/ConfusionMatrix.tsx",
-          "hash": "1366681037843822635",
+          "hash": "16925292370561301597",
           "deps": [
             "npm:react"
           ]
@@ -185,14 +185,14 @@
         },
         {
           "file": "libs/perceptron-visuals/src/lib/GlossaryDrawer.tsx",
-          "hash": "14673485558863158764",
+          "hash": "3162138257469566131",
           "deps": [
             "npm:react"
           ]
         },
         {
           "file": "libs/perceptron-visuals/src/lib/GlossaryPanel.tsx",
-          "hash": "12206890428714559444",
+          "hash": "15292564553282597068",
           "deps": [
             "npm:react"
           ]
@@ -238,7 +238,7 @@
         },
         {
           "file": "libs/perceptron-visuals/src/lib/help/InfoTip.tsx",
-          "hash": "17312460164660377323",
+          "hash": "13241413153964745711",
           "deps": [
             "npm:react"
           ]
@@ -303,7 +303,7 @@
         },
         {
           "file": "apps/perceptron-sim/src/app/PerceptronPlayground.tsx",
-          "hash": "10893746228157745059",
+          "hash": "14354434188350689386",
           "deps": [
             "npm:react",
             "perceptron-visuals"
@@ -311,7 +311,7 @@
         },
         {
           "file": "apps/perceptron-sim/src/components/Dial.tsx",
-          "hash": "11620245318319219035",
+          "hash": "2922327559220003235",
           "deps": [
             "npm:react"
           ]

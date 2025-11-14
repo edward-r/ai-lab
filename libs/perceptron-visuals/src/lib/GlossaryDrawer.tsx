@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 import { GlossaryPanel } from './GlossaryPanel'
 import { usePersistentState } from './hooks/usePersistentState'
 
@@ -10,6 +10,7 @@ export const GlossaryDrawer: React.FC = () => {
   const toggleButtonRef = useRef<HTMLButtonElement | null>(null)
   const drawerRef = useRef<HTMLElement | null>(null)
   const wasVisibleRef = useRef<boolean>(false)
+  const titleId = useId()
 
   useEffect(() => {
     const wasVisible = wasVisibleRef.current
@@ -68,12 +69,52 @@ export const GlossaryDrawer: React.FC = () => {
       <aside
         ref={drawerRef}
         tabIndex={-1}
+        role="dialog"
+        aria-modal={!pinned}
+        aria-labelledby={titleId}
+        onKeyDown={(event) => {
+          if (event.key !== 'Tab' || pinned || !drawerRef.current) {
+            return
+          }
+
+          const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])',
+          )
+          const focusableElements = Array.from(focusable).filter(
+            (element) => !element.hasAttribute('disabled'),
+          )
+
+          if (focusableElements.length === 0) {
+            return
+          }
+
+          const first = focusableElements[0]
+          const last = focusableElements[focusableElements.length - 1]
+
+          if (!first || !last) {
+            return
+          }
+
+          const active = document.activeElement as HTMLElement | null
+
+          if (event.shiftKey) {
+            if (!active || active === first) {
+              last.focus()
+              event.preventDefault()
+            }
+          } else if (!active || active === last) {
+            first.focus()
+            event.preventDefault()
+          }
+        }}
         className={`fixed top-0 right-0 z-40 h-screen w-[360px] max-w-[90vw] border-l bg-white shadow-xl transition-transform duration-200 ${
           isVisible ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <div className="font-semibold">Cheat sheet</div>
+          <div id={titleId} className="font-semibold">
+            Cheat sheet
+          </div>
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1 text-sm">
               <input

@@ -16,24 +16,24 @@ export const ConfusionMatrix: React.FC<ConfusionMatrixProps> = ({ metrics, showS
           <thead>
             <tr>
               <th className="whitespace-nowrap px-2 py-1 text-center" />
-              <th className="whitespace-nowrap px-2 py-1 text-center text-sm text-gray-600">
+              <th className="whitespace-nowrap pr-6 py-1 text-center text-xs text-gray-600">
                 Pred 0
               </th>
-              <th className="whitespace-nowrap px-2 py-1 text-center text-sm text-gray-600">
+              <th className="whitespace-nowrap pl-1 py-1 text-center text-xs text-gray-600">
                 Pred 1
               </th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="whitespace-nowrap px-2 py-1 text-center text-sm text-gray-600">
+              <td className="whitespace-nowrap pr-2 py-1 text-center text-sm text-gray-600">
                 True 0
               </td>
               <td className="whitespace-nowrap px-2 py-1 text-center border">{metrics.TN}</td>
               <td className="whitespace-nowrap px-2 py-1 text-center border">{metrics.FP}</td>
             </tr>
             <tr>
-              <td className="whitespace-nowrap px-2 py-1 text-center text-sm text-gray-600">
+              <td className="whitespace-nowrap pr-2 py-1 text-center text-sm text-gray-600">
                 True 1
               </td>
               <td className="whitespace-nowrap px-2 py-1 text-center border">{metrics.FN}</td>

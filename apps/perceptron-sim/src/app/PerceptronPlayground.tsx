@@ -182,6 +182,7 @@ export const PerceptronLabPanel: React.FC = () => {
     true,
   )
   const [snapshots, setSnapshots] = useState<SnapshotEntry[]>([])
+  const [isMdUp, setIsMdUp] = useState<boolean>(true)
   const [visibleOverlayIds, setVisibleOverlayIds] = usePersistentState<string[]>(
     'pl.snapshotOverlayIds',
     [],
@@ -680,6 +681,36 @@ export const PerceptronLabPanel: React.FC = () => {
 
   const sparklineValues = lossMode === 'steps' ? lossByStep : lossByEpoch
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(min-width: 768px)')
+
+    const update = () => {
+      setIsMdUp(mediaQuery.matches)
+    }
+
+    update()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', update)
+    } else if (typeof mediaQuery.addListener === 'function') {
+      mediaQuery.addListener(update)
+    }
+
+    return () => {
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', update)
+      } else if (typeof mediaQuery.removeListener === 'function') {
+        mediaQuery.removeListener(update)
+      }
+    }
+  }, [])
+
+  const rocWidth = isMdUp ? 280 : 260
+
   const handleResetUi = () => {
     clearPersisted('pl.')
     window.location.reload()
@@ -707,9 +738,11 @@ export const PerceptronLabPanel: React.FC = () => {
         </div>
         <div className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:gap-12">
           <div className="space-y-10">
-            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
+            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
               <div className="border-b border-slate-200 px-6 py-5">
-                <h2 className="text-lg font-semibold text-slate-900">Simulation controls</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-slate-900">Simulation controls</h2>
+                </div>
                 <p className="mt-1 text-sm text-slate-500">
                   Configure the activation rule, choose a dataset, and tune the training cadence.
                 </p>
@@ -730,6 +763,7 @@ export const PerceptronLabPanel: React.FC = () => {
                       <option value="sigmoid">sigmoid (logistic)</option>
                     </select>
                   </label>
+
                   <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                     <span className="inline-flex items-center gap-1">
                       Dataset
@@ -746,6 +780,7 @@ export const PerceptronLabPanel: React.FC = () => {
                       <option value="custom">custom (editable)</option>
                     </select>
                   </label>
+
                   <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                     <span className="inline-flex items-center gap-1">
                       η (learning-rate)
@@ -759,6 +794,7 @@ export const PerceptronLabPanel: React.FC = () => {
                       onChange={(event) => handleLearningRateInput(event.target.value)}
                     />
                   </label>
+
                   <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                     <span className="inline-flex items-center gap-1">
                       Epochs
@@ -771,6 +807,7 @@ export const PerceptronLabPanel: React.FC = () => {
                       onChange={(event) => handleEpochsInput(event.target.value)}
                     />
                   </label>
+
                   <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                     <span className="inline-flex items-center gap-1">
                       RNG seed
@@ -789,6 +826,7 @@ export const PerceptronLabPanel: React.FC = () => {
                       }}
                     />
                   </label>
+
                   <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
                     <span className="inline-flex items-center gap-1">
                       Loss granularity
@@ -856,8 +894,8 @@ export const PerceptronLabPanel: React.FC = () => {
                     <div className="min-w-0 flex items-center gap-2">
                       <span className="font-medium text-slate-500">τ controls disabled</span>
                       <Tooltip label="Why disabled?">
-                        τ and ROC require probabilities from σ(𝑧). The perceptron’s step activation
-                        is not probabilistic.
+                        τ and ROC are unavailable for perceptron step activation because it produces
+                        hard 0/1 outputs, not probabilities σ(z).
                       </Tooltip>
                     </div>
                   </Card>
@@ -954,7 +992,7 @@ export const PerceptronLabPanel: React.FC = () => {
               </div>
             </Card>
 
-            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
+            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
               <div className="border-b border-slate-200 px-6 py-5">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-slate-900">Training snapshot</h2>
@@ -1003,7 +1041,7 @@ export const PerceptronLabPanel: React.FC = () => {
               </div>
             </Card>
 
-            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0">
+            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
               <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center justify-between">
@@ -1079,7 +1117,7 @@ export const PerceptronLabPanel: React.FC = () => {
           </div>
 
           <aside className="space-y-10 lg:sticky lg:top-24">
-            <Card className="space-y-6 rounded-3xl border-slate-200 bg-white shadow-sm p-0">
+            <Card className="space-y-6 rounded-3xl border-slate-200 bg-white shadow-sm p-0 sm:p-3 md:p-4">
               <div className="border-b border-slate-200 px-6 py-5">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-slate-900">Dataset studio</h2>
@@ -1142,7 +1180,7 @@ export const PerceptronLabPanel: React.FC = () => {
                             <RocCurve
                               points={roc.points}
                               auc={roc.auc}
-                              width={280}
+                              width={rocWidth}
                               height={220}
                               threshold={threshold}
                               onThresholdChange={handleThresholdGuide}
@@ -1236,7 +1274,7 @@ export const ClassicWeightTablePanel: React.FC = () => {
             Show help tooltips
           </label>
         </div>
-        <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
+        <Card className="rounded-3xl border-slate-200 bg-white shadow-sm sm:p-3 md:p-4 lg:p-6">
           <div className="min-w-0">
             <PerceptronSimulator />
           </div>

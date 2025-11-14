@@ -24,7 +24,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code }) => {
   }
 
   return (
-    <div className="relative w-full max-w-full overflow-hidden rounded border bg-gray-50">
+    <div className="relative w-full max-w-full overflow-hidden rounded border bg-black">
       <button
         type="button"
         onClick={onCopy}
@@ -34,7 +34,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code }) => {
       >
         Copy
       </button>
-      <pre className="font-mono text-xs leading-relaxed whitespace-pre overflow-x-auto overflow-y-hidden p-3 pr-10">
+      <pre className="font-mono text-xs text-white leading-relaxed whitespace-pre overflow-x-auto overflow-y-hidden p-3 pr-10 mt-6 bg-black">
         <code className="block min-w-max">{code}</code>
       </pre>
     </div>

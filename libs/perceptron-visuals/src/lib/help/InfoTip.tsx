@@ -22,12 +22,8 @@ export const InfoTip: React.FC<Props> = ({ k, className }) => {
   const enabled = useContext(InfoTipContext)
   const triggerRef = useRef<HTMLSpanElement | null>(null)
 
-  if (!enabled) {
-    return null
-  }
-
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current) {
+    if (!enabled || !open || !triggerRef.current) {
       return
     }
 
@@ -36,7 +32,7 @@ export const InfoTip: React.FC<Props> = ({ k, className }) => {
     const left = rect.left
 
     setPosition({ top, left })
-  }, [open])
+  }, [enabled, open])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>): void => {
     if (event.key === 'Escape') {
@@ -61,6 +57,10 @@ export const InfoTip: React.FC<Props> = ({ k, className }) => {
 
   const handleMouseLeave = (): void => {
     setOpen(false)
+  }
+
+  if (!enabled) {
+    return null
   }
 
   return (
