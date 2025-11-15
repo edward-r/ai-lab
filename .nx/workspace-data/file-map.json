@@ -26,8 +26,60 @@
   "fileMap": {
     "nonProjectFiles": [
       {
+        "file": "tsconfig.base.json",
+        "hash": "5883521791101511980"
+      },
+      {
         "file": ".editorconfig",
         "hash": "2779288990582231472"
+      },
+      {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": "nx.json",
+        "hash": "13064133220213869636"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "14777241203059172914"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "14210242442843247863"
+      },
+      {
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "14158514078548521926"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "package.json",
+        "hash": "17043967971035274681"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "18129817643549187384"
+      },
+      {
+        "file": "README.md",
+        "hash": "2139653527659314484"
       },
       {
         "file": "tailwind.config.ts",
@@ -38,68 +90,20 @@
         "hash": "1696669636883572046"
       },
       {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "14777241203059172914"
+        "file": "AGENTS.md",
+        "hash": "459393464529640638"
       },
       {
         "file": ".github/workflows/ci.yml",
         "hash": "15256470195678966833"
-      },
-      {
-        "file": "nx.json",
-        "hash": "13064133220213869636"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
-      },
-      {
-        "file": "package.json",
-        "hash": "17043967971035274681"
-      },
-      {
-        "file": "tsconfig.base.json",
-        "hash": "5883521791101511980"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": "eslint.config.mjs",
-        "hash": "14158514078548521926"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "10162619954131977335"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "14210242442843247863"
-      },
-      {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
       }
     ],
     "projectFileMap": {
       "perceptron-visuals": [
+        {
+          "file": "libs/perceptron-visuals/AGENTS.md",
+          "hash": "1156798156145745088"
+        },
         {
           "file": "libs/perceptron-visuals/project.json",
           "hash": "7309367567714086700"
@@ -264,6 +268,10 @@
         }
       ],
       "perceptron-core": [
+        {
+          "file": "libs/perceptron-core/AGENTS.md",
+          "hash": "6178470852539095894"
+        },
         {
           "file": "libs/perceptron-core/project.json",
           "hash": "15571648856739924981"
@@ -524,6 +532,10 @@
           "hash": "6094546126370684104"
         },
         {
+          "file": "apps/prompt-maker/AGENTS.md",
+          "hash": "6935648740784713642"
+        },
+        {
           "file": "apps/prompt-maker/README.md",
           "hash": "5423339333184180413"
         },
@@ -599,6 +611,10 @@
         }
       ],
       "perceptron-sim": [
+        {
+          "file": "apps/perceptron-sim/AGENTS.md",
+          "hash": "16958032150794805298"
+        },
         {
           "file": "apps/perceptron-sim/index.html",
           "hash": "1543403856268149580"

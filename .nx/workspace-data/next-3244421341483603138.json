@@ -1157,5 +1157,66 @@
       ],
       "command": "npx nx watch --projects prompt-maker --includeDependentProjects -- npx nx build-deps prompt-maker"
     }
+  },
+  "11146635479240183972": {
+    "build": {
+      "command": "next build",
+      "options": {
+        "cwd": "apps/prompt-maker",
+        "tty": false
+      },
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": true,
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "externalDependencies": [
+            "next"
+          ]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/apps/prompt-maker/.next",
+        "{workspaceRoot}/apps/prompt-maker/.next/!(cache)"
+      ]
+    },
+    "dev": {
+      "command": "next dev",
+      "options": {
+        "cwd": "apps/prompt-maker"
+      }
+    },
+    "start": {
+      "command": "next start",
+      "options": {
+        "cwd": "apps/prompt-maker"
+      },
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "serve-static": {
+      "command": "next start",
+      "options": {
+        "cwd": "apps/prompt-maker"
+      },
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "build-deps": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "watch-deps": {
+      "dependsOn": [
+        "build-deps"
+      ],
+      "command": "npx nx watch --projects prompt-maker --includeDependentProjects -- npx nx build-deps prompt-maker"
+    }
   }
 }
