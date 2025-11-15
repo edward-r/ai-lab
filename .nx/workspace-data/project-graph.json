@@ -6512,6 +6512,24 @@
         "hash": "8364603883702099017"
       }
     },
+    "npm:d3-color": {
+      "type": "npm",
+      "name": "npm:d3-color",
+      "data": {
+        "version": "3.1.0",
+        "packageName": "d3-color",
+        "hash": "sha512-zg/chbXyeBtMQ1LbD/WSoW2DpC3I0mpmPdW+ynRTj/x2DAWYrIY7qeZIHidozwV24m4iavr15lNwIwLxRmOxhA=="
+      }
+    },
+    "npm:d3-interpolate": {
+      "type": "npm",
+      "name": "npm:d3-interpolate",
+      "data": {
+        "version": "3.0.1",
+        "packageName": "d3-interpolate",
+        "hash": "sha512-3bYs1rOD33uo8aqJfKP3JWPAibgw8Zm2+L9vBKEHJ2Rg+viTR7o5Mmv5mZcieN+FRYaAOWX5SJATX6k1PWz72g=="
+      }
+    },
     "npm:damerau-levenshtein": {
       "type": "npm",
       "name": "npm:damerau-levenshtein",
@@ -7779,6 +7797,15 @@
         "version": "4.3.7",
         "packageName": "fraction.js",
         "hash": "12613744816356702543"
+      }
+    },
+    "npm:framer-motion": {
+      "type": "npm",
+      "name": "npm:framer-motion",
+      "data": {
+        "version": "11.18.2",
+        "packageName": "framer-motion",
+        "hash": "sha512-5F5Och7wrvtLVElIpclDT0CBzMVg3dL22B64aZwHtsIY8RB4mXICLrkajK4G9R+ieSAGcgrLeae2SeUTg2pr6w=="
       }
     },
     "npm:fresh": {
@@ -9338,6 +9365,24 @@
         "hash": "1496684533181027528"
       }
     },
+    "npm:lottie-react": {
+      "type": "npm",
+      "name": "npm:lottie-react",
+      "data": {
+        "version": "2.4.1",
+        "packageName": "lottie-react",
+        "hash": "sha512-LQrH7jlkigIIv++wIyrOYFLHSKQpEY4zehPicL9bQsrt1rnoKRYCYgpCUe5maqylNtacy58/sQDZTkwMcTRxZw=="
+      }
+    },
+    "npm:lottie-web": {
+      "type": "npm",
+      "name": "npm:lottie-web",
+      "data": {
+        "version": "5.13.0",
+        "packageName": "lottie-web",
+        "hash": "sha512-+gfBXl6sxXMPe8tKQm7qzLnUy5DUPJPKIyRHwtpCpyUEYjHYRJC/5gjUvdkuO2c3JllrPtHXH5UJJK8LRYl5yQ=="
+      }
+    },
     "npm:loupe": {
       "type": "npm",
       "name": "npm:loupe",
@@ -9543,6 +9588,24 @@
         "version": "7.1.2",
         "packageName": "minipass",
         "hash": "15985645342834618003"
+      }
+    },
+    "npm:motion-dom": {
+      "type": "npm",
+      "name": "npm:motion-dom",
+      "data": {
+        "version": "11.18.1",
+        "packageName": "motion-dom",
+        "hash": "sha512-g76KvA001z+atjfxczdRtw/RXOM3OMSdd1f4DL77qCTF/+avrRJiawSG4yDibEQ215sr9kpinSlX2pCTJ9zbhw=="
+      }
+    },
+    "npm:motion-utils": {
+      "type": "npm",
+      "name": "npm:motion-utils",
+      "data": {
+        "version": "11.18.1",
+        "packageName": "motion-utils",
+        "hash": "sha512-49Kt+HKjtbJKLtgO/LKj9Ld+6vw9BjH5d9sc40R/kVyH8GLAXgT42M2NnuPcJNuA3s9ZfZBUcwIgpmZWGEE+hA=="
       }
     },
     "npm:multicast-dns": {
@@ -12656,6 +12719,21 @@
       {
         "source": "perceptron-visuals",
         "target": "npm:react",
+        "type": "static"
+      },
+      {
+        "source": "perceptron-visuals",
+        "target": "npm:framer-motion",
+        "type": "static"
+      },
+      {
+        "source": "perceptron-visuals",
+        "target": "npm:lottie-react",
+        "type": "static"
+      },
+      {
+        "source": "perceptron-visuals",
+        "target": "npm:d3-interpolate",
         "type": "static"
       },
       {
@@ -20574,6 +20652,13 @@
         "type": "static"
       }
     ],
+    "npm:d3-interpolate": [
+      {
+        "source": "npm:d3-interpolate",
+        "target": "npm:d3-color",
+        "type": "static"
+      }
+    ],
     "npm:data-urls": [
       {
         "source": "npm:data-urls",
@@ -22828,6 +22913,33 @@
         "type": "static"
       }
     ],
+    "npm:framer-motion": [
+      {
+        "source": "npm:framer-motion",
+        "target": "npm:react",
+        "type": "static"
+      },
+      {
+        "source": "npm:framer-motion",
+        "target": "npm:react-dom",
+        "type": "static"
+      },
+      {
+        "source": "npm:framer-motion",
+        "target": "npm:motion-dom",
+        "type": "static"
+      },
+      {
+        "source": "npm:framer-motion",
+        "target": "npm:motion-utils",
+        "type": "static"
+      },
+      {
+        "source": "npm:framer-motion",
+        "target": "npm:tslib",
+        "type": "static"
+      }
+    ],
     "npm:front-matter": [
       {
         "source": "npm:front-matter",
@@ -24418,6 +24530,23 @@
         "type": "static"
       }
     ],
+    "npm:lottie-react": [
+      {
+        "source": "npm:lottie-react",
+        "target": "npm:react",
+        "type": "static"
+      },
+      {
+        "source": "npm:lottie-react",
+        "target": "npm:react-dom",
+        "type": "static"
+      },
+      {
+        "source": "npm:lottie-react",
+        "target": "npm:lottie-web",
+        "type": "static"
+      }
+    ],
     "npm:lower-case": [
       {
         "source": "npm:lower-case",
@@ -24493,6 +24622,13 @@
       {
         "source": "npm:minimatch",
         "target": "npm:brace-expansion",
+        "type": "static"
+      }
+    ],
+    "npm:motion-dom": [
+      {
+        "source": "npm:motion-dom",
+        "target": "npm:motion-utils",
         "type": "static"
       }
     ],
@@ -29202,5 +29338,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1763161346300
+  "computedAt": 1763228984537
 }

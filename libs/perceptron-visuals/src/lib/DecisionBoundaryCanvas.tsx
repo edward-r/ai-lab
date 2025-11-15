@@ -28,6 +28,11 @@ type DecisionBoundaryCanvasProps = {
   showBaselineBoundary?: boolean
   baselineThreshold?: number
   snapshotParams?: SnapshotParams[]
+  prevParams?: Params | undefined
+  pulseMarginBand?: boolean
+  prevData?: LabeledPoint[] | null
+  dataAlpha?: number
+  isTraining?: boolean
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -185,6 +190,11 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
   showBaselineBoundary = false,
   baselineThreshold = 0.5,
   snapshotParams = [],
+  prevParams,
+  pulseMarginBand = false,
+  prevData = null,
+  dataAlpha = 1,
+  isTraining = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const dpr = useDevicePixelRatio()
@@ -223,53 +233,89 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
       canvas.style.height = `${height}px`
       context.setTransform(dpr, 0, 0, dpr, 0, 0)
 
+      const frameStart = typeof performance !== 'undefined' ? performance.now() : 0
+      const shouldGuard = isTraining
+      const withinBudget = (): boolean => {
+        if (!shouldGuard) return true
+        if (typeof performance === 'undefined') return true
+        return performance.now() - frameStart <= 10
+      }
+
       context.clearRect(0, 0, width, height)
       drawGrid(context, width, height, sx, sy, bounds)
 
       const scaleX = width / (bounds.xmax - bounds.xmin || 1)
       const scaleY = height / (bounds.ymax - bounds.ymin || 1)
 
-      for (const point of data) {
-        const cx = sx(point.x[0])
-        const cy = sy(point.x[1])
-        const z = params.w[0] * point.x[0] + params.w[1] * point.x[1] + params.b
-        const isSigmoid = activation === 'sigmoid'
-        const probability = isSigmoid ? sigmoid(z) : null
-        const predicted: 0 | 1 = isSigmoid
-          ? probability !== null && probability >= threshold
-            ? 1
-            : 0
-          : z > 0
-            ? 1
-            : 0
-        const confidence = isSigmoid && probability !== null ? probability : predicted
-        const ringColor = `rgba(${Math.round((1 - confidence) * 255)}, ${Math.round(
-          confidence * 255,
-        )}, 0, 0.5)`
+      const now = typeof performance !== 'undefined' ? performance.now() : 0
+      const t = (now % 1600) / 1600
+      const haloPulse = 0.85 + 0.15 * Math.sin(2 * Math.PI * t)
+      const bandPulse = 0.9 + 0.1 * Math.sin(2 * Math.PI * t)
 
-        if (predicted !== point.y) {
+      const clampedAlpha = clamp(dataAlpha ?? 1, 0, 1)
+      const allowDecorations = withinBudget()
+
+      const drawPoints = (points: LabeledPoint[], opacityScale: number) => {
+        if (opacityScale <= 0) return
+        for (const point of points) {
           context.save()
-          const haloGradient = context.createRadialGradient(cx, cy, 0, cx, cy, haloRadius)
-          const haloBase = point.y === 1 ? '59, 130, 246' : '220, 38, 38'
-          haloGradient.addColorStop(0, `rgba(${haloBase}, 0.32)`)
-          haloGradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+          context.globalAlpha = opacityScale
+
+          const cx = sx(point.x[0])
+          const cy = sy(point.x[1])
+          const z = params.w[0] * point.x[0] + params.w[1] * point.x[1] + params.b
+          const isSigmoid = activation === 'sigmoid'
+          const probability = isSigmoid ? sigmoid(z) : null
+          const predicted: 0 | 1 = isSigmoid
+            ? probability !== null && probability >= threshold
+              ? 1
+              : 0
+            : z > 0
+              ? 1
+              : 0
+          const confidence = isSigmoid && probability !== null ? probability : predicted
+          const ringColor = `rgba(${Math.round((1 - confidence) * 255)}, ${Math.round(
+            confidence * 255,
+          )}, 0, 0.5)`
+
+          if (predicted !== point.y && allowDecorations) {
+            context.save()
+            const haloGradient = context.createRadialGradient(cx, cy, 0, cx, cy, haloRadius)
+            const haloBase = point.y === 1 ? '59, 130, 246' : '220, 38, 38'
+            const haloAlpha = 0.32 * haloPulse
+            haloGradient.addColorStop(0, `rgba(${haloBase}, ${haloAlpha})`)
+            haloGradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+            context.beginPath()
+            context.fillStyle = haloGradient
+            context.arc(cx, cy, haloRadius, 0, Math.PI * 2)
+            context.fill()
+            context.restore()
+          }
+
           context.beginPath()
-          context.fillStyle = haloGradient
-          context.arc(cx, cy, haloRadius, 0, Math.PI * 2)
+          context.arc(cx, cy, 7, 0, Math.PI * 2)
+          context.strokeStyle = ringColor
+          context.lineWidth = 2
+          context.stroke()
+
+          context.beginPath()
+          context.arc(cx, cy, 4, 0, Math.PI * 2)
+          context.fillStyle = point.y === 1 ? '#2563eb' : '#dc2626'
           context.fill()
+
           context.restore()
         }
+      }
 
-        context.beginPath()
-        context.arc(cx, cy, 7, 0, Math.PI * 2)
-        context.strokeStyle = ringColor
-        context.lineWidth = 2
-        context.stroke()
+      const previousPoints = prevData ?? []
+      const prevOpacity = previousPoints.length > 0 && allowDecorations ? 1 - clampedAlpha : 0
+      const nextOpacity = clampedAlpha
 
-        context.beginPath()
-        context.arc(cx, cy, 4, 0, Math.PI * 2)
-        context.fillStyle = point.y === 1 ? '#2563eb' : '#dc2626'
-        context.fill()
+      if (prevOpacity > 0) {
+        drawPoints(previousPoints, prevOpacity)
+      }
+      if (nextOpacity > 0) {
+        drawPoints(data, nextOpacity)
       }
 
       const effectiveBias =
@@ -281,7 +327,10 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
         const norm = Math.hypot(params.w[0], params.w[1])
         if (norm > 1e-6) {
           const scaledNormal = Math.sqrt((params.w[0] * scaleX) ** 2 + (params.w[1] * scaleY) ** 2)
-          const pixelHalfWidth = scaledNormal / (norm * norm)
+          const baseWorldHalfWidth = 1 / norm
+          const pulseFactor = pulseMarginBand && allowDecorations ? bandPulse : 1
+          const worldHalfWidth = baseWorldHalfWidth * pulseFactor
+          const pixelHalfWidth = scaledNormal * worldHalfWidth
           const bandWidth = clamp(pixelHalfWidth * 2, 6, 72)
           drawBoundary(context, width, height, bounds, params.w, effectiveBias, sx, sy, {
             color: 'rgba(59, 130, 246, 0.12)',
@@ -304,7 +353,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
         })
       }
 
-      if (snapshotParams.length > 0) {
+      if (snapshotParams.length > 0 && allowDecorations) {
         const shouldAdjustBias = activation === 'sigmoid' && adjustBoundaryByThreshold
         snapshotParams.forEach((overlay, index) => {
           const snapshotBias = shouldAdjustBias ? overlay.b - logit(threshold) : overlay.b
@@ -313,6 +362,56 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
           if (!style) return
           drawBoundary(context, width, height, bounds, overlay.w, snapshotBias, sx, sy, style)
         })
+      }
+
+      if (prevParams) {
+        const prevW = prevParams.w
+        const currW = params.w
+        const prevNorm = Math.hypot(prevW[0], prevW[1])
+        const currNorm = Math.hypot(currW[0], currW[1])
+        if (prevNorm > 1e-6 && currNorm > 1e-6) {
+          const prevUnit: Point2 = [prevW[0] / prevNorm, prevW[1] / prevNorm]
+          const currUnit: Point2 = [currW[0] / currNorm, currW[1] / currNorm]
+          const centerX = (bounds.xmin + bounds.xmax) / 2
+          const centerY = (bounds.ymin + bounds.ymax) / 2
+          const span =
+            0.3 * Math.min(bounds.xmax - bounds.xmin || 1, bounds.ymax - bounds.ymin || 1)
+          const startWorld: Point2 = [centerX + prevUnit[0] * span, centerY + prevUnit[1] * span]
+          const endWorld: Point2 = [centerX + currUnit[0] * span, centerY + currUnit[1] * span]
+          const startX = sx(startWorld[0])
+          const startY = sy(startWorld[1])
+          const endX = sx(endWorld[0])
+          const endY = sy(endWorld[1])
+          const dx = endX - startX
+          const dy = endY - startY
+          const mag = Math.hypot(dx, dy)
+          if (mag > 1) {
+            const ux = dx / mag
+            const uy = dy / mag
+            const headLength = 10
+            const angle = Math.PI / 7
+            const leftX = endX - headLength * (ux * Math.cos(angle) - uy * Math.sin(angle))
+            const leftY = endY - headLength * (ux * Math.sin(angle) + uy * Math.cos(angle))
+            const rightX = endX - headLength * (ux * Math.cos(-angle) - uy * Math.sin(-angle))
+            const rightY = endY - headLength * (ux * Math.sin(-angle) + uy * Math.cos(-angle))
+
+            context.save()
+            context.strokeStyle = '#2563eb'
+            context.fillStyle = '#2563eb'
+            context.lineWidth = 2
+            context.beginPath()
+            context.moveTo(startX, startY)
+            context.lineTo(endX, endY)
+            context.stroke()
+            context.beginPath()
+            context.moveTo(endX, endY)
+            context.lineTo(leftX, leftY)
+            context.lineTo(rightX, rightY)
+            context.closePath()
+            context.fill()
+            context.restore()
+          }
+        }
       }
     }
 
@@ -337,6 +436,11 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
     showMarginBand,
     showBaselineBoundary,
     snapshotParams,
+    prevParams,
+    pulseMarginBand,
+    prevData,
+    dataAlpha,
+    isTraining,
     sx,
     sy,
     threshold,

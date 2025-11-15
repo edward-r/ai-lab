@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import type { RocPoint } from './metrics'
 
 type RocCurveProps = {
@@ -42,6 +43,26 @@ export const RocCurve: React.FC<RocCurveProps> = ({
     if (Number.isNaN(threshold)) return undefined
     return Math.min(1, Math.max(0, threshold))
   }, [threshold])
+
+  const activePoint = useMemo<RocPoint | null>(() => {
+    if (typeof clampedThreshold !== 'number') return null
+    if (points.length === 0) return null
+    const first = points[0]!
+    let best: RocPoint = first
+    let bestDiff = Math.abs(first.threshold - clampedThreshold)
+    for (let index = 1; index < points.length; index += 1) {
+      const candidate = points[index]!
+      const diff = Math.abs(candidate.threshold - clampedThreshold)
+      if (diff < bestDiff) {
+        best = candidate
+        bestDiff = diff
+      }
+    }
+    return best
+  }, [clampedThreshold, points])
+
+  const activeX = activePoint ? activePoint.fpr * width : null
+  const activeY = activePoint ? (1 - activePoint.tpr) * height : null
 
   const updateThreshold = useCallback(
     (clientX: number) => {
@@ -122,6 +143,16 @@ export const RocCurve: React.FC<RocCurveProps> = ({
               stroke="#1f2937"
               strokeWidth={1.5}
               strokeDasharray="4 3"
+            />
+          ) : null}
+          {activeX !== null && activeY !== null ? (
+            <motion.circle
+              cx={activeX}
+              cy={activeY}
+              r={4}
+              initial={false}
+              animate={{ cx: activeX, cy: activeY }}
+              transition={{ type: 'spring', stiffness: 220, damping: 28 }}
             />
           ) : null}
         </svg>
