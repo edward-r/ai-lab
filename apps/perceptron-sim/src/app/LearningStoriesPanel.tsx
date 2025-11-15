@@ -17,6 +17,21 @@ export const LearningStoriesPanel: React.FC<Props> = ({
 }) => {
   const [rocPlaying, setRocPlaying] = React.useState(false)
   const rocTweenRef = React.useRef<Cancel | null>(null)
+  const [caption, setCaption] = React.useState<string | null>(null)
+  const [tauStorySeen, setTauStorySeen] = React.useState(false)
+
+  const handleTauSet = (value: number) => {
+    if (!tauStorySeen && activation === 'sigmoid') {
+      setTauStorySeen(true)
+      setCaption('Raising τ shifts the effective intercept: b′ = b − logit(τ).')
+    }
+    setThreshold(value)
+  }
+
+  const handleStepStoryClick = () => {
+    onStepOnce()
+    setCaption('A single update nudges w and b toward reducing loss on the current example.')
+  }
 
   const handleRocTourClick = () => {
     if (activation !== 'sigmoid') return
@@ -24,6 +39,9 @@ export const LearningStoriesPanel: React.FC<Props> = ({
       rocTweenRef.current?.()
       rocTweenRef.current = null
       setRocPlaying(false)
+      setCaption(
+        'Sweeping τ traces the ROC curve; each point is the classifier at a different threshold.',
+      )
       return
     }
 
@@ -32,6 +50,12 @@ export const LearningStoriesPanel: React.FC<Props> = ({
       duration: 4000,
       onUpdate: (value) => {
         setThreshold(value)
+        if (value >= 0.999) {
+          setRocPlaying(false)
+          setCaption(
+            'Sweeping τ traces the ROC curve; each point is the classifier at a different threshold.',
+          )
+        }
       },
     })
   }
@@ -43,6 +67,13 @@ export const LearningStoriesPanel: React.FC<Props> = ({
     [],
   )
 
+  React.useEffect(() => {
+    // reset ROC tour and caption when activation mode changes
+    setRocPlaying(false)
+    rocTweenRef.current?.()
+    rocTweenRef.current = null
+  }, [activation])
+
   return (
     <section className="rounded-lg border p-3 space-y-3">
       <h3 className="font-semibold">Learning stories</h3>
@@ -52,14 +83,18 @@ export const LearningStoriesPanel: React.FC<Props> = ({
         <div className="font-medium text-sm">Logit/τ shift</div>
         <AnimatedTauControl
           tau={threshold}
-          setTau={setThreshold}
+          setTau={handleTauSet}
           disabled={activation !== 'sigmoid'}
         />
       </div>
 
       <div className="space-y-1">
         <div className="font-medium text-sm">One gradient update</div>
-        <button type="button" className="px-2 py-1 rounded bg-gray-100" onClick={onStepOnce}>
+        <button
+          type="button"
+          className="px-2 py-1 rounded bg-gray-100"
+          onClick={handleStepStoryClick}
+        >
           Animate step once
         </button>
       </div>
@@ -75,6 +110,10 @@ export const LearningStoriesPanel: React.FC<Props> = ({
           {rocPlaying ? 'Pause ROC tour' : 'Play ROC tour'}
         </button>
       </div>
+
+      {caption ? (
+        <div className="pt-2 border-t border-slate-200 text-xs text-slate-600">{caption}</div>
+      ) : null}
     </section>
   )
 }

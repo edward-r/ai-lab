@@ -26,6 +26,7 @@ import {
 } from '@perceptron-visuals'
 import { InfoTip, InfoTipProvider } from '@perceptron-visuals/help/InfoTip'
 import { AnimatedTauControl } from '@perceptron-visuals/AnimatedTauControl'
+import { tweenNumber, type Cancel } from '@perceptron-visuals/lib/anim/tween'
 import { LearningStoriesPanel } from './LearningStoriesPanel'
 import { PerceptronSimulator } from '../features/Perceptron/PerceptronSimulator'
 
@@ -1161,6 +1162,7 @@ export const PerceptronLabPanel: React.FC = () => {
                       pulseMarginBand={pulseMarginBand}
                       prevData={prevDatasetRef.current}
                       dataAlpha={datasetAlpha}
+                      isTraining={state.running}
                       {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
                     />
                   </div>

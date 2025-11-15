@@ -32,6 +32,7 @@ type DecisionBoundaryCanvasProps = {
   pulseMarginBand?: boolean
   prevData?: LabeledPoint[] | null
   dataAlpha?: number
+  isTraining?: boolean
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -193,6 +194,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
   pulseMarginBand = false,
   prevData = null,
   dataAlpha = 1,
+  isTraining = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const dpr = useDevicePixelRatio()
@@ -231,6 +233,14 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
       canvas.style.height = `${height}px`
       context.setTransform(dpr, 0, 0, dpr, 0, 0)
 
+      const frameStart = typeof performance !== 'undefined' ? performance.now() : 0
+      const shouldGuard = isTraining
+      const withinBudget = (): boolean => {
+        if (!shouldGuard) return true
+        if (typeof performance === 'undefined') return true
+        return performance.now() - frameStart <= 10
+      }
+
       context.clearRect(0, 0, width, height)
       drawGrid(context, width, height, sx, sy, bounds)
 
@@ -243,6 +253,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
       const bandPulse = 0.9 + 0.1 * Math.sin(2 * Math.PI * t)
 
       const clampedAlpha = clamp(dataAlpha ?? 1, 0, 1)
+      const allowDecorations = withinBudget()
 
       const drawPoints = (points: LabeledPoint[], opacityScale: number) => {
         if (opacityScale <= 0) return
@@ -267,7 +278,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
             confidence * 255,
           )}, 0, 0.5)`
 
-          if (predicted !== point.y) {
+          if (predicted !== point.y && allowDecorations) {
             context.save()
             const haloGradient = context.createRadialGradient(cx, cy, 0, cx, cy, haloRadius)
             const haloBase = point.y === 1 ? '59, 130, 246' : '220, 38, 38'
@@ -297,7 +308,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
       }
 
       const previousPoints = prevData ?? []
-      const prevOpacity = previousPoints.length > 0 ? 1 - clampedAlpha : 0
+      const prevOpacity = previousPoints.length > 0 && allowDecorations ? 1 - clampedAlpha : 0
       const nextOpacity = clampedAlpha
 
       if (prevOpacity > 0) {
@@ -317,7 +328,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
         if (norm > 1e-6) {
           const scaledNormal = Math.sqrt((params.w[0] * scaleX) ** 2 + (params.w[1] * scaleY) ** 2)
           const baseWorldHalfWidth = 1 / norm
-          const pulseFactor = pulseMarginBand ? bandPulse : 1
+          const pulseFactor = pulseMarginBand && allowDecorations ? bandPulse : 1
           const worldHalfWidth = baseWorldHalfWidth * pulseFactor
           const pixelHalfWidth = scaledNormal * worldHalfWidth
           const bandWidth = clamp(pixelHalfWidth * 2, 6, 72)
@@ -342,7 +353,7 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
         })
       }
 
-      if (snapshotParams.length > 0) {
+      if (snapshotParams.length > 0 && allowDecorations) {
         const shouldAdjustBias = activation === 'sigmoid' && adjustBoundaryByThreshold
         snapshotParams.forEach((overlay, index) => {
           const snapshotBias = shouldAdjustBias ? overlay.b - logit(threshold) : overlay.b
@@ -427,6 +438,9 @@ export const DecisionBoundaryCanvas: React.FC<DecisionBoundaryCanvasProps> = ({
     snapshotParams,
     prevParams,
     pulseMarginBand,
+    prevData,
+    dataAlpha,
+    isTraining,
     sx,
     sy,
     threshold,
