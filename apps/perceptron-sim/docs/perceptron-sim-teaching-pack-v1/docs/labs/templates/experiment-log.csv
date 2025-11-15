@@ -1,0 +1,3 @@
+run,seed,dataset,activation,eta,epochs,tau,accuracy,loss,precision,recall,F1,notes
+A,42,separable,step,0.2,2,,,,,,
+B,42,separable,step,0.2,2,,,,,,
