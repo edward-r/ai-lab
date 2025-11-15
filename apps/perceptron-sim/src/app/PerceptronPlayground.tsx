@@ -25,6 +25,8 @@ import {
   type PresetKind,
 } from '@perceptron-visuals'
 import { InfoTip, InfoTipProvider } from '@perceptron-visuals/help/InfoTip'
+import { AnimatedTauControl } from '@perceptron-visuals/AnimatedTauControl'
+import { LearningStoriesPanel } from './LearningStoriesPanel'
 import { PerceptronSimulator } from '../features/Perceptron/PerceptronSimulator'
 
 type DatasetKind = PresetKind
@@ -143,6 +145,9 @@ export const PerceptronLabPanel: React.FC = () => {
     'separable',
   )
   const [dataset, setDataset] = useState<LabeledPoint[]>(() => datasetFromKind(datasetKind))
+  const prevDatasetRef = React.useRef<LabeledPoint[] | null>(null)
+  const [datasetAlpha, setDatasetAlpha] = useState<number>(1)
+  const datasetTweenCancelRef = React.useRef<Cancel | null>(null)
 
   const [initial] = useState<Params>(DEFAULT_PARAMS)
   const [epochs, setEpochs] = usePersistentState<number>('pl.epochs', 50)
@@ -154,6 +159,7 @@ export const PerceptronLabPanel: React.FC = () => {
 
   const [lossByStep, setLossByStep] = useState<number[]>([])
   const [lossByEpoch, setLossByEpoch] = useState<number[]>([])
+  const [prevParams, setPrevParams] = useState<Params | null>(null)
   const [lossMode, setLossMode] = usePersistentState<LossMode>('pl.lossGranularity', 'steps')
 
   const [threshold, setThreshold] = usePersistentState<number>('pl.tau', 0.5)
@@ -174,6 +180,10 @@ export const PerceptronLabPanel: React.FC = () => {
   )
   const [showMarginBand, setShowMarginBand] = usePersistentState<boolean>(
     'pl.showMarginBand',
+    false,
+  )
+  const [pulseMarginBand, setPulseMarginBand] = usePersistentState<boolean>(
+    'pl.pulseMarginBand',
     false,
   )
   const [showStepConfusion, setShowStepConfusion] = useState<boolean>(false)
@@ -223,6 +233,12 @@ export const PerceptronLabPanel: React.FC = () => {
   }, [snapshots, visibleOverlayIds])
 
   const { start, pause, reset, stepOnce, setLr: setTrainerLearningRate } = controls
+
+  const handleStepOnceClick = () => {
+    if (state.running) return
+    setPrevParams(state.params)
+    stepOnce()
+  }
 
   const resetHistories = useCallback(() => {
     setLossByStep([])
@@ -308,12 +324,24 @@ export const PerceptronLabPanel: React.FC = () => {
   )
 
   const handleDatasetClick = (value: DatasetKind) => {
-    setDatasetKind(value)
     if (value === 'custom') {
+      setDatasetKind('custom')
       setDataset([])
-    } else {
-      setDataset(datasetFromKind(value))
+      prevDatasetRef.current = null
+      setDatasetAlpha(1)
+      return
     }
+
+    const next = datasetFromKind(value)
+    prevDatasetRef.current = dataset
+    datasetTweenCancelRef.current?.()
+    setDatasetKind(value)
+    setDataset(next)
+    setDatasetAlpha(0)
+    datasetTweenCancelRef.current = tweenNumber(0, 1, {
+      duration: 250,
+      onUpdate: (v) => setDatasetAlpha(v),
+    })
   }
 
   const handleAddPoint = (point: LabeledPoint) => {
@@ -355,8 +383,15 @@ export const PerceptronLabPanel: React.FC = () => {
   )
 
   const handlePresetSelection = (kind: PresetKind, points: LabeledPoint[]) => {
+    prevDatasetRef.current = dataset
+    datasetTweenCancelRef.current?.()
     setDatasetKind(kind)
     setDataset(points)
+    setDatasetAlpha(0)
+    datasetTweenCancelRef.current = tweenNumber(0, 1, {
+      duration: 250,
+      onUpdate: (v) => setDatasetAlpha(v),
+    })
   }
 
   const saveSnapshot = useCallback(() => {
@@ -918,7 +953,7 @@ export const PerceptronLabPanel: React.FC = () => {
                   </button>
                   <button
                     className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-300 disabled:opacity-60"
-                    onClick={() => stepOnce()}
+                    onClick={handleStepOnceClick}
                     disabled={state.running}
                   >
                     Step once
@@ -935,6 +970,15 @@ export const PerceptronLabPanel: React.FC = () => {
                     Controls
                     <InfoTip k="trainControls" />
                   </span>
+                </div>
+
+                <div className="mt-4">
+                  <LearningStoriesPanel
+                    activation={activation}
+                    threshold={threshold}
+                    setThreshold={handleThresholdChange}
+                    onStepOnce={handleStepOnceClick}
+                  />
                 </div>
 
                 {activation === 'step' ? (
@@ -1078,7 +1122,7 @@ export const PerceptronLabPanel: React.FC = () => {
               </div>
 
               <div className="px-6 pb-6">
-                <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-600">
+                <label className="mb-1 inline-flex items-center gap-2 text-sm text-slate-600">
                   <input
                     type="checkbox"
                     checked={showMarginBand}
@@ -1089,6 +1133,16 @@ export const PerceptronLabPanel: React.FC = () => {
                     <InfoTip k="marginBand" />
                   </span>
                 </label>
+                <label className="mb-3 inline-flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={pulseMarginBand}
+                    onChange={(event) => setPulseMarginBand(event.target.checked)}
+                    disabled={!showMarginBand}
+                  />
+                  <span>Pulse margin band</span>
+                </label>
+
                 <Card className="overflow-x-auto rounded-2xl border-slate-200 bg-slate-50">
                   <div className="min-w-0">
                     <DecisionBoundaryCanvas
@@ -1103,6 +1157,10 @@ export const PerceptronLabPanel: React.FC = () => {
                       showBaselineBoundary={activation === 'sigmoid' && showBaselineBoundary}
                       baselineThreshold={0.5}
                       snapshotParams={activeSnapshotParams}
+                      prevParams={!state.running && prevParams ? prevParams : undefined}
+                      pulseMarginBand={pulseMarginBand}
+                      prevData={prevDatasetRef.current}
+                      dataAlpha={datasetAlpha}
                       {...(datasetKind === 'custom' ? { onAddPoint: handleAddPoint } : {})}
                     />
                   </div>
@@ -1145,6 +1203,13 @@ export const PerceptronLabPanel: React.FC = () => {
                         Thresholded metrics (τ = {threshold.toFixed(2)})
                         <InfoTip k="tau" />
                       </span>
+                    </div>
+                    <div className="mb-3">
+                      <AnimatedTauControl
+                        tau={threshold}
+                        setTau={handleThresholdChange}
+                        disabled={dataset.length === 0}
+                      />
                     </div>
                     <div className="min-w-0 grid grid-cols-1 gap-3 items-start md:grid-cols-2">
                       <div className="min-w-0 overflow-hidden space-y-1">

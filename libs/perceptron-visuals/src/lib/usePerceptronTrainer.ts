@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { tweenNumber, tweenTuple, type Cancel } from './anim/tween'
 
 export type Point2 = [number, number]
 export type LabeledPoint = { x: Point2; y: 0 | 1 }
@@ -147,6 +148,7 @@ export const usePerceptronTrainer = (options: TrainerOpts): [TrainerState, Train
   const paramsRef = useRef<Params>(adapter ? adapter.getParams() : initial)
   const runningRef = useRef(false)
   const rafRef = useRef<number | null>(null)
+  const tweenCancelsRef = useRef<Cancel[]>([])
   const orderRef = useRef<number[]>([])
   const indexRef = useRef(0)
   const epochRef = useRef(0)
@@ -185,83 +187,124 @@ export const usePerceptronTrainer = (options: TrainerOpts): [TrainerState, Train
     setState((prev) => ({ ...prev, running: false }))
   }, [])
 
-  const applyStep = useCallback((): boolean => {
-    if (data.length === 0) {
-      const metricsEmpty = computeMetrics(paramsRef.current, data, activation)
-      setState({
-        running: runningRef.current,
-        epoch: epochRef.current,
-        step: 0,
-        params: paramsRef.current,
-        acc: metricsEmpty.acc,
-        loss: metricsEmpty.loss,
+  const stopTweens = useCallback(() => {
+    if (tweenCancelsRef.current.length > 0) {
+      tweenCancelsRef.current.forEach((cancelTween) => {
+        cancelTween()
       })
-      return false
+      tweenCancelsRef.current = []
     }
+  }, [])
 
-    if (indexRef.current >= data.length) {
-      ensureOrder()
-    }
+  type StepCommitPayload = {
+    prevParams: Params
+    nextParams: Params
+    metrics: { acc: number; loss: number }
+    completedEpoch: boolean
+  }
 
-    const order = orderRef.current
-    const sampleIndex = order[indexRef.current]
-    if (sampleIndex === undefined) {
-      return false
-    }
-    const sample = data[sampleIndex]
-    if (sample === undefined) {
-      return false
-    }
-
-    if (adapter) {
-      paramsRef.current = adapter.trainStep(sample.x, sample.y, lr, activation)
-      paramsRef.current = adapter.getParams()
-    } else {
-      paramsRef.current =
-        activation === 'sigmoid'
-          ? logisticUpdate(paramsRef.current, sample, lr)
-          : perceptronUpdate(paramsRef.current, sample, lr)
-    }
-
-    indexRef.current += 1
-    const completedEpoch = indexRef.current >= data.length
-
-    const metricsNow = computeMetrics(paramsRef.current, data, activation)
-
-    if (completedEpoch) {
-      epochRef.current += 1
-      onEpochEnd?.({
-        epoch: epochRef.current,
-        params: paramsRef.current,
-        metrics: metricsNow,
-      })
-
-      if (epochRef.current >= epochs) {
-        setState({
-          running: runningRef.current,
-          epoch: epochRef.current,
-          step: data.length,
-          params: paramsRef.current,
-          acc: metricsNow.acc,
-          loss: metricsNow.loss,
-        })
+  const applyStep = useCallback(
+    (commit?: (payload: StepCommitPayload) => void): boolean => {
+      if (data.length === 0) {
+        const metricsEmpty = computeMetrics(paramsRef.current, data, activation)
+        if (commit) {
+          commit({
+            prevParams: paramsRef.current,
+            nextParams: paramsRef.current,
+            metrics: metricsEmpty,
+            completedEpoch: false,
+          })
+        } else {
+          setState({
+            running: runningRef.current,
+            epoch: epochRef.current,
+            step: 0,
+            params: paramsRef.current,
+            acc: metricsEmpty.acc,
+            loss: metricsEmpty.loss,
+          })
+        }
         return false
       }
 
-      ensureOrder()
-    }
+      if (indexRef.current >= data.length) {
+        ensureOrder()
+      }
 
-    setState({
-      running: runningRef.current,
-      epoch: epochRef.current,
-      step: completedEpoch ? 0 : indexRef.current,
-      params: paramsRef.current,
-      acc: metricsNow.acc,
-      loss: metricsNow.loss,
-    })
+      const order = orderRef.current
+      const sampleIndex = order[indexRef.current]
+      if (sampleIndex === undefined) {
+        return false
+      }
+      const sample = data[sampleIndex]
+      if (sample === undefined) {
+        return false
+      }
 
-    return true
-  }, [activation, adapter, data, ensureOrder, epochs, lr, onEpochEnd])
+      const prevParams = paramsRef.current
+      let nextParams: Params
+
+      if (adapter) {
+        adapter.trainStep(sample.x, sample.y, lr, activation)
+        nextParams = adapter.getParams()
+      } else {
+        nextParams =
+          activation === 'sigmoid'
+            ? logisticUpdate(prevParams, sample, lr)
+            : perceptronUpdate(prevParams, sample, lr)
+      }
+
+      paramsRef.current = nextParams
+
+      indexRef.current += 1
+      const completedEpoch = indexRef.current >= data.length
+
+      const metricsNow = computeMetrics(nextParams, data, activation)
+
+      if (completedEpoch) {
+        epochRef.current += 1
+        onEpochEnd?.({
+          epoch: epochRef.current,
+          params: nextParams,
+          metrics: metricsNow,
+        })
+
+        if (epochRef.current >= epochs) {
+          if (commit) {
+            commit({ prevParams, nextParams, metrics: metricsNow, completedEpoch })
+          } else {
+            setState({
+              running: runningRef.current,
+              epoch: epochRef.current,
+              step: data.length,
+              params: nextParams,
+              acc: metricsNow.acc,
+              loss: metricsNow.loss,
+            })
+          }
+          return false
+        }
+
+        ensureOrder()
+      }
+
+      if (commit) {
+        commit({ prevParams, nextParams, metrics: metricsNow, completedEpoch })
+      } else {
+        setState({
+          running: runningRef.current,
+          epoch: epochRef.current,
+          step: completedEpoch ? 0 : indexRef.current,
+          params: nextParams,
+          acc: metricsNow.acc,
+          loss: metricsNow.loss,
+        })
+      }
+
+      return true
+    },
+    [activation, adapter, data, ensureOrder, epochs, lr, onEpochEnd],
+  )
 
   const loop = useCallback(() => {
     let keepRunning = true
@@ -280,10 +323,11 @@ export const usePerceptronTrainer = (options: TrainerOpts): [TrainerState, Train
     if (epochRef.current === 0 && indexRef.current === 0) {
       ensureOrder()
     }
+    stopTweens()
     runningRef.current = true
     setState((prev) => ({ ...prev, running: true }))
     rafRef.current = requestAnimationFrame(loop)
-  }, [ensureOrder, loop])
+  }, [ensureOrder, loop, stopTweens])
 
   const pause = useCallback(() => {
     stopLoop()
@@ -292,6 +336,7 @@ export const usePerceptronTrainer = (options: TrainerOpts): [TrainerState, Train
   const reset = useCallback(
     (params?: Params) => {
       stopLoop()
+      stopTweens()
       epochRef.current = 0
       indexRef.current = 0
       ensureOrder()
@@ -311,7 +356,7 @@ export const usePerceptronTrainer = (options: TrainerOpts): [TrainerState, Train
         loss: metrics.loss,
       })
     },
-    [activation, adapter, data, ensureOrder, initial, stopLoop],
+    [activation, adapter, data, ensureOrder, initial, stopLoop, stopTweens],
   )
 
   const stepOnce = useCallback(() => {
@@ -319,8 +364,40 @@ export const usePerceptronTrainer = (options: TrainerOpts): [TrainerState, Train
     if (epochRef.current === 0 && indexRef.current === 0) {
       ensureOrder()
     }
-    applyStep()
-  }, [applyStep, ensureOrder])
+    stopTweens()
+    applyStep(({ prevParams, nextParams, metrics, completedEpoch }) => {
+      setState({
+        running: false,
+        epoch: epochRef.current,
+        step: completedEpoch ? 0 : indexRef.current,
+        params: prevParams,
+        acc: metrics.acc,
+        loss: metrics.loss,
+      })
+
+      const cancelW = tweenTuple(prevParams.w, nextParams.w, {
+        duration: 300,
+        onUpdate: (v) => {
+          setState((prev) => ({
+            ...prev,
+            params: { ...prev.params, w: [v[0], v[1]] as [number, number] },
+          }))
+        },
+      })
+
+      const cancelB = tweenNumber(prevParams.b, nextParams.b, {
+        duration: 300,
+        onUpdate: (v) => {
+          setState((prev) => ({
+            ...prev,
+            params: { ...prev.params, b: v },
+          }))
+        },
+      })
+
+      tweenCancelsRef.current = [cancelW, cancelB]
+    })
+  }, [applyStep, ensureOrder, stopTweens])
 
   const setLr = useCallback((value: number) => {
     updateLr(value)
