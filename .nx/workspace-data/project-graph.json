@@ -71,18 +71,54 @@
       "data": {
         "root": "apps/prompt-maker-cli",
         "name": "prompt-maker-cli",
-        "$schema": "../../node_modules/nx/schemas/project-schema.json",
-        "projectType": "application",
-        "sourceRoot": "apps/prompt-maker-cli/src",
-        "tags": [],
+        "tags": [
+          "npm:public",
+          "npm:prompt",
+          "npm:cli",
+          "npm:prompt-maker",
+          "npm:neovim"
+        ],
+        "metadata": {
+          "targetGroups": {
+            "NPM Scripts": [
+              "prepublishOnly"
+            ]
+          },
+          "description": "Terminal workflow for diagnosing and improving prompts via prompt-maker.",
+          "js": {
+            "packageName": "@perceptron/prompt-maker-cli",
+            "isInPackageManagerWorkspaces": false
+          }
+        },
         "targets": {
+          "prepublishOnly": {
+            "executor": "nx:run-script",
+            "options": {
+              "script": "prepublishOnly"
+            },
+            "metadata": {
+              "scriptContent": "npm run build",
+              "runCommand": "npm run prepublishOnly"
+            },
+            "configurations": {},
+            "parallelism": true
+          },
+          "nx-release-publish": {
+            "executor": "@nx/js:release-publish",
+            "dependsOn": [
+              "^nx-release-publish"
+            ],
+            "options": {},
+            "configurations": {},
+            "parallelism": true
+          },
           "build": {
             "executor": "@nx/esbuild:esbuild",
             "outputs": [
               "{options.outputPath}"
             ],
             "options": {
-              "outputPath": "dist/apps/prompt-maker-cli",
+              "outputPath": "apps/prompt-maker-cli/dist",
               "main": "apps/prompt-maker-cli/src/index.ts",
               "bundle": true,
               "platform": "node",
@@ -128,6 +164,9 @@
             ]
           }
         },
+        "$schema": "../../node_modules/nx/schemas/project-schema.json",
+        "projectType": "application",
+        "sourceRoot": "apps/prompt-maker-cli/src",
         "implicitDependencies": []
       }
     },
@@ -29877,5 +29916,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1763333229412
+  "computedAt": 1763336160125
 }

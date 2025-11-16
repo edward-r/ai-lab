@@ -1,0 +1,28 @@
+{
+  "name": "@perceptron/prompt-maker-cli",
+  "version": "0.1.0",
+  "description": "Terminal workflow for diagnosing and improving prompts via prompt-maker.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "prompt-maker-cli": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "scripts": {
+    "build": "node ../../node_modules/nx/bin/nx.js build prompt-maker-cli",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "prompt",
+    "cli",
+    "prompt-maker",
+    "neovim"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

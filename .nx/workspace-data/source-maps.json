@@ -710,6 +710,106 @@
       "apps/prompt-maker-cli/project.json",
       "nx/core/project-json"
     ],
+    "tags": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:public": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:prompt": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:cli": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:prompt-maker": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "tags.npm:neovim": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.targetGroups.NPM Scripts.0": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.description": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.packageName": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "metadata.js.isInPackageManagerWorkspaces": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.prepublishOnly": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.prepublishOnly.executor": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.prepublishOnly.options": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.prepublishOnly.metadata": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.prepublishOnly.options.script": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.prepublishOnly.metadata.scriptContent": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.prepublishOnly.metadata.runCommand": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.nx-release-publish": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.nx-release-publish.executor": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.nx-release-publish.dependsOn": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
+    "targets.nx-release-publish.options": [
+      "apps/prompt-maker-cli/package.json",
+      "nx/core/package-json"
+    ],
     "$schema": [
       "apps/prompt-maker-cli/project.json",
       "nx/core/project-json"
@@ -719,14 +819,6 @@
       "nx/core/project-json"
     ],
     "sourceRoot": [
-      "apps/prompt-maker-cli/project.json",
-      "nx/core/project-json"
-    ],
-    "tags": [
-      "apps/prompt-maker-cli/project.json",
-      "nx/core/project-json"
-    ],
-    "targets": [
       "apps/prompt-maker-cli/project.json",
       "nx/core/project-json"
     ],

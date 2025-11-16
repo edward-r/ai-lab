@@ -24,10 +24,33 @@ When run in an interactive terminal the CLI will ask any missing clarifying ques
 Combine `--json` with scripted answers to drive the CLI from tools like NeoVim:
 
 ```bash
-node dist/apps/prompt-maker-cli/index.js \
+node apps/prompt-maker-cli/dist/index.js \
   --prompt-file prompt.txt \
   --answers-json '{"constraints":"Functional TypeScript only"}' \
   --json > result.json
 ```
 
 The JSON payload includes the original diagnosis, clarifying questions, collected answers, and the improved/polished prompt text so you can render it however you like.
+
+## Global Install
+
+Once the CLI is built you can install it system-wide:
+
+```bash
+# from the repo
+npx nx build prompt-maker-cli
+cd apps/prompt-maker-cli
+npm install -g .
+```
+
+That registers the `prompt-maker-cli` command globally, so your NeoVim plugin (or any shell script) can invoke it simply as:
+
+```bash
+prompt-maker-cli --prompt-file prompt.txt --json
+```
+
+When we publish the package you will also be able to run:
+
+```bash
+npm install -g @perceptron/prompt-maker-cli
+```

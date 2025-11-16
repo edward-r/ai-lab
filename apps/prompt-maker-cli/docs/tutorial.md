@@ -17,6 +17,16 @@ This guide walks through every major capability of the `prompt-maker-cli` so you
 npx nx run prompt-maker-cli:serve -- [flags]
 ```
 
+For a portable install, build once and register the package globally:
+
+```bash
+npx nx build prompt-maker-cli
+cd apps/prompt-maker-cli
+npm install -g .
+```
+
+That command adds a `prompt-maker-cli` executable to your PATH so editor integrations can run it without repo-relative paths.
+
 Key flags:
 
 | Flag                                              | Description                                                |
@@ -174,7 +184,7 @@ Behavior:
 
 ```bash
 PROMPT=$(pbpaste)
-node dist/apps/prompt-maker-cli/index.js \
+node apps/prompt-maker-cli/dist/index.js \
   --prompt "$PROMPT" \
   --max-questions 2 \
   --json \
@@ -185,7 +195,7 @@ Inspect `run.json` and feed answers back:
 
 ```bash
 ANSWERS=$(jq '{outcome: .questions[0].options[0]}' run.json)
-node dist/apps/prompt-maker-cli/index.js \
+node apps/prompt-maker-cli/dist/index.js \
   --prompt "$PROMPT" \
   --answers-json "$ANSWERS" \
   --no-interactive
@@ -242,7 +252,7 @@ Create a NeoVim plugin that invokes `prompt-maker-cli` to improve prompts inside
 
 ### Required CLI Invocation
 
-- Executable: `node dist/apps/prompt-maker-cli/index.js` (or `npx nx run prompt-maker-cli:serve --`).
+- Executable: `prompt-maker-cli` when installed globally (fallback: `node apps/prompt-maker-cli/dist/index.js` or `npx nx run prompt-maker-cli:serve --`).
 - Always pass `--json --no-interactive` for automation; present additional questions to the user if `.questions` returns entries with empty answers.
 - Re-run CLI with populated `answers-json` when the user supplies missing data.
 
