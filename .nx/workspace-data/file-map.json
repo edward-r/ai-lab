@@ -32,76 +32,76 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": "eslint.config.mjs",
-        "hash": "14158514078548521926"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "7415856417213359764"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "459393464529640638"
-      },
-      {
         "file": ".gitignore",
         "hash": "11436792623039980707"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
-        "file": "nx.json",
-        "hash": "13064133220213869636"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": "tsconfig.base.json",
-        "hash": "13780919962843055140"
       },
       {
         "file": ".nvmrc",
         "hash": "16951876268857922555"
       },
       {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
         "file": "package-lock.json",
         "hash": "8994640923746484205"
       },
       {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "package.json",
+        "hash": "4046223037504619789"
       },
       {
         "file": "tsconfig.node.json",
         "hash": "8684776726152056264"
       },
       {
-        "file": "package.json",
-        "hash": "4046223037504619789"
+        "file": "AGENTS.md",
+        "hash": "459393464529640638"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": "README.md",
+        "hash": "2139653527659314484"
+      },
+      {
+        "file": "nx.json",
+        "hash": "13064133220213869636"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "13780919962843055140"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "7415856417213359764"
+      },
+      {
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "14158514078548521926"
       }
     ],
     "projectFileMap": {
@@ -870,6 +870,10 @@
         {
           "file": "apps/prompt-maker-cli/README.md",
           "hash": "10288431917666190245"
+        },
+        {
+          "file": "apps/prompt-maker-cli/docs/tutorial.md",
+          "hash": "5244272147238149860"
         },
         {
           "file": "apps/prompt-maker-cli/project.json",
