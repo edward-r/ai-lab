@@ -11,7 +11,7 @@ type ChatCompletionResponse = {
   choices: ChatCompletionChoice[]
 }
 
-const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.1-codex'
 const OPENAI_ENDPOINT = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1/chat/completions'
 
 export const callLLM = async (
