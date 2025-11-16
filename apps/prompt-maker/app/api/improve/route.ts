@@ -1,6 +1,5 @@
-import { improve } from '@/lib/improve'
-import { callLLM } from '@/lib/llm'
-import type { PromptSections } from '@/lib/types'
+import { improve, callLLM } from '@prompt-maker/core'
+import type { PromptSections } from '@prompt-maker/core'
 
 type ImproveRequest = {
   original: string

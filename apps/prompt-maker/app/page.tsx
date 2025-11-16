@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import type { ClarifyingQ, CriterionKey, Diagnosis, ImproveResult } from '@/lib/types'
+import type { ClarifyingQ, CriterionKey, Diagnosis, ImproveResult } from '@prompt-maker/core'
 
 type AnswerState = Partial<Record<CriterionKey, string>>
 

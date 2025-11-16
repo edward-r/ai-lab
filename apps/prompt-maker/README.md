@@ -15,7 +15,7 @@ Craft structured, high-signal prompts through an interactive Next.js workflow. P
 - **Framework**: Next.js App Router (TypeScript, functional components).
 - **UI**: Client-side page under `app/page.tsx` orchestrates diagnose → clarify → improve flow.
 - **API routes**: `app/api/diagnose` and `app/api/improve` handle scoring, question generation, and synthesis.
-- **Domain logic**: Shared functional modules live in `lib/` (`types`, `heuristics`, `questions`, `contract`, `improve`, `llm`).
+- **Domain logic**: Shared functional modules now live in `libs/prompt-maker-core` (importable via `@prompt-maker/core`).
 - **Styling**: Hand-rolled CSS in `app/globals.css` with a dark glassmorphism theme.
 
 ## Getting Started
@@ -25,6 +25,7 @@ Craft structured, high-signal prompts through an interactive Next.js workflow. P
    npm install
    ```
 2. **Set environment variables** (add to your shell profile or a `.env.local` file):
+
    ```bash
    export OPENAI_API_KEY="sk-..."   # required for polish mode
    export OPENAI_MODEL="gpt-4o-mini" # optional override
@@ -33,6 +34,7 @@ Craft structured, high-signal prompts through an interactive Next.js workflow. P
 
    - If you omit `OPENAI_MODEL`, the app defaults to `gpt-4o-mini`.
    - `OPENAI_BASE_URL` is useful when pointing to Azure OpenAI or a proxy.
+
 3. **Run the dev server**
    ```bash
    npm run dev
@@ -49,6 +51,24 @@ Craft structured, high-signal prompts through an interactive Next.js workflow. P
 ## Running Without OpenAI
 
 You can use the app without an API key—simply leave polishing disabled. Diagnostics, question generation, and improved prompt synthesis all run locally.
+
+## Terminal CLI
+
+Need the workflow in a terminal or editor plugin? Run the `prompt-maker-cli` Nx target.
+
+```
+npx nx run prompt-maker-cli:serve -- --prompt-file prompt.txt --polish --json
+```
+
+Key flags:
+
+- `--prompt` / `--prompt-file` / pipe stdin for the initial draft.
+- `--answers-json` / `--answers-file` to script clarifying answers.
+- `--json` for machine-readable output; omit for a human summary.
+- `--polish` and `--model` to opt into the OpenAI finishing pass.
+- `--no-interactive` disables question prompts even in a TTY.
+
+The CLI reuses the same heuristics, question generator, and improvement engine exposed by the web app, so results stay in sync regardless of interface.
 
 ## API Endpoints
 
@@ -72,8 +92,8 @@ Both routes trim the original prompt input and return `400` when missing.
 ## Development Notes
 
 - Code style favors functional TypeScript (no classes, no `any`).
-- Shared modules reside under `lib/`; avoid reintroducing root-level copies.
-- Update `tsconfig.json` path aliases if you move modules (`@/lib/*`).
+- Shared modules reside under `libs/prompt-maker-core`; avoid reintroducing root-level copies.
+- Imports should use the shared alias `@prompt-maker/core`.
 - When adding new heuristics or questions, extend `CriterionKey` in `lib/types.ts` and adjust weights in `lib/heuristics.ts` accordingly.
 
 ## Testing Ideas

@@ -1,0 +1,35 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "prompt-maker-cli",
+  "projectType": "application",
+  "sourceRoot": "apps/prompt-maker-cli/src",
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/prompt-maker-cli",
+        "main": "apps/prompt-maker-cli/src/index.ts",
+        "bundle": true,
+        "platform": "node",
+        "target": "node18",
+        "format": ["esm"],
+        "tsConfig": "apps/prompt-maker-cli/tsconfig.json"
+      }
+    },
+    "serve": {
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "prompt-maker-cli:build"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/prompt-maker-cli/src/**/*.ts"]
+      }
+    }
+  },
+  "tags": []
+}

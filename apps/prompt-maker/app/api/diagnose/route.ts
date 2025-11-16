@@ -1,5 +1,4 @@
-import { diagnose } from '@/lib/heuristics'
-import { generateQuestions } from '@/lib/questions'
+import { diagnose, generateQuestions } from '@prompt-maker/core'
 
 type DiagnoseRequest = {
   original: string

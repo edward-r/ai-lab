@@ -18,7 +18,9 @@
       "@perceptron/core": ["libs/perceptron-core/src/index.ts"],
       "@perceptron/core/*": ["libs/perceptron-core/src/*"],
       "@perceptron-visuals": ["libs/perceptron-visuals/src/index.ts"],
-      "@perceptron-visuals/*": ["libs/perceptron-visuals/src/*"]
+      "@perceptron-visuals/*": ["libs/perceptron-visuals/src/*"],
+      "@prompt-maker/core": ["libs/prompt-maker-core/src/index.ts"],
+      "@prompt-maker/core/*": ["libs/prompt-maker-core/src/*"]
     }
   }
 }

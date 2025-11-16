@@ -13,6 +13,12 @@
     ],
     "@perceptron-visuals/*": [
       "libs/perceptron-visuals/src/*"
+    ],
+    "@prompt-maker/core": [
+      "libs/prompt-maker-core/src/index.ts"
+    ],
+    "@prompt-maker/core/*": [
+      "libs/prompt-maker-core/src/*"
     ]
   },
   "nxJsonPlugins": [
@@ -26,76 +32,76 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "tsconfig.base.json",
-        "hash": "5883521791101511980"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
-      },
-      {
-        "file": "nx.json",
-        "hash": "13064133220213869636"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "14777241203059172914"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "14210242442843247863"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
       },
       {
         "file": "eslint.config.mjs",
         "hash": "14158514078548521926"
       },
       {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
       },
       {
-        "file": "package.json",
-        "hash": "17043967971035274681"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "18129817643549187384"
-      },
-      {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
+        "file": "tsconfig.json",
+        "hash": "7415856417213359764"
       },
       {
         "file": "AGENTS.md",
         "hash": "459393464529640638"
       },
       {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
+        "file": ".gitignore",
+        "hash": "11436792623039980707"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
+      },
+      {
+        "file": "nx.json",
+        "hash": "13064133220213869636"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
+        "file": "README.md",
+        "hash": "2139653527659314484"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "13780919962843055140"
+      },
+      {
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "8994640923746484205"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": "package.json",
+        "hash": "4046223037504619789"
       }
     ],
     "projectFileMap": {
@@ -265,53 +271,6 @@
         {
           "file": "libs/perceptron-visuals/tsconfig.json",
           "hash": "9690182976240718486"
-        }
-      ],
-      "perceptron-core": [
-        {
-          "file": "libs/perceptron-core/AGENTS.md",
-          "hash": "6178470852539095894"
-        },
-        {
-          "file": "libs/perceptron-core/project.json",
-          "hash": "15571648856739924981"
-        },
-        {
-          "file": "libs/perceptron-core/src/index.ts",
-          "hash": "8240860054729818693"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.test.ts",
-          "hash": "2763675980340157823",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.ts",
-          "hash": "10493328169959022042"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
-          "hash": "14897755387999689691",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.ts",
-          "hash": "801047537965533375"
-        },
-        {
-          "file": "libs/perceptron-core/tsconfig.json",
-          "hash": "16535889485124124979"
-        },
-        {
-          "file": "libs/perceptron-core/vitest.config.ts",
-          "hash": "9903363322179040656",
-          "deps": [
-            "npm:vitest"
-          ]
         }
       ],
       "prompt-maker": [
@@ -537,15 +496,21 @@
         },
         {
           "file": "apps/prompt-maker/README.md",
-          "hash": "5423339333184180413"
+          "hash": "5349819337421232206"
         },
         {
           "file": "apps/prompt-maker/app/api/diagnose/route.ts",
-          "hash": "12791685316299863541"
+          "hash": "6191817106333313401",
+          "deps": [
+            "prompt-maker-core"
+          ]
         },
         {
           "file": "apps/prompt-maker/app/api/improve/route.ts",
-          "hash": "7617757894907127607"
+          "hash": "11084466490951485841",
+          "deps": [
+            "prompt-maker-core"
+          ]
         },
         {
           "file": "apps/prompt-maker/app/globals.css",
@@ -564,34 +529,11 @@
         },
         {
           "file": "apps/prompt-maker/app/page.tsx",
-          "hash": "11600017856243560440",
+          "hash": "3888475264147350967",
           "deps": [
-            "npm:react"
+            "npm:react",
+            "prompt-maker-core"
           ]
-        },
-        {
-          "file": "apps/prompt-maker/lib/contract.ts",
-          "hash": "15393296970748474577"
-        },
-        {
-          "file": "apps/prompt-maker/lib/heuristics.ts",
-          "hash": "1737953474250247787"
-        },
-        {
-          "file": "apps/prompt-maker/lib/improve.ts",
-          "hash": "565283469705238016"
-        },
-        {
-          "file": "apps/prompt-maker/lib/llm.ts",
-          "hash": "14520808269220009036"
-        },
-        {
-          "file": "apps/prompt-maker/lib/questions.ts",
-          "hash": "4132197091194580515"
-        },
-        {
-          "file": "apps/prompt-maker/lib/types.ts",
-          "hash": "15469363360530045221"
         },
         {
           "file": "apps/prompt-maker/next-env.d.ts",
@@ -606,14 +548,178 @@
           "hash": "12568192219666830015"
         },
         {
+          "file": "apps/prompt-maker/public/.gitkeep",
+          "hash": "3244421341483603138"
+        },
+        {
           "file": "apps/prompt-maker/tsconfig.json",
-          "hash": "1190035950690342656"
+          "hash": "10698098845567512067"
         }
       ],
       "perceptron-sim": [
         {
           "file": "apps/perceptron-sim/AGENTS.md",
           "hash": "16958032150794805298"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/README.md",
+          "hash": "11581707250404109722"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/book/Makefile",
+          "hash": "3041267681386128207"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/book/chapters/01-what-youre-looking-at.md",
+          "hash": "10334423202858191228"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/book/chapters/02-how-the-line-learns.md",
+          "hash": "10659030149871462252"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/book/outline.md",
+          "hash": "16663081299791537211"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/01-hello-boundary.md",
+          "hash": "17951973457472203014"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/02-learning-rate.md",
+          "hash": "7171214841102440918"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/03-confidence-and-threshold.md",
+          "hash": "9695190180909279616"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/04-noisy-separable.md",
+          "hash": "10350910670110639056"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/05-xor-limit.md",
+          "hash": "13608987016115828573"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/06-classic-gates.md",
+          "hash": "7518790463270061876"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/07-choosing-threshold-by-goal.md",
+          "hash": "7881864167319751309"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/08-precision-recall-trace.md",
+          "hash": "17888802236626902464"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/09-roc-anatomy-and-auc.md",
+          "hash": "8807250597798429719"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/10-class-imbalance-reality-check.md",
+          "hash": "6998928245100571867"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/11-threshold-as-intercept-shift.md",
+          "hash": "294389400861562346"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/12-margin-and-error-risk.md",
+          "hash": "5343174489547731194"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/13-learning-rate-shapes-in-loss.md",
+          "hash": "16432232709433281513"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/14-reproducibility-with-seed.md",
+          "hash": "1518990299967669936"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/15-json-import-export-workflow.md",
+          "hash": "16610414843847079780"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/16-snapshot-storytelling.md",
+          "hash": "10429966249939202950"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/17-keyboard-driven-workflow.md",
+          "hash": "11234610352796420532"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/18-step-vs-sigmoid-comparison.md",
+          "hash": "15232674719489582651"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/19-cost-sensitive-thresholding.md",
+          "hash": "350142251413135482"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/20-failure-drill-xor-plus-noise.md",
+          "hash": "4166661873232471931"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/21-capstone-tau-picker.md",
+          "hash": "8231773994174292259"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/22-capstone-reproducibility.md",
+          "hash": "6380204940222753435"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/23-capstone-noise-stress-test.md",
+          "hash": "3795200508606887662"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/24-capstone-mini-paper.md",
+          "hash": "11829399260748972509"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/Makefile",
+          "hash": "2308457542991539438"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/README.md",
+          "hash": "14073801527081934802"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/capstone/rubric.md",
+          "hash": "764857988334372348"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/pandoc/metadata.yaml",
+          "hash": "7582073924272506384"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/print/print.css",
+          "hash": "10233847740188004395"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/templates/experiment-log.csv",
+          "hash": "4318517101307031484"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/templates/mini-paper-template.md",
+          "hash": "3989947840031561154"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/templates/tau-picker-worksheet.csv",
+          "hash": "13645920178003199473"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/docs/labs/templates/tau-picker-worksheet.md",
+          "hash": "272978508502220040"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/scripts/ep1-orientation.md",
+          "hash": "7210119225940550861"
+        },
+        {
+          "file": "apps/perceptron-sim/docs/perceptron-sim-teaching-pack-v1/scripts/ep2-learning-step.md",
+          "hash": "12874177619724939725"
         },
         {
           "file": "apps/perceptron-sim/index.html",
@@ -711,6 +817,112 @@
           "deps": [
             "npm:vitest"
           ]
+        }
+      ],
+      "perceptron-core": [
+        {
+          "file": "libs/perceptron-core/AGENTS.md",
+          "hash": "6178470852539095894"
+        },
+        {
+          "file": "libs/perceptron-core/project.json",
+          "hash": "15571648856739924981"
+        },
+        {
+          "file": "libs/perceptron-core/src/index.ts",
+          "hash": "8240860054729818693"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.test.ts",
+          "hash": "2763675980340157823",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.ts",
+          "hash": "10493328169959022042"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
+          "hash": "14897755387999689691",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.ts",
+          "hash": "801047537965533375"
+        },
+        {
+          "file": "libs/perceptron-core/tsconfig.json",
+          "hash": "16535889485124124979"
+        },
+        {
+          "file": "libs/perceptron-core/vitest.config.ts",
+          "hash": "9903363322179040656",
+          "deps": [
+            "npm:vitest"
+          ]
+        }
+      ],
+      "prompt-maker-cli": [
+        {
+          "file": "apps/prompt-maker-cli/README.md",
+          "hash": "10288431917666190245"
+        },
+        {
+          "file": "apps/prompt-maker-cli/project.json",
+          "hash": "17351091951778107007"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/index.ts",
+          "hash": "6170750231443711824",
+          "deps": [
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/tsconfig.json",
+          "hash": "13852689990186427467"
+        }
+      ],
+      "prompt-maker-core": [
+        {
+          "file": "libs/prompt-maker-core/project.json",
+          "hash": "15901221963602980650"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/index.ts",
+          "hash": "2569809061899225127"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/lib/contract.ts",
+          "hash": "15393296970748474577"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/lib/heuristics.ts",
+          "hash": "1737953474250247787"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/lib/improve.ts",
+          "hash": "565283469705238016"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/lib/llm.ts",
+          "hash": "11512294426524152718"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/lib/questions.ts",
+          "hash": "4132197091194580515"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/lib/types.ts",
+          "hash": "15469363360530045221"
+        },
+        {
+          "file": "libs/prompt-maker-core/tsconfig.json",
+          "hash": "9936056993985653040"
         }
       ]
     }
