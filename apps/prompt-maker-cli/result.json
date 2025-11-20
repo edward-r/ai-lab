@@ -1,0 +1,15 @@
+
+> nx run prompt-maker-cli:serve --json
+
+[0m[7m[1m[31m NX [39m[22m[27m[0m  [31m'json' is not found in schema[39m
+
+
+
+ NX   Running target serve for project prompt-maker-cli failed
+
+Failed tasks:
+
+- prompt-maker-cli:serve
+
+Hint: run the command with --verbose for more details.
+

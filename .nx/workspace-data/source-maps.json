@@ -874,11 +874,19 @@
       "apps/prompt-maker-cli/project.json",
       "nx/core/project-json"
     ],
+    "targets.serve.dependsOn": [
+      "apps/prompt-maker-cli/project.json",
+      "nx/core/project-json"
+    ],
     "targets.serve.options": [
       "apps/prompt-maker-cli/project.json",
       "nx/core/project-json"
     ],
-    "targets.serve.options.buildTarget": [
+    "targets.serve.options.command": [
+      "apps/prompt-maker-cli/project.json",
+      "nx/core/project-json"
+    ],
+    "targets.serve.options.forwardAllArgs": [
       "apps/prompt-maker-cli/project.json",
       "nx/core/project-json"
     ],

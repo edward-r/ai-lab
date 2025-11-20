@@ -1,0 +1,14 @@
+We need to add a terms and conditions modal that appears only the first time a user logs into the Portal. We can store the flag that indicates a user has seen and agreed to the terms and conditions in the `IData_UserAgreements` table.
+
+
+The text of the terms and conditions modal is this:
+
+**Attention**: Our Terms and Conditions have been recently updated to better serve your needs and improve your overall experience with our services. By continuing to use LoanTek's services, you are consenting to these updated Terms and Conditions. It is important that you review and understand these terms before using our platform. Your ongoing use of LoanTek signifies your agreement to abide by the updated Terms and Conditions outlined here. **(Hyperlink to another part of the portal, that stores the updated Terms and Conditions)**.
+
+
+And it should like to a PDF that exists here: `apps/portal/src/data/LoanTek_Terms_Conditions (ST 5_20).pdf`.
+
+This should use the standard idioms for how these kinds of operations are typically performed.
+
+
+

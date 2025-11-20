@@ -25,6 +25,12 @@ cd apps/prompt-maker-cli
 npm install -g .
 ```
 
+> [!TIP] Here’s how to force a fresh bundle so the global install matches the new behavior:
+>
+> 1. From the repo root run `npx nx reset` (or `node node_modules/nx/bin/nx.js reset`) to stop the daemon and clear the cache.
+> 2. Run `npx nx build prompt-maker-cli --skip-nx-cache` (or set `NX_CACHE=false`) so Nx actually rebundles instead of replaying the cached artifact.
+> 3. Inside `apps/prompt-maker-cli`, reinstall globally: `npm install -g .`.
+
 That command adds a `prompt-maker-cli` executable to your PATH so editor integrations can run it without repo-relative paths.
 
 Key flags:
@@ -50,7 +56,7 @@ The CLI always produces:
 ## 3. Quick-Start Example
 
 ```bash
-cat draft.txt | npx nx run prompt-maker-cli:serve -- --json > result.json
+cat draft.txt | npx nx run prompt-maker-cli:serve --json > result.json
 ```
 
 - Provide the prompt via stdin.
@@ -62,7 +68,7 @@ cat draft.txt | npx nx run prompt-maker-cli:serve -- --json > result.json
 Use the CLI in a terminal to experience the full question/answer loop:
 
 ```bash
-npx nx run prompt-maker-cli:serve -- \
+npx nx run prompt-maker-cli:serve \
   --prompt "Draft a spec for documenting our onboarding bot" \
   --max-questions 3
 ```
@@ -76,12 +82,71 @@ Flow:
 
 Tip: Press **Enter** on an empty line to keep an existing answer and move to the next question.
 
+Interactive prompts number each option—enter `1` (or `1,3` for multiples) to pick from the list, or type a custom response if none of the suggestions fit.
+
+### Mental Model: Diagnose → Align → Improve → Polish
+
+Treat the CLI as a tight feedback loop:
+
+1. **Diagnose** – run the CLI with only your raw draft to gather scores and clarifying questions. This is your prompt “bloodwork.”
+2. **Align** – answer the questions (either interactively or by editing `answers.json`). Each answer locks a criterion (outcome, output format, constraints, context, process, uncertainty).
+3. **Improve** – re-run with the updated answers to produce a structured contract. Iterate until the questions list comes back empty.
+4. **Polish** (optional) – once satisfied with the structure, add `--polish` to get the OpenAI finishing pass. Keep the improved prompt as your source of truth; the polish layer is a thin rewrite for tone/fluency.
+
+Key cadence:
+
+- **When drafting from scratch**: Diagnose → answer questions inline → immediately see the upgraded contract.
+- **When editing an existing prompt**: Feed the last improved prompt back through `--prompt-file` and only answer the criteria you want to change; previous answers stay in place.
+- **When automating**: Cache `run.json`, edit the `answers` object, and rerun with `--answers-json "$UPDATED"`.
+
+### End-to-End Iteration Example
+
+1. **Baseline diagnosis**
+
+   ```bash
+   npx nx run prompt-maker-cli:serve \
+     --prompt-file prompts/rough-spec.md \
+     --json \
+     | tee runs/001-diagnose.json
+   ```
+
+   Review `.questions` to see which criteria need detail.
+
+2. **Answer + improve**
+
+   ```bash
+   ANSWERS=$(jq '{
+     outcome: "One Markdown spec ≤400 words",
+     constraints: "Functional TS, no services",
+     context: "Portal users accept T&C once"
+   }' runs/001-diagnose.json)
+   npx nx run prompt-maker-cli:serve \
+     --prompt-file prompts/rough-spec.md \
+     --answers-json "$ANSWERS" \
+     --json \
+     | tee runs/002-improve.json
+   ```
+
+   The new `.result.improvedPrompt` captures the clarified contract and the `.questions` array should be shorter.
+
+3. **Optional polish**
+   ```bash
+   OPENAI_API_KEY=... npx nx run prompt-maker-cli:serve \
+     --prompt-file prompts/rough-spec.md \
+     --answers-json "$ANSWERS" \
+     --polish \
+     --json \
+     | jq -r '.result.polishedPrompt' > prompts/final.md
+   ```
+
+Use this pattern whenever you need to “tighten” prompts in stages while keeping the CLI output traceable.
+
 ## 5. Non-Interactive / Batch Mode
 
 When running from scripts or CI, disable interactive prompts and feed pre-baked answers:
 
 ```bash
-npx nx run prompt-maker-cli:serve -- \
+npx nx run prompt-maker-cli:serve \
   --prompt-file prompt.txt \
   --answers-json '{"outcome":"One Markdown report ≤500 words"}' \
   --no-interactive \
@@ -104,7 +169,7 @@ Store clarifying answers in version control and reference them:
 ```
 
 ```bash
-npx nx run prompt-maker-cli:serve -- \
+npx nx run prompt-maker-cli:serve \
   --prompt-file prompt.txt \
   --answers-file answers.json
 ```
@@ -127,7 +192,7 @@ Override the base contract template (role, rubric, etc.) via `--defaults-file`:
 Command:
 
 ```bash
-npx nx run prompt-maker-cli:serve -- \
+npx nx run prompt-maker-cli:serve \
   --prompt-file prompt.txt \
   --defaults-file defaults.json
 ```
@@ -137,14 +202,14 @@ npx nx run prompt-maker-cli:serve -- \
 Parse the CLI’s JSON to integrate with other tools:
 
 ```bash
-npx nx run prompt-maker-cli:serve -- --prompt-file prompt.txt --json \
+npx nx run prompt-maker-cli:serve --prompt-file prompt.txt --json \
   | jq -r '.result.improvedPrompt' > improved.txt
 ```
 
 Or capture the questions for UI rendering:
 
 ```bash
-npx nx run prompt-maker-cli:serve -- --prompt-file prompt.txt --json \
+npx nx run prompt-maker-cli:serve --prompt-file prompt.txt --json \
   | jq '.questions[] | {key, question, hint}'
 ```
 
@@ -152,7 +217,7 @@ npx nx run prompt-maker-cli:serve -- --prompt-file prompt.txt --json \
 
 ```bash
 export OPENAI_API_KEY=sk-...
-npx nx run prompt-maker-cli:serve -- \
+npx nx run prompt-maker-cli:serve \
   --prompt-file prompt.txt \
   --polish \
   --model gpt-4o-mini
@@ -180,52 +245,82 @@ Behavior:
 
 ## 12. Example Workflows
 
-### A. Draft → Diagnose → Answer → Improve
+### A. Draft → Diagnose → Answer → Improve (Solo Sprint)
 
-```bash
-PROMPT=$(pbpaste)
-node apps/prompt-maker-cli/dist/index.js \
-  --prompt "$PROMPT" \
-  --max-questions 2 \
-  --json \
-  | tee run.json
-```
+Use this loop when you have a rough idea but need a contract-quality spec within minutes.
 
-Inspect `run.json` and feed answers back:
+1. **Capture the draft directly from your editor/clipboard**
 
-```bash
-ANSWERS=$(jq '{outcome: .questions[0].options[0]}' run.json)
-node apps/prompt-maker-cli/dist/index.js \
-  --prompt "$PROMPT" \
-  --answers-json "$ANSWERS" \
-  --no-interactive
-```
+   ```bash
+   PROMPT=$(pbpaste)
+   node apps/prompt-maker-cli/dist/index.js \
+     --prompt "$PROMPT" \
+     --json \
+     | tee runs/solo-001.json
+   ```
 
-### B. Continuous Prompt Refinement
+   The JSON snapshot freezes the diagnosis and clarifying questions in time.
+
+2. **Answer the top gaps immediately**
+
+   ```bash
+   ANSWERS=$(jq '{
+     outcome: "One Markdown SOP ≤350 words",
+     outputFormat: "Headings: Context, Steps, Final Prompt"
+   }' runs/solo-001.json)
+   node apps/prompt-maker-cli/dist/index.js \
+     --prompt "$PROMPT" \
+     --answers-json "$ANSWERS" \
+     --no-interactive \
+     --json \
+     | tee runs/solo-002.json
+   ```
+
+   Iterate until `.questions` is empty and `.result.diagnosisAfter.overall` hits your target.
+
+3. **Hand the improved prompt back to your editor** (e.g., `jq -r '.result.improvedPrompt' runs/solo-002.json > improved.md`).
+
+### B. Team Handoff & Traceability
+
+When collaborating, keep the CLI outputs in version control so teammates can see what changed and why.
+
+1. **Designer** runs the initial diagnosis and commits `runs/feature-x/diagnose.json`.
+2. **Engineer** opens the JSON, fills the `answers` block (or records them in `answers.json`), and re-runs with `--no-interactive --answers-json`. This produces `runs/feature-x/improve.json`.
+3. **Reviewer** diffs the two JSON files to see which criteria tightened up, then copies `.result.improvedPrompt` into the shared spec.
+
+Because each JSON contains the original draft, questions, answers, and improved prompt, you gain a complete audit trail without extra tooling.
+
+### C. Continuous Prompt Refinement Loop
+
+Keep a watch running while you iterate on a prompt file. Every save re-diagnoses the draft and exports the improved suggestion.
 
 ```bash
 while inotifywait prompt.txt; do
-  npx nx run prompt-maker-cli:serve -- \
+  npx nx run prompt-maker-cli:serve \
     --prompt-file prompt.txt \
     --json \
     | jq -r '.result.improvedPrompt' > improved.txt
 done
 ```
 
-### C. Git Commit Hook Example
+Use this when pair-writing with someone else or when you expect to answer clarifying questions inside the file itself: edit `prompt.txt`, save, review `improved.txt`, repeat.
 
-Add a script to validate prompt specs before committing:
+### D. Prompt Quality Gate (CI or Git Hooks)
+
+Enforce minimum quality scores before prompts land in production or documentation repos.
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-npx nx run prompt-maker-cli:serve -- \
+SCORE=$(npx nx run prompt-maker-cli:serve \
   --prompt-file specs/prompt.md \
   --no-interactive \
   --json \
-  | jq '.result.diagnosisAfter.overall' \
-  | awk '{ if ($1 < 0.6) exit 1 }'
+  | jq '.result.diagnosisAfter.overall')
+awk -v score="$SCORE" 'BEGIN { exit(score >= 0.6 ? 0 : 1) }'
 ```
+
+Extend this idea by inspecting individual criteria (e.g., fail if `constraints < 0.8`) or by writing the JSON artifact to your CI workspace for later review.
 
 ## NeoVim Plugin Agent Spec Sheet
 

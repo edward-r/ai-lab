@@ -18,9 +18,11 @@
       }
     },
     "serve": {
-      "executor": "@nx/js:node",
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
-        "buildTarget": "prompt-maker-cli:build"
+        "command": "node apps/prompt-maker-cli/dist/index.js",
+        "forwardAllArgs": true
       }
     },
     "lint": {

@@ -444,18 +444,68 @@ const collectAnswersInteractively = async (
     }
     if (question.options?.length) {
       console.log('Options:')
-      question.options.forEach((option) => console.log(`  - ${option}`))
+      question.options.forEach((option, index) => console.log(`  ${index + 1}. ${option}`))
     }
     if (existing) {
       console.log(`Current answer: ${existing}`)
     }
-    console.log('Enter response (blank line to skip):')
-    const response = await rl.question('> ')
-    const trimmed = response.trim()
-    if (trimmed) {
-      answers[question.key] = trimmed
+    console.log(
+      question.options?.length
+        ? 'Enter number(s) or custom response (blank line to skip):'
+        : 'Enter response (blank line to skip):',
+    )
+    const response = await promptForAnswer(question, rl)
+    if (response) {
+      answers[question.key] = response
     }
   }
+}
+
+const promptForAnswer = async (question: ClarifyingQ, rl: Interface): Promise<string | null> => {
+  while (true) {
+    const response = (await rl.question('> ')).trim()
+    if (!response) {
+      return null
+    }
+
+    if (!question.options?.length) {
+      return response
+    }
+
+    const selection = resolveOptionSelection(response, question.options)
+    if (selection.kind === 'error') {
+      console.log(selection.message)
+      continue
+    }
+    if (selection.kind === 'match') {
+      return selection.value
+    }
+    return response
+  }
+}
+
+type OptionSelectionResult =
+  | { kind: 'match'; value: string }
+  | { kind: 'error'; message: string }
+  | { kind: 'none' }
+
+const resolveOptionSelection = (input: string, options: string[]): OptionSelectionResult => {
+  const normalized = input.replace(/\s+/g, '')
+  if (!/^\d+(?:,\d+)*$/.test(normalized)) {
+    return { kind: 'none' }
+  }
+
+  const indices = normalized.split(',').map((token) => Number.parseInt(token, 10))
+  const invalid = indices.find(
+    (index) => Number.isNaN(index) || index < 1 || index > options.length,
+  )
+  if (invalid) {
+    return { kind: 'error', message: `Select numbers between 1 and ${options.length}.` }
+  }
+
+  const unique = Array.from(new Set(indices))
+  const value = unique.map((index) => options[index - 1]).join('; ')
+  return { kind: 'match', value }
 }
 
 const displayHumanReadable = (payload: CliOutput) => {
