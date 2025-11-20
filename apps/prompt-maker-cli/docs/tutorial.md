@@ -99,6 +99,104 @@ Key cadence:
 - **When editing an existing prompt**: Feed the last improved prompt back through `--prompt-file` and only answer the criteria you want to change; previous answers stay in place.
 - **When automating**: Cache `run.json`, edit the `answers` object, and rerun with `--answers-json "$UPDATED"`.
 
+### Case Study: HUD-Line-Driven Required Fees
+
+Use this real incident as a template for turning a customer report into a production-ready prompt.
+
+1. **Capture the raw report**
+
+   ```bash
+   cat <<'EOF' > prompts/hud-required-fees.md
+   Currently in the portal app, in the costs manager, in the master costs allow
+   the users to set which master costs are optional and which are required.
+   We need to change this such that required fees are designated by product line,
+   and not allow the users to change this.
+   What I'm thinking is that we would need a new table,
+   possibly called required_product_lines, where we have a column
+   for product line, a column for the associated sector,
+   and a column for whether it is required.
+   And then wherever we have logic that determines which costs are automatically
+   added to a new Costing Set, that logic would be modified to look at this table
+   to determine which master costs would be added to a costing set.
+   The logic would get all master costs
+   for the current user, then look in this new table and filter to
+   include all master costs that match the vertical and whose product
+   lines match the required product lines.
+   Please just provide me your suggested plan for this, and also a series of
+   directed prompts that I can use for whatever agent
+   I will be using to assist me when the time comes.
+   EOF
+   ```
+
+> [!TIP] You can start surprisingly small—think of it as
+> “enough signal for the first diagnosis.” In practice:
+>
+> - **Absolute minimum**: one or two sentences capturing the core problem
+>   (“Fee Manager must derive required
+>   fees from HUD lines instead of user toggles;
+>   users can’t override required status anymore”).
+>   That’s enough for Prompt Maker to warn you that outcome,
+>   format, constraints, and context are missing.
+> - **Slightly better**: add one concrete detail per dimension
+>   you care about—e.g., mention the new table idea,
+>   say which parts of the workflow are affected
+>   (fee-set creation, UI toggle removal),
+>   and any stack constraints you already know (Postgres, TypeScript).
+>   This makes the clarifying questions sharper and
+>   reduces how much you need to answer later.
+> - **Rule of thumb**: include the business objective plus
+>   any “non-negotiables” (tech stack, data sources, compliance rules).
+>   Let Prompt Maker surface everything else via clarifying questions;
+>   you then answer those in `answers.json` or interactively.
+>
+> So you don’t have to paste the full incident report every
+> time—start with the bare essentials, run `prompt-maker-cli`,
+> and use the generated questions to fill in the missing pieces iteratively.
+
+2. **Diagnose to expose the gaps**
+
+   ```bash
+   prompt-maker-cli \
+     --prompt-file prompts/hud-required-fees.md \
+     --json \
+     | tee runs/hud/001-diagnose.json
+   ```
+
+   The CLI called out missing outcome, structure, constraints, and context via questions such as:
+   - “What single observable deliverable do you want (e.g., ‘one Markdown page’ …)?”
+   - “How should the output be structured—exact sections/keys and their order?”
+   - “What constraints and non-goals should be enforced …?”
+   - “What minimal domain facts are necessary …?”
+
+3. **Answer once, reuse often**
+   Create `answers/hud-required-fees.json` so anyone can rerun the flow deterministically:
+
+   ```json
+   {
+     "outcome": "One RFC-style implementation plan ≤500 words covering schema, business logic, and UI impact.",
+     "outputFormat": "Headings: Summary, Data Model, Fee-Set Logic Changes, UI/Permissions, Migration & Ops, Risks & Follow-Ups",
+     "constraints": "Functional TypeScript only, Postgres migration via Prisma, reuse existing fee-manager services, remove user-facing overrides, table name tbl_required_fee_hud_lines.",
+     "context": "Portal Fee Manager; master fees currently optional/required per user; need HUD-line-driven requirements per vertical; auto-add required fees when creating Fee Sets; vertical examples: Retail, Wholesale."
+   }
+   ```
+
+4. **Improve using those answers**
+
+   ```bash
+   prompt-maker-cli \
+     --prompt-file prompts/hud-required-fees.md \
+     --answers-file answers/hud-required-fees.json \
+     --json \
+     | tee runs/hud/002-improve.json
+   jq -r '.result.improvedPrompt' runs/hud/002-improve.json > prompts/hud-required-fees-improved.md
+   ```
+
+   The improved contract now demands an RFC-style plan with the exact sections, constraints (Functional TS + Prisma migration + UI removal), and business context the team needs.
+
+5. **Iterate / polish**
+   - Update the answers file whenever a constraint changes (e.g., new vertical name) and rerun.
+   - Add `--polish` when sharing externally, but keep the improved prompt as the authoritative spec for engineers.
+
 ### End-to-End Iteration Example
 
 1. **Baseline diagnosis**
