@@ -1,0 +1,1 @@
+There is an issue in the Website Watcher where Suntrust isn't processing every day as it should. Based on what I see in the Website Watcher Core, in Suntrust's hard-coded config, it appears that it relies on a Download Timer to process. Where should I look to understand why it's not processing?
