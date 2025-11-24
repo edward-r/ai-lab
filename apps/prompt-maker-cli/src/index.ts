@@ -16,6 +16,9 @@ import {
   type PromptSections,
 } from '@prompt-maker/core'
 
+import { runGenerateCommand } from './generate-command'
+import { readFromStdin } from './io'
+
 const CRITERION_LABELS: Record<CriterionKey, string> = {
   outcome: 'Outcome',
   outputFormat: 'Output Format',
@@ -62,8 +65,35 @@ type CliOutput = {
   result: ImproveResult
 }
 
+type CommandName = 'improve' | 'generate'
+
+const resolveCommand = (argv: string[]): { command: CommandName; args: string[] } => {
+  if (argv.length === 0) {
+    return { command: 'improve', args: [] }
+  }
+
+  const [first, ...rest] = argv
+  if (first && !first.startsWith('-')) {
+    if (first === 'generate' || first === 'expand') {
+      return { command: 'generate', args: rest }
+    }
+    if (first === 'improve') {
+      return { command: 'improve', args: rest }
+    }
+  }
+
+  return { command: 'improve', args: argv }
+}
+
 const run = async () => {
-  const args = parseArgs(process.argv.slice(2))
+  const { command, args: argv } = resolveCommand(process.argv.slice(2))
+
+  if (command === 'generate') {
+    await runGenerateCommand(argv)
+    return
+  }
+
+  const args = parseArgs(argv)
 
   if (args.help) {
     printUsage()
@@ -262,7 +292,7 @@ const parseArgs = (argv: string[]): CliArgs => {
 
 const printUsage = () => {
   console.log(
-    `Prompt Maker CLI\n\nUsage:\n  prompt-maker-cli [options]\n\nOptions:\n  -p, --prompt <text>          Inline prompt text\n  -f, --prompt-file <path>     Read prompt from file\n      --answers-json <json>     Provide clarifying answers as JSON\n      --answers-file <path>     Provide clarifying answers JSON file\n      --defaults-file <path>    Override contract defaults via JSON file\n  -q, --max-questions <n>     Number of clarifying questions (default 4)\n      --json                   Output machine-readable JSON\n      --no-interactive         Disable interactive questions even in a TTY\n      --polish                 Run OpenAI polish pass (requires OPENAI_API_KEY)\n      --model <name>           Override OPENAI model for polishing\n  -h, --help                  Show this help text\n`,
+    `Prompt Maker CLI\n\nUsage:\n  prompt-maker-cli [options]              Improve an existing prompt (default)\n  prompt-maker-cli generate <intent>      AI-powered prompt construction\n\nCommands:\n  generate                  AI Prompt Generation (see: prompt-maker-cli generate --help)\n\nDefault command options:\n  -p, --prompt <text>          Inline prompt text\n  -f, --prompt-file <path>     Read prompt from file\n      --answers-json <json>     Provide clarifying answers as JSON\n      --answers-file <path>     Provide clarifying answers JSON file\n      --defaults-file <path>    Override contract defaults via JSON file\n  -q, --max-questions <n>     Number of clarifying questions (default 4)\n      --json                   Output machine-readable JSON\n      --no-interactive         Disable interactive questions even in a TTY\n      --polish                 Run OpenAI polish pass (requires OPENAI_API_KEY)\n      --model <name>           Override OPENAI model for polishing\n  -h, --help                  Show this help text\n`,
   )
 }
 
@@ -312,24 +342,6 @@ const resolvePrompt = async (
   }
 
   return prompt
-}
-
-const readFromStdin = async (): Promise<string | null> => {
-  if (process.stdin.isTTY) {
-    return null
-  }
-
-  const chunks: Buffer[] = []
-
-  return await new Promise<string>((resolve, reject) => {
-    process.stdin.on('data', (chunk: Buffer | string) => {
-      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk)
-    })
-    process.stdin.on('error', reject)
-    process.stdin.on('end', () => {
-      resolve(Buffer.concat(chunks).toString('utf8'))
-    })
-  })
 }
 
 const loadAnswerMap = async (args: CliArgs): Promise<AnswerMap> => {
@@ -462,6 +474,7 @@ const collectAnswersInteractively = async (
 }
 
 const promptForAnswer = async (question: ClarifyingQ, rl: Interface): Promise<string | null> => {
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     const response = (await rl.question('> ')).trim()
     if (!response) {
