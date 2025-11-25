@@ -1,15 +1,175 @@
-
-> nx run prompt-maker-cli:serve --json
-
-[0m[7m[1m[31m NX [39m[22m[27m[0m  [31m'json' is not found in schema[39m
-
-
-
- NX   Running target serve for project prompt-maker-cli failed
-
-Failed tasks:
-
-- prompt-maker-cli:serve
-
-Hint: run the command with --verbose for more details.
-
+{
+  "prompt": "We need to add a terms and conditions modal that appears only the first time a user logs into the Portal. We can store the flag that indicates a user has seen and agreed to the terms and conditions in the `IData_UserAgreements` table.\n\n\nThe text of the terms and conditions modal is this:\n\n**Attention**: Our Terms and Conditions have been recently updated to better serve your needs and improve your overall experience with our services. By continuing to use LoanTek's services, you are consenting to these updated Terms and Conditions. It is important that you review and understand these terms before using our platform. Your ongoing use of LoanTek signifies your agreement to abide by the updated Terms and Conditions outlined here. **(Hyperlink to another part of the portal, that stores the updated Terms and Conditions)**.\n\n\nAnd it should like to a PDF that exists here: `apps/portal/src/data/LoanTek_Terms_Conditions (ST 5_20).pdf`.\n\nThis should use the standard idioms for how these kinds of operations are typically performed.",
+  "diagnosis": {
+    "scores": {
+      "outcome": 0,
+      "outputFormat": 0,
+      "constraints": 0.2,
+      "context": 0,
+      "processRubric": 0,
+      "uncertainty": 0
+    },
+    "notes": {
+      "outcome": [
+        "Add a single, testable deliverable and a word/length limit."
+      ],
+      "outputFormat": [
+        "Specify exact sections or a JSON/Markdown contract."
+      ],
+      "constraints": [
+        "State stack/style rules, non-goals, and bans (e.g., no classes, no 'any')."
+      ],
+      "context": [
+        "Provide only necessary facts: API endpoints, data sources, edge cases."
+      ],
+      "processRubric": [
+        "Add steps (assumptions→plan→final) and acceptance checks."
+      ],
+      "uncertainty": [
+        "Ask for missing info or define safe defaults."
+      ]
+    },
+    "missing": [
+      "outcome",
+      "outputFormat",
+      "constraints",
+      "context",
+      "processRubric",
+      "uncertainty"
+    ],
+    "overall": 0.04000000000000001
+  },
+  "questions": [
+    {
+      "key": "outcome",
+      "question": "What single observable deliverable do you want (e.g., 'one Markdown page', 'a JSON schema', 'a ```ts``` function') and any length limits?",
+      "options": [
+        "One Markdown page ≤ 350 words",
+        "One ```ts``` block + tests",
+        "JSON object matching a schema"
+      ]
+    },
+    {
+      "key": "outputFormat",
+      "question": "How should the output be structured—exact sections/keys and their order?",
+      "hint": "Specify headings or JSON keys; include code fences where applicable."
+    },
+    {
+      "key": "constraints",
+      "question": "What constraints and non-goals should be enforced (stack, style, bans like 'no classes', 'no any')?",
+      "options": [
+        "Functional TypeScript",
+        "No external deps",
+        "No classes",
+        "No 'any'"
+      ]
+    },
+    {
+      "key": "context",
+      "question": "What minimal domain facts are necessary (APIs, datasets, definitions, edge cases)?"
+    }
+  ],
+  "answers": {},
+  "result": {
+    "improvedPrompt": "Role: Senior assistant tuned for accuracy and specificity\n\nObjective: Produce a clear, testable deliverable.\n\nAudience & Use: For immediate decision or copy/paste into tools.\n\nConstraints:\n- Functional TypeScript\n- No classes\n- No 'any'\n\nOutput Format:\n- Exact sections with headings\n- One ```ts``` block when code is requested\n\nProcess:\n- Assumptions→Plan→Draft→Critique→Final\n\nRubric:\n- Concrete, balanced, actionable; fails if generic.\n\nUncertainty: If data is missing, ask 3 clarifying questions and propose safe defaults.\n",
+    "diagnosisBefore": {
+      "scores": {
+        "outcome": 0,
+        "outputFormat": 0,
+        "constraints": 0.2,
+        "context": 0,
+        "processRubric": 0,
+        "uncertainty": 0
+      },
+      "notes": {
+        "outcome": [
+          "Add a single, testable deliverable and a word/length limit."
+        ],
+        "outputFormat": [
+          "Specify exact sections or a JSON/Markdown contract."
+        ],
+        "constraints": [
+          "State stack/style rules, non-goals, and bans (e.g., no classes, no 'any')."
+        ],
+        "context": [
+          "Provide only necessary facts: API endpoints, data sources, edge cases."
+        ],
+        "processRubric": [
+          "Add steps (assumptions→plan→final) and acceptance checks."
+        ],
+        "uncertainty": [
+          "Ask for missing info or define safe defaults."
+        ]
+      },
+      "missing": [
+        "outcome",
+        "outputFormat",
+        "constraints",
+        "context",
+        "processRubric",
+        "uncertainty"
+      ],
+      "overall": 0.04000000000000001
+    },
+    "diagnosisAfter": {
+      "scores": {
+        "outcome": 1,
+        "outputFormat": 0,
+        "constraints": 0.6,
+        "context": 0,
+        "processRubric": 1,
+        "uncertainty": 1
+      },
+      "notes": {
+        "outcome": [],
+        "outputFormat": [
+          "Specify exact sections or a JSON/Markdown contract."
+        ],
+        "constraints": [
+          "State stack/style rules, non-goals, and bans (e.g., no classes, no 'any')."
+        ],
+        "context": [
+          "Provide only necessary facts: API endpoints, data sources, edge cases."
+        ],
+        "processRubric": [],
+        "uncertainty": []
+      },
+      "missing": [
+        "outputFormat",
+        "constraints",
+        "context"
+      ],
+      "overall": 0.52
+    },
+    "questionsAsked": [
+      {
+        "key": "outcome",
+        "question": "What single observable deliverable do you want (e.g., 'one Markdown page', 'a JSON schema', 'a ```ts``` function') and any length limits?",
+        "options": [
+          "One Markdown page ≤ 350 words",
+          "One ```ts``` block + tests",
+          "JSON object matching a schema"
+        ]
+      },
+      {
+        "key": "outputFormat",
+        "question": "How should the output be structured—exact sections/keys and their order?",
+        "hint": "Specify headings or JSON keys; include code fences where applicable."
+      },
+      {
+        "key": "constraints",
+        "question": "What constraints and non-goals should be enforced (stack, style, bans like 'no classes', 'no any')?",
+        "options": [
+          "Functional TypeScript",
+          "No external deps",
+          "No classes",
+          "No 'any'"
+        ]
+      },
+      {
+        "key": "context",
+        "question": "What minimal domain facts are necessary (APIs, datasets, definitions, edge cases)?"
+      }
+    ]
+  }
+}

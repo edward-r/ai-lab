@@ -66,12 +66,96 @@ The CLI always produces:
 ## 3. Quick-Start Example
 
 ```bash
-cat draft.txt | npx nx run prompt-maker-cli:serve --json > result.json
+npx nx run prompt-maker-cli:build
+cat apps/prompt-maker-cli/draft.txt \
+  | node apps/prompt-maker-cli/dist/index.js --json \
+  > apps/prompt-maker-cli/result.json
 ```
 
-- Provide the prompt via stdin.
-- Request JSON output for downstream parsing.
-- Store the payload in `result.json` for inspection.
+- Build the CLI bundle once so the Node entry stays current.
+- Provide the prompt via stdin and request JSON output for automation.
+- Store the payload in `apps/prompt-maker-cli/result.json` for inspection.
+
+> [!NOTE]
+> When you redirect output to a file, running the CLI through `npx nx run ...:serve`
+> prepends Nx task logs ahead of the JSON payload. Running the built bundle via
+> `node apps/prompt-maker-cli/dist/index.js` avoids that noise while still letting
+> you pipe prompts from stdin.
+>
+> **Automation boosters:**
+>
+> - Pass `--no-interactive --json` when wrapping the CLI in scripts or CI to keep runs non-blocking and machine-readable.
+> - Capture the improved prompt in one line with `jq`: `... --json | jq -r '.result.improvedPrompt' > improved.md`.
+> - Feed canned answers without touching files: `ANSWERS=$(jq '{outcome:"..."}' run.json); node ... --answers-json "$ANSWERS"`.
+> - Set `NX_CACHE=false` (or `--skip-nx-cache`) whenever you need to force a rebuild before publishing or re-installing the global binary.
+
+### 3.1 Step-by-step: Diagnose → Answer → Improve
+
+Follow this exact path the first time you work on a prompt. It creates predictable folders, captures every artifact, and produces a final contract without guesswork.
+
+1. **Prep directories + raw draft.**
+
+   ```bash
+   mkdir -p drafts prompts runs
+   cat <<'EOF' > drafts/onboarding-bot.md
+   Draft a spec for documenting our onboarding bot.
+   - Highlight every customer touchpoint after signup
+   - Explain telemetry we need to collect for each step
+   - Keep the tone instructional so Ops can run it without engineering
+   EOF
+   ```
+
+2. **Build once so the bundle is fresh.**
+
+   ```bash
+   npx nx run prompt-maker-cli:build --skip-nx-cache
+   ```
+
+3. **Diagnose interactively to gather answers.**
+
+   ```bash
+   node apps/prompt-maker-cli/dist/index.js \
+     --prompt-file drafts/onboarding-bot.md \
+     --max-questions 3
+   ```
+
+   - Answer with numbers (`2` or `1,3`) to reuse stock options in the order shown.
+   - Type custom text when you need something specific (“Context, Deliverable, Acceptance Criteria…”).
+   - Press **Enter** on a blank line to keep an existing answer and move on.
+   - The CLI prints the “Improved prompt” template immediately so you can sanity-check what changed.
+
+4. **Capture answers for repeatable runs.** Take the responses you gave interactively and freeze them in JSON (file or env var). Example inline env var:
+
+   ````bash
+   ANSWERS='{
+     "outcome": "One ```ts``` block + tests",
+     "outputFormat": "Context, Deliverable, Acceptance Criteria. Include ```ts``` fences for code.",
+     "constraints": "Functional TypeScript; No classes; No any",
+     "context": "Bot greets users after signup and must describe edge cases + telemetry."
+   }'
+   ````
+
+   > [!TIP]
+   > Prefer storing the same structure in `answers/onboarding-bot.json` so teammates can rerun the flow without copying shell history.
+
+5. **Improve non-interactively and write the contract.** Running with `--json --no-interactive` ensures deterministic output that can be piped into `jq` or files.
+
+   ```bash
+   node apps/prompt-maker-cli/dist/index.js \
+     --prompt-file drafts/onboarding-bot.md \
+     --answers-json "$ANSWERS" \
+     --json --no-interactive \
+     | tee runs/onboarding-bot-improve.json \
+     | jq -r '.result.improvedPrompt' > prompts/onboarding-bot.md
+   ```
+
+   - `runs/*.json` keeps the full history (scores, questions, answers).
+   - `prompts/*.md` contains only the polished contract you’ll paste into another tool.
+
+6. **Optional polish pass.** Once the structure looks right, add `--polish --model gpt-4o-mini` and capture `.result.polishedPrompt` the same way. If polishing fails, the CLI records the error in `polishError` without stopping the run.
+
+> [!IMPORTANT]
+> The “Improved prompt” block replaces your original draft—it does not append to it. Add any required context or requirements via the interactive answers (or the `--answers-*` flags) so the final contract contains the details you care about.
 
 ## 4. Interactive Walkthrough
 
@@ -90,7 +174,38 @@ Flow:
 3. Answers are merged with sensible defaults (functional TS, no classes/`any`, etc.).
 4. Improved prompt plus score deltas are printed.
 
-Tip: Press **Enter** on an empty line to keep an existing answer and move to the next question.
+Sample clarifying round:
+
+````text
+Answer the clarifying questions below. Leave blank to keep existing answers.
+
+What single observable deliverable do you want (e.g., 'one Markdown page', 'a JSON schema', 'a ```ts``` function') and any length limits?
+Options:
+  1. One Markdown page ≤ 350 words
+  2. One ```ts``` block + tests
+  3. JSON object matching a schema
+Enter number(s) or custom response (blank line to skip):
+> 2
+
+How should the output be structured—exact sections/keys and their order?
+Hint: Specify headings or JSON keys; include code fences where applicable.
+Enter response (blank line to skip):
+> Context, Deliverable, Acceptance Criteria. Include ```ts``` fences for code.
+````
+
+- Typing `2` selects the second option verbatim (“One `ts` block + tests”).
+- Enter comma-separated numbers like `1,3` to merge multiple options in order.
+- Provide free-form text whenever the stock options do not fit.
+- Press **Enter** on an empty line to keep the previous answer and continue.
+
+After you answer the last question the CLI always prints results in this order:
+
+1. **Scores** – baseline versus improved percentages so you can see progress.
+2. **Clarifying questions** – echoes your answers for auditing.
+3. **Improved prompt** – the contract to copy or pipe into `jq`.
+4. **Polished prompt** – only present when `--polish` succeeds; otherwise `polishError` explains why it failed.
+
+If the improved prompt looks too generic, inject more detail through the answers (`context`, `constraints`, `outputFormat`, etc.) and re-run with `--answers-json` + `--json --no-interactive`. That pass replaces the boilerplate with your actual requirements.
 
 Interactive prompts number each option—enter `1` (or `1,3` for multiples) to pick from the list, or type a custom response if none of the suggestions fit.
 
@@ -111,93 +226,111 @@ Key cadence:
 
 ### AI Prompt Generation (Hey Presto style)
 
-Use the new `generate` subcommand when you have nothing but rough intent notes and want the CLI + LLM combo to produce a production-ready prompt in one step.
+Use the `generate` subcommand when you only have fuzzy intent notes and want the CLI + LLM to fabricate a full contract in one shot. Unlike the improve flow, generate never asks clarifying questions—it expects your intent notes (plus optional refinements) to contain the entire brief.
 
-1. **Capture fuzzy intent**
+#### 4.1 Step-by-step: Intent → Generate → Capture
+
+1. **Set up folders + intent.**
 
    ```bash
-   cat <<'EOF' > intents/scraper-notes.md
-   Need a Node.js script to monitor Amazon Lightning Deals for "33" inch monitors.
-   Should email me and post to Slack when prices drop 10%.
-   Want deployment on Fly.io and local `.env` for secrets.
+   mkdir -p intents prompts runs
+   cat <<'EOF' > intents/onboarding-notes.md
+   Need a documentation prompt for our onboarding bot project.
+   Highlight every user touchpoint after signup, required telemetry/events, and approval workflow.
+   Prefer Functional TypeScript and markdown tables for checklists.
    EOF
    ```
 
-2. **One-shot generation**
+2. **export credentials + build once.**
 
    ```bash
-   OPENAI_API_KEY=sk-... prompt-maker-cli generate \
-     --intent-file intents/scraper-notes.md \
+   export OPENAI_API_KEY=sk-...
+   npx nx run prompt-maker-cli:build --skip-nx-cache
+   ```
+
+   > [!NOTE]
+   > The generate command uses OpenAI by default. Either export `OPENAI_API_KEY` (as above) or create `~/.config/prompt-maker-cli/config.json` with the key and default model.
+
+3. **Run a non-interactive generation and capture artifacts.**
+
+   ```bash
+   node apps/prompt-maker-cli/dist/index.js generate \
+     --intent-file intents/onboarding-notes.md \
      --model gpt-4o-mini \
-     --copy > prompts/scraper-contract.md
+     --copy \
+     | tee prompts/onboarding-generated.md
    ```
 
-   - Stdout receives the final prompt text (piped into a file above).
-   - `--copy` mirrors the same text into your clipboard for immediate pasting.
-   - The meta-prompt enforces Role, Context, Constraints, Output Format, and automatically proposes a tech stack + file layout when code is implied.
+   - The CLI prints a titled block (“AI Prompt Generator… Generated prompt”) followed by the contract text.
+   - `tee` writes the exact stdout into `prompts/onboarding-generated.md` while still showing it in your terminal.
+   - `--copy` mirrors the final prompt into your clipboard for immediate pasting.
 
-3. **Interactive refinement loop**
+4. **Record metadata for traceability.** Capture the same output (plus timestamps, refinements, etc.) under `runs/` so you can diff changes later.
 
    ```bash
-   OPENAI_API_KEY=sk-... prompt-maker-cli generate \
-     --intent-file intents/cover-letter.md \
-     --interactive \
-     --open-chatgpt
+   node apps/prompt-maker-cli/dist/index.js generate \
+     --intent-file intents/onboarding-notes.md \
+     --model gpt-4o-mini \
+     | awk 'BEGIN{print "# " strftime("%Y-%m-%d %H:%M:%S") "\n"}1' \
+     > runs/onboarding-generate-001.txt
    ```
 
-   Sample session:
+   (Any tooling is fine; the key is to keep the raw console transcript.)
 
-   ```text
-   AI Prompt Generator
-   ────────────────────
-   Generated prompt:
-   (prompt text …)
-
-   Refine? (y/n): y
-   Describe the refinement. Submit an empty line to finish.
-   > Make the tone more authoritative and cite metrics.
-   >
-   AI Prompt Generator
-   ────────────────────
-   Generated prompt (iteration 2):
-   (updated prompt …)
-   Refine? (y/n): n
-   ```
-
-   - Each refinement is appended to the chat context so the model considers prior feedback.
-   - `--open-chatgpt` launches `https://chatgpt.com/?q=...` with the latest artifact, useful when you want to keep collaborating in the browser immediately after the CLI finishes.
-
-4. **Hybrid automation** – Feed the output of `generate` straight into the improve pipeline for an additional contract pass (useful when you want clarifying questions to double-check the LLM output):
-
+5. **Feed the generated prompt into the improve pipeline (optional but recommended).** This surfaces clarifying questions in case the LLM hallucinated gaps.
    ```bash
-   prompt-maker-cli generate --intent-file intents/api.md > prompts/api-from-intent.md
-   prompt-maker-cli --prompt-file prompts/api-from-intent.md --json --no-interactive \
-     | tee runs/api-generated-then-diagnosed.json
+   node apps/prompt-maker-cli/dist/index.js \
+     --prompt-file prompts/onboarding-generated.md \
+     --json --no-interactive \
+     | tee runs/onboarding-generated-diagnosed.json
    ```
+   You now have a deterministic JSON artifact plus the polished prompt stored under `prompts/`.
 
-5. **Configuration** – Instead of exporting `OPENAI_API_KEY` every time, drop a config file so the CLI can find credentials and default model settings automatically:
+#### 4.2 Interactive refinement walkthrough
 
-   ```json
-   // ~/.config/prompt-maker-cli/config.json
-   {
-     "openaiApiKey": "sk-...",
-     "openaiBaseUrl": "https://api.openai.com/v1",
-     "promptGenerator": {
-       "defaultModel": "gpt-4o-mini"
-     }
-   }
-   ```
+Add `--interactive` (or `-i`) when you want to iterate inside the terminal. The CLI keeps asking whether to refine and appends each instruction to the LLM context.
 
-   To point at a different location, set `PROMPT_MAKER_CLI_CONFIG=/path/to/config.json` before invoking the CLI.
+```bash
+node apps/prompt-maker-cli/dist/index.js generate \
+  --intent-file intents/onboarding-notes.md \
+  --interactive \
+  --model gpt-4o-mini \
+  --open-chatgpt
+```
 
-6. **Browser handoff** – Use the clipboard + ChatGPT flags together for instant sharing:
+Sample transcript:
 
-   ```bash
-   prompt-maker-cli generate "Brainstorm 5 onboarding challenges for mid-market SaaS" \
-     --copy --open-chatgpt --model gpt-4o-mini
-   ```
+```text
+AI Prompt Generator
+────────────────────
+Generated prompt:
+(complete contract …)
 
-   You’ll get the prompt in stdout, it lands in your clipboard, and a browser tab opens ready to paste or continue the conversation.
+Refine? (y/n): y
+Describe the refinement. Submit an empty line to finish.
+> Require a timeline table and highlight data-retention rules.
+>
+AI Prompt Generator
+────────────────────
+Generated prompt (iteration 2):
+(updated contract …)
+Refine? (y/n): n
+```
+
+- Press **Enter** on an empty line when you are done typing the refinement note.
+- Each refinement becomes part of the context, so iteration 3 sees everything from iteration 1 + 2.
+- `--open-chatgpt` launches your browser with the final text so you can hand it off immediately.
+
+#### 4.3 Automation + shortcuts
+
+- **stdin everywhere:** `cat intents/onboarding-notes.md | node ... generate --model gpt-4o-mini > prompts/...` works the same as `--intent-file`.
+- **Clipboard only:** `... generate --copy >/dev/null` keeps your terminal clean when you only care about pasting into another tool.
+- **Concurrent capture:** `... generate | tee prompts/foo.md | pbcopy` lets you log to disk and populate your clipboard simultaneously.
+- **Defaults file:** place model preferences in `~/.config/prompt-maker-cli/config.json` so you can omit `--model` entirely.
+- **Improve handoff:** `node ... generate > prompts/foo.md && node ... --prompt-file prompts/foo.md --json --no-interactive` keeps generate + diagnose in one shell chain.
+
+> [!TIP]
+> When scripting in CI, prefer `node apps/prompt-maker-cli/dist/index.js generate ...` plus `tee runs/*.txt` so you always have the raw console output for auditing. The generate command does not emit JSON, so capturing stdout verbatim is the safest way to persist results.
 
 ### Generator recipe pack (copy/paste tests)
 
