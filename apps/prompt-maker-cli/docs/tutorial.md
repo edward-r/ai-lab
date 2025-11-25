@@ -6,7 +6,7 @@ This guide walks through every major capability of the `prompt-maker-cli` so you
 
 - Node.js 18+ and npm installed locally.
 - Repository dependencies installed (`npm install`).
-- Optional: `OPENAI_API_KEY` if you plan to use the polish pass.
+- `OPENAI_API_KEY` in your shell (or a config file referenced by `PROMPT_MAKER_CLI_CONFIG`) to unlock both the polish pass _and_ the AI Prompt Generation flow.
 - Familiarity with shell piping and JSON tooling such as `jq` helps when scripting.
 
 ## 2. Anatomy of the CLI
@@ -16,6 +16,11 @@ This guide walks through every major capability of the `prompt-maker-cli` so you
 ```bash
 npx nx run prompt-maker-cli:serve -- [flags]
 ```
+
+Once bundled (or globally installed), you get two entry points:
+
+- **Default (improve) command** – run `prompt-maker-cli [flags]` to diagnose, clarify, and improve an existing draft prompt.
+- **AI Prompt Generation command** – run `prompt-maker-cli generate <intent> [flags]` (alias: `expand`) to feed fuzzy intent notes into an LLM-powered meta-prompt that returns a structured contract from scratch.
 
 For a portable install, build once and register the package globally:
 
@@ -35,17 +40,22 @@ That command adds a `prompt-maker-cli` executable to your PATH so editor integra
 
 Key flags:
 
-| Flag                                              | Description                                                |
+| Flag / Command                                    | Description                                                |
 | ------------------------------------------------- | ---------------------------------------------------------- |
-| `-p, --prompt <text>`                             | Inline prompt text.                                        |
-| `-f, --prompt-file <path>`                        | Read prompt from file.                                     |
-| `--answers-json <json>` / `--answers-file <path>` | Provide clarifying answers as JSON.                        |
+| `-p, --prompt <text>`                             | Inline prompt text for the improve command.                |
+| `-f, --prompt-file <path>`                        | Read prompt (improve) or intent (generate) from a file.    |
+| `--answers-json <json>` / `--answers-file <path>` | Provide clarifying answers as JSON (improve flow).         |
 | `-q, --max-questions <n>`                         | Limit clarifying questions (default 4).                    |
-| `--json`                                          | Emit machine-readable JSON.                                |
+| `--json`                                          | Emit machine-readable JSON for automation.                 |
 | `--no-interactive`                                | Skip TTY questions even if stdin/stdout are interactive.   |
 | `--polish`                                        | Run the OpenAI finishing pass (requires `OPENAI_API_KEY`). |
-| `--model <name>`                                  | Override polish model (defaults to `gpt-4o-mini`).         |
-| `--help`                                          | Show usage.                                                |
+| `--model <name>`                                  | Override the OpenAI model (polish or generate).            |
+| `generate <intent>`                               | New subcommand for AI Prompt Generation.                   |
+| `--intent-file <path>`                            | Provide fuzzy intent from a file (generate flow).          |
+| `-i, --interactive`                               | Enable iterative regenerate/refine loop for generate.      |
+| `--copy`                                          | Copy the generated prompt to the clipboard automatically.  |
+| `--open-chatgpt`                                  | URL-encode the output and open `https://chatgpt.com/?q=…`. |
+| `--help`                                          | Show usage for the current command.                        |
 
 The CLI always produces:
 
@@ -98,6 +108,96 @@ Key cadence:
 - **When drafting from scratch**: Diagnose → answer questions inline → immediately see the upgraded contract.
 - **When editing an existing prompt**: Feed the last improved prompt back through `--prompt-file` and only answer the criteria you want to change; previous answers stay in place.
 - **When automating**: Cache `run.json`, edit the `answers` object, and rerun with `--answers-json "$UPDATED"`.
+
+### AI Prompt Generation (Hey Presto style)
+
+Use the new `generate` subcommand when you have nothing but rough intent notes and want the CLI + LLM combo to produce a production-ready prompt in one step.
+
+1. **Capture fuzzy intent**
+
+   ```bash
+   cat <<'EOF' > intents/scraper-notes.md
+   Need a Node.js script to monitor Amazon Lightning Deals for "33" inch monitors.
+   Should email me and post to Slack when prices drop 10%.
+   Want deployment on Fly.io and local `.env` for secrets.
+   EOF
+   ```
+
+2. **One-shot generation**
+
+   ```bash
+   OPENAI_API_KEY=sk-... prompt-maker-cli generate \
+     --intent-file intents/scraper-notes.md \
+     --model gpt-4o-mini \
+     --copy > prompts/scraper-contract.md
+   ```
+
+   - Stdout receives the final prompt text (piped into a file above).
+   - `--copy` mirrors the same text into your clipboard for immediate pasting.
+   - The meta-prompt enforces Role, Context, Constraints, Output Format, and automatically proposes a tech stack + file layout when code is implied.
+
+3. **Interactive refinement loop**
+
+   ```bash
+   OPENAI_API_KEY=sk-... prompt-maker-cli generate \
+     --intent-file intents/cover-letter.md \
+     --interactive \
+     --open-chatgpt
+   ```
+
+   Sample session:
+
+   ```text
+   AI Prompt Generator
+   ────────────────────
+   Generated prompt:
+   (prompt text …)
+
+   Refine? (y/n): y
+   Describe the refinement. Submit an empty line to finish.
+   > Make the tone more authoritative and cite metrics.
+   >
+   AI Prompt Generator
+   ────────────────────
+   Generated prompt (iteration 2):
+   (updated prompt …)
+   Refine? (y/n): n
+   ```
+
+   - Each refinement is appended to the chat context so the model considers prior feedback.
+   - `--open-chatgpt` launches `https://chatgpt.com/?q=...` with the latest artifact, useful when you want to keep collaborating in the browser immediately after the CLI finishes.
+
+4. **Hybrid automation** – Feed the output of `generate` straight into the improve pipeline for an additional contract pass (useful when you want clarifying questions to double-check the LLM output):
+
+   ```bash
+   prompt-maker-cli generate --intent-file intents/api.md > prompts/api-from-intent.md
+   prompt-maker-cli --prompt-file prompts/api-from-intent.md --json --no-interactive \
+     | tee runs/api-generated-then-diagnosed.json
+   ```
+
+5. **Configuration** – Instead of exporting `OPENAI_API_KEY` every time, drop a config file so the CLI can find credentials and default model settings automatically:
+
+   ```json
+   // ~/.config/prompt-maker-cli/config.json
+   {
+     "openaiApiKey": "sk-...",
+     "openaiBaseUrl": "https://api.openai.com/v1",
+     "promptGenerator": {
+       "defaultModel": "gpt-4o-mini"
+     }
+   }
+   ```
+
+   To point at a different location, set `PROMPT_MAKER_CLI_CONFIG=/path/to/config.json` before invoking the CLI.
+
+6. **Browser handoff** – Use the clipboard + ChatGPT flags together for instant sharing:
+
+   ```bash
+   prompt-maker-cli generate "Brainstorm 5 onboarding challenges for mid-market SaaS" \
+     --copy --open-chatgpt --model gpt-4o-mini
+   ```
+
+   You’ll get the prompt in stdout, it lands in your clipboard, and a browser tab opens ready to paste or continue the conversation.
 
 ### Case Study: HUD-Line-Driven Required Fees
 
@@ -433,6 +533,7 @@ Create a NeoVim plugin that invokes `prompt-maker-cli` to improve prompts inside
 - **Command**: `:PromptMakerDiagnose` — Diagnose current buffer/selection, show scores/questions.
 - **Command**: `:PromptMakerImprove` — Run full improve flow, insert improved prompt in a split.
 - **Command**: `:PromptMakerPolish` — Same as improve but adds `--polish` if env vars exist.
+- **Command**: `:PromptMakerGenerate` — Run `prompt-maker-cli generate` on scratch intent notes, insert the AI-crafted contract, optionally offer refinement prompts within NeoVim.
 
 ### Inputs
 
@@ -446,8 +547,8 @@ Create a NeoVim plugin that invokes `prompt-maker-cli` to improve prompts inside
 ### Required CLI Invocation
 
 - Executable: `prompt-maker-cli` when installed globally (fallback: `node apps/prompt-maker-cli/dist/index.js` or `npx nx run prompt-maker-cli:serve --`).
-- Always pass `--json --no-interactive` for automation; present additional questions to the user if `.questions` returns entries with empty answers.
-- Re-run CLI with populated `answers-json` when the user supplies missing data.
+- Improve flow: always pass `--json --no-interactive` for automation; present additional questions to the user if `.questions` returns entries with empty answers, then re-run with populated `--answers-json`.
+- Generate flow: invoke `prompt-maker-cli generate --intent-file <temp>` (plus optional `--model`, `--copy`, `--open-chatgpt`). Capture stdout as plain text and, if you want in-editor refinements, prompt the user for another note chunk and re-run the command with the same intent file.
 
 ### Outputs to Capture
 
@@ -456,6 +557,7 @@ Create a NeoVim plugin that invokes `prompt-maker-cli` to improve prompts inside
 - `.result.improvedPrompt` → insert into buffer or floating preview.
 - `.result.polishedPrompt` → optional replacement when polish is enabled.
 - `.result.polishError` → surface as a warning, fallback to improved prompt.
+- `stdout` (generate command) → equals the final prompt text per iteration; capture the last block and split into lines when writing to a buffer.
 
 ### Environment & Config
 
