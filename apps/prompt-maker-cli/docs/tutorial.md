@@ -199,6 +199,74 @@ Use the new `generate` subcommand when you have nothing but rough intent notes a
 
    You’ll get the prompt in stdout, it lands in your clipboard, and a browser tab opens ready to paste or continue the conversation.
 
+### Generator recipe pack (copy/paste tests)
+
+Use these commands verbatim to smoke-test the generator or to demo it for teammates:
+
+1. **Cover letter coach**
+
+   ```bash
+   prompt-maker-cli generate "Write a confident cover letter for a Staff Product Manager role at Linear. Mention AI planning systems and quantified GTM wins." \
+     --model gpt-4o-mini
+   ```
+
+   Expected behavior: prompt includes Role (Expert Cover Letter Coach), Context about company/role, Constraints (tone, word count), Output Format (sections like Greeting, Story, Close), and recommends a tech stack/file structure only if you add follow-up requests involving code.
+
+2. **Scraper scaffold**
+
+   ```bash
+   prompt-maker-cli generate "Need a Bun + TypeScript CLI that scrapes Hacker News front page hourly and posts deltas to Slack. Deploy on Fly.io." \
+     --model gpt-4o-mini --copy
+   ```
+
+   Expected behavior: output proposes a Bun/TypeScript stack, outlines directories (`src/client.ts`, `scripts/deploy.sh`), and specifies output sections such as Role, Context, Constraints, Output Format.
+
+3. **Data science experiment brief**
+
+   ```bash
+   prompt-maker-cli generate "Design an A/B test to compare personalized onboarding tooltips vs control. Include telemetry requirements and success metrics." \
+     --model gpt-4o-mini
+   ```
+
+   Expected behavior: structured prompt with experiment objectives, metric definitions, required instrumentation, and a recommended analysis checklist.
+
+4. **LOBE-style creative brief**
+
+   ```bash
+   prompt-maker-cli generate "Create a LOBE design brief for a mobile habit tracker with AR streak visualizations." --model gpt-4o-mini --open-chatgpt
+   ```
+
+   Expected behavior: sections for Role (Creative Director), Context (target audience, AR concept), Constraints (platform, tone), and Output Format (Deliverables, Visual Language, Assets), followed by an auto-opened ChatGPT tab for continued exploration.
+
+5. **Follow-up refinement test**
+
+   ```bash
+   prompt-maker-cli generate "Summarize all TypeScript migration tasks for a monorepo" --interactive
+   ```
+
+   - First pass should describe the Role (Senior Migration Strategist) and baseline plan.
+   - When prompted to refine, enter something like `Prioritize Nx + Vite workspaces and mention lint fixes` to confirm iteration support.
+
+6. **Travel app build brief from notes (file-based)**
+
+   ```bash
+   cat <<'EOF' > intents/travel-app-notes.md
+   Please help me craft a prompt to build code for my travel app.
+   Notes:
+   - Must support itinerary planning, hotel search, and GPT-powered chat.
+   - Mobile-first React Native + Expo.
+   - API gateway already exists; integrate with /trips and /deals endpoints.
+   - Budget reminders and offline cache are non-negotiable.
+   - Deliverables should include suggested folder structure and CI steps.
+   EOF
+
+   prompt-maker-cli generate --intent-file intents/travel-app-notes.md --model gpt-4o-mini
+   ```
+
+   Expected behavior: output lists Role (Lead Travel App Engineer), Context (features + constraints), explicit Constraints (React Native, Expo, offline cache, API usage), Output Format (sections such as Tech Stack, File Tree, CI Tasks, Acceptance Criteria), and it proposes a file/folder layout because the notes mention “build code.”
+
+Keep these snippets in `docs/examples/generator-tests.sh` (or run them manually) whenever you upgrade dependencies or tweak the meta-prompt.
+
 ### Case Study: HUD-Line-Driven Required Fees
 
 Use this real incident as a template for turning a customer report into a production-ready prompt.
