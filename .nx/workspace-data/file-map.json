@@ -33,56 +33,60 @@
         "hash": "11436792623039980707"
       },
       {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "7349490206227663084"
-      },
-      {
-        "file": "package.json",
-        "hash": "6259002714365565388"
-      },
-      {
-        "file": "tsconfig.base.json",
-        "hash": "13780919962843055140"
-      },
-      {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
-      },
-      {
-        "file": "nx.json",
-        "hash": "10895747293426653132"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
       },
       {
         "file": "AGENTS.md",
         "hash": "5926859589672140026"
       },
       {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "nx.json",
+        "hash": "10895747293426653132"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "13780919962843055140"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": "package.json",
+        "hash": "6259002714365565388"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "16667827072884385791"
+      },
+      {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
         "file": "postcss.config.js",
         "hash": "11834113634521185343"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
       },
       {
         "file": ".prettierrc",
         "hash": "4872122421842301431"
       },
       {
-        "file": "tsconfig.json",
-        "hash": "16667827072884385791"
+        "file": "package-lock.json",
+        "hash": "7349490206227663084"
+      },
+      {
+        "file": "README.md",
+        "hash": "2139653527659314484"
       },
       {
         "file": "eslint.config.mjs",
@@ -93,12 +97,8 @@
         "hash": "3771228352708915812"
       },
       {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
       }
     ],
     "projectFileMap": {
@@ -170,7 +170,7 @@
       "prompt-maker-cli": [
         {
           "file": "apps/prompt-maker-cli/README.md",
-          "hash": "8354835428141070205"
+          "hash": "14159679682772557248"
         },
         {
           "file": "apps/prompt-maker-cli/docs/Hey-Presto-Screenshots.pdf",
@@ -178,15 +178,23 @@
         },
         {
           "file": "apps/prompt-maker-cli/docs/tutorial.md",
-          "hash": "1346159980263505684"
+          "hash": "18237095354721287605"
         },
         {
           "file": "apps/prompt-maker-cli/draft.txt",
           "hash": "17428478706525804586"
         },
         {
+          "file": "apps/prompt-maker-cli/drafts/neovim-plugin.md",
+          "hash": "1299636482923992664"
+        },
+        {
           "file": "apps/prompt-maker-cli/drafts/onboarding-bot.md",
           "hash": "10640741470808797187"
+        },
+        {
+          "file": "apps/prompt-maker-cli/drafts/travel-app-notes.md",
+          "hash": "8919956247795023057"
         },
         {
           "file": "apps/prompt-maker-cli/package.json",
@@ -195,6 +203,10 @@
         {
           "file": "apps/prompt-maker-cli/project.json",
           "hash": "712048127669049477"
+        },
+        {
+          "file": "apps/prompt-maker-cli/prompt-content.md",
+          "hash": "400559877098005443"
         },
         {
           "file": "apps/prompt-maker-cli/prompts/onboarding-spec.md",
@@ -210,7 +222,7 @@
         },
         {
           "file": "apps/prompt-maker-cli/src/generate-command.ts",
-          "hash": "7325447712216831716",
+          "hash": "15136573121954638804",
           "deps": [
             "npm:clipboardy",
             "npm:open",

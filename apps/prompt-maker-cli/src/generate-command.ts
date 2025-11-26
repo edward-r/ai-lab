@@ -26,6 +26,7 @@ type GenerateArgs = {
   polish: boolean
   polishModel?: string
   json: boolean
+  progress: boolean
   help: boolean
 }
 
@@ -72,17 +73,27 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   const shouldDisplay = !args.json
+  const showProgress = args.progress && !interactive
+  const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
     context: { intent, refinements, model },
     interactive,
     display: shouldDisplay,
   })
+  stopGenerationProgress?.('Generated prompt ✓')
 
   const polishModel = args.polishModel ?? process.env.PROMPT_MAKER_POLISH_MODEL ?? model
-  const polishedPrompt = args.polish
-    ? await polishPrompt(intent, generatedPrompt, polishModel)
-    : undefined
+  let polishedPrompt: string | undefined
+
+  if (args.polish) {
+    const stopPolishProgress = showProgress ? startProgress('Polishing prompt') : null
+    try {
+      polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
+    } finally {
+      stopPolishProgress?.('Polished prompt ✓')
+    }
+  }
 
   const artifact = polishedPrompt ?? generatedPrompt
 
@@ -120,6 +131,7 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
     openChatGpt: false,
     polish: false,
     json: false,
+    progress: true,
     help: false,
   }
 
@@ -181,6 +193,12 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
         break
       case '--json':
         args.json = true
+        break
+      case '--progress':
+        args.progress = true
+        break
+      case '--no-progress':
+        args.progress = false
         break
       case '--help':
       case '-h':
@@ -407,8 +425,30 @@ Options:
       --polish              Run the polish pass after generation
       --polish-model <name> Override the model used for polishing
       --json                Emit machine-readable JSON (non-interactive only)
+      --no-progress         Disable progress indicator (stderr)
       --copy                Copy the final prompt to the clipboard
       --open-chatgpt        Open https://chatgpt.com with the final prompt
   -h, --help                Show this help message
 `)
+}
+
+const startProgress = (label: string): ((finalMessage?: string) => void) => {
+  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+  let index = 0
+  let active = true
+  process.stderr.write(`${label} ${frames[index]}`)
+  const timer = setInterval(() => {
+    index = (index + 1) % frames.length
+    process.stderr.write(`\r${label} ${frames[index]}`)
+  }, 120)
+
+  return (finalMessage?: string) => {
+    if (!active) {
+      return
+    }
+    active = false
+    clearInterval(timer)
+    const message = finalMessage ?? `${label} ✓`
+    process.stderr.write(`\r${message}\n`)
+  }
 }

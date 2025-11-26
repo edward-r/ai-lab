@@ -1,3 +1,16 @@
+I need to create a Neovim plugin that integrates with the Prompt Maker CLI. The plugin should allow users to create, edit, and manage prompts directly from within Neovim. Here are the features I want to include:
+
+- Command to generate a prompt based on selected text or a file.
+- Command to polish an existing prompt using the CLI's polish feature.
+- Keybindings for quick access to generate and polish commands.
+- Display the generated or polished prompt in a new buffer for further editing.
+- Error handling to notify users of any issues during prompt generation or polishing.
+- Configuration options to set default models and other CLI parameters.
+- Documentation on how to install and use the plugin.
+- The ability to select which model to use for generation and polishing.
+
+Here is information about the Prompt Maker CLI from the tutorial:
+
 # Prompt Maker CLI Tutorial (Generate Edition)
 
 This guide focuses on the **AI Prompt Generation** workflow. The improve/diagnose flow has been retired—every command now routes through the generator, and polishing is available as an optional second pass.
@@ -39,7 +52,6 @@ Key flags (generator + polish):
 | `--polish`                 | Run a finishing pass on the generated prompt.                             |
 | `--polish-model <name>`    | Override the model used for polishing (defaults to the generation model). |
 | `--json`                   | Emit machine-readable JSON (non-interactive only).                        |
-| `--no-progress`            | Disable the stderr spinner shown during `--json` runs.                    |
 | `--copy`                   | Copy the final prompt (polished if present) to the clipboard.             |
 | `--open-chatgpt`           | Open `https://chatgpt.com/?q=...` with the final prompt.                  |
 | `--help`                   | Show usage for the generator.                                             |
@@ -63,7 +75,6 @@ cat apps/prompt-maker-cli/draft.txt \
 - Nx prints its own task logs to stderr; stdout only contains JSON when `--json` is set.
 - The JSON payload includes the model, refinement count, base prompt, and optional `polishedPrompt` if you add `--polish`.
 - Use `jq -r '.polishedPrompt // .prompt' result.json > prompts/final.md` to isolate the text you need.
-- A spinner updates on stderr during JSON runs so you know the CLI is still working. Pass `--no-progress` to silence it.
 
 > [!NOTE]
 > Need a polished version in the same command? Add `--polish` (and optionally `--polish-model gpt-4o-mini`). The JSON payload will include both `prompt` and `polishedPrompt` so you can choose either downstream.
@@ -176,7 +187,6 @@ Tips:
 - **Watch mode:** `while inotifywait drafts/onboarding-notes.md; do node ... --json > runs/latest.json; done`
 - **Clipboard-only:** `node ... generate --copy > /dev/null`
 - **Split capture:** `node ... generate --model gemini-1.5-flash | tee prompts/foo.md | pbcopy`
-- **Progress indicator:** leave the default spinner on stderr for JSON runs, or add `--no-progress` if those logs need to stay silent.
 - **Polish after generation:** `node ... generate > prompts/foo.md && node ... --intent-file prompts/foo.md --polish --json`
 
 ## 7. Polish pass reference

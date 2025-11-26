@@ -22,7 +22,10 @@ Key flags:
 - `-i, --interactive` – enable the iterative refine loop (TTY only).
 - `--polish` / `--polish-model` – run the finishing pass (defaults to the generation model).
 - `--json` – emit machine-readable JSON (non-interactive mode).
+- `--no-progress` – silence the stderr spinner shown during `--json` runs.
 - `--copy`, `--open-chatgpt` – copy/open the final artifact for immediate sharing.
+
+When `--json` is active the CLI prints a spinner to stderr so you know it’s still working; add `--no-progress` if stderr must stay silent.
 
 Environment requirements:
 
