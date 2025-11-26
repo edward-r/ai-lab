@@ -5,13 +5,49 @@ import { stdin as input, stdout as output } from 'node:process'
 import clipboard from 'clipboardy'
 import open from 'open'
 
+import { callLLM } from '@prompt-maker/core'
+
 import { readFromStdin } from './io'
 import {
   createPromptGeneratorService,
+  ensureModelCredentials,
   resolveDefaultGenerateModel,
 } from './prompt-generator-service'
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
+
+type GenerateArgs = {
+  intent?: string
+  intentFile?: string
+  model?: string
+  interactive: boolean
+  copy: boolean
+  openChatGpt: boolean
+  polish: boolean
+  polishModel?: string
+  json: boolean
+  help: boolean
+}
+
+type LoopContext = {
+  intent: string
+  refinements: string[]
+  model: string
+}
+
+type GenerateJsonPayload = {
+  intent: string
+  model: string
+  prompt: string
+  refinements: string[]
+  iterations: number
+  interactive: boolean
+  polishedPrompt?: string
+  polishModel?: string
+}
+
+const POLISH_SYSTEM_PROMPT =
+  'You refine prompt contracts for language models. Preserve headings, bullet ordering, and constraints. Only tighten wording and fix inconsistencies.'
 
 export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const args = parseGenerateArgs(argv)
@@ -19,6 +55,10 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   if (args.help) {
     printGenerateUsage()
     return
+  }
+
+  if (args.json && args.interactive) {
+    throw new Error('--json cannot be combined with --interactive.')
   }
 
   const intent = await resolveIntent(args)
@@ -31,32 +71,46 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     console.warn('Interactive mode requested but no TTY detected; continuing non-interactive run.')
   }
 
-  let finalPrompt: string
+  const shouldDisplay = !args.json
+  const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
+    service,
+    context: { intent, refinements, model },
+    interactive,
+    display: shouldDisplay,
+  })
 
-  if (interactive) {
-    finalPrompt = await runInteractiveLoop(service, { intent, refinements, model })
-  } else {
-    finalPrompt = await generateAndReport(service, { intent, refinements, model, iteration: 1 })
+  const polishModel = args.polishModel ?? process.env.PROMPT_MAKER_POLISH_MODEL ?? model
+  const polishedPrompt = args.polish
+    ? await polishPrompt(intent, generatedPrompt, polishModel)
+    : undefined
+
+  const artifact = polishedPrompt ?? generatedPrompt
+
+  await maybeCopyToClipboard(args.copy, artifact)
+  await maybeOpenChatGpt(args.openChatGpt, artifact)
+
+  if (args.json) {
+    const payload: GenerateJsonPayload = {
+      intent,
+      model,
+      prompt: generatedPrompt,
+      refinements: [...refinements],
+      iterations,
+      interactive,
+    }
+
+    if (polishedPrompt) {
+      payload.polishedPrompt = polishedPrompt
+      payload.polishModel = polishModel
+    }
+
+    console.log(JSON.stringify(payload, null, 2))
+    return
   }
 
-  await maybeCopyToClipboard(args.copy, finalPrompt)
-  await maybeOpenChatGpt(args.openChatGpt, finalPrompt)
-}
-
-type GenerateArgs = {
-  intent?: string
-  intentFile?: string
-  model?: string
-  interactive: boolean
-  copy: boolean
-  openChatGpt: boolean
-  help: boolean
-}
-
-type LoopContext = {
-  intent: string
-  refinements: string[]
-  model: string
+  if (polishedPrompt) {
+    displayPolishedPrompt(polishedPrompt, polishModel)
+  }
 }
 
 const parseGenerateArgs = (argv: string[]): GenerateArgs => {
@@ -64,6 +118,8 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
     interactive: false,
     copy: false,
     openChatGpt: false,
+    polish: false,
+    json: false,
     help: false,
   }
 
@@ -101,6 +157,15 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
         i += 1
         break
       }
+      case '--polish-model': {
+        const value = argv[i + 1]
+        if (!value) {
+          throw new Error('Missing value for --polish-model flag.')
+        }
+        args.polishModel = value
+        i += 1
+        break
+      }
       case '--interactive':
       case '-i':
         args.interactive = true
@@ -110,6 +175,12 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
         break
       case '--open-chatgpt':
         args.openChatGpt = true
+        break
+      case '--polish':
+        args.polish = true
+        break
+      case '--json':
+        args.json = true
         break
       case '--help':
       case '-h':
@@ -151,43 +222,59 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
   )
 }
 
-const runInteractiveLoop = async (
-  service: PromptGenerator,
-  context: LoopContext,
-): Promise<string> => {
-  const rl = createInterface({ input, output })
+const runGenerationWorkflow = async ({
+  service,
+  context,
+  interactive,
+  display,
+}: {
+  service: PromptGenerator
+  context: LoopContext
+  interactive: boolean
+  display: boolean
+}): Promise<{ prompt: string; iterations: number }> => {
   let iteration = 0
   let latest = ''
 
-  try {
-    iteration = 1
-    latest = await generateAndReport(service, { ...context, iteration })
+  if (interactive) {
+    const rl = createInterface({ input, output })
 
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const wantsRefine = await promptYesNo(rl, 'Refine? (y/n): ')
-      if (!wantsRefine) {
-        return latest
-      }
-
-      const refinement = await collectRefinement(rl)
-      if (!refinement) {
-        console.log('No refinement provided. Ending interactive session.')
-        return latest
-      }
-
-      context.refinements.push(refinement)
+    try {
       iteration += 1
-      latest = await generateAndReport(service, { ...context, iteration })
+      latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const wantsRefine = await promptYesNo(rl, 'Refine? (y/n): ')
+        if (!wantsRefine) {
+          break
+        }
+
+        const refinement = await collectRefinement(rl)
+        if (!refinement) {
+          console.log('No refinement provided. Ending interactive session.')
+          break
+        }
+
+        context.refinements.push(refinement)
+        iteration += 1
+        latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
+      }
+    } finally {
+      rl.close()
     }
-  } finally {
-    rl.close()
+  } else {
+    iteration = 1
+    latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
   }
+
+  return { prompt: latest, iterations: iteration }
 }
 
-const generateAndReport = async (
+const generateAndMaybeDisplay = async (
   service: PromptGenerator,
   context: LoopContext & { iteration: number },
+  display: boolean,
 ): Promise<string> => {
   const prompt = await service.generatePrompt({
     intent: context.intent,
@@ -195,8 +282,38 @@ const generateAndReport = async (
     model: context.model,
   })
 
-  displayPrompt(prompt, context.iteration)
+  if (display) {
+    displayPrompt(prompt, context.iteration)
+  }
+
   return prompt
+}
+
+const polishPrompt = async (
+  originalIntent: string,
+  prompt: string,
+  model: string,
+): Promise<string> => {
+  await ensureModelCredentials(model)
+
+  return await callLLM(
+    [
+      { role: 'system', content: POLISH_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: [
+          'Intent:',
+          originalIntent,
+          '---',
+          'Generated prompt candidate:',
+          prompt,
+          '---',
+          'Return the polished prompt text, preserving exact sections.',
+        ].join('\n'),
+      },
+    ],
+    model,
+  )
 }
 
 const displayPrompt = (prompt: string, iteration: number): void => {
@@ -205,6 +322,13 @@ const displayPrompt = (prompt: string, iteration: number): void => {
   console.log('────────────────────')
   console.log(`${label}:\n`)
   console.log(prompt)
+}
+
+const displayPolishedPrompt = (prompt: string, model: string): void => {
+  console.log('\nPolished prompt')
+  console.log('────────────────────')
+  console.log(prompt)
+  console.log(`\n(Model: ${model})`)
 }
 
 const promptYesNo = async (rl: Interface, question: string): Promise<boolean> => {
@@ -269,15 +393,22 @@ const maybeOpenChatGpt = async (shouldOpen: boolean, prompt: string): Promise<vo
 }
 
 const printGenerateUsage = () => {
-  console.log(`prompt-maker-cli generate <intent>
+  console.log(`Prompt Maker CLI (generate-only)
+
+Usage:
+  prompt-maker-cli [intent] [options]
+  prompt-maker-cli generate [intent] [options]
 
 Options:
-  <intent>                 Rough intent text (quoted)
-  -f, --intent-file <path> Read intent from file
-      --model <name>       Override model (default from config)
-  -i, --interactive        Enable interactive refinement loop
-      --copy               Copy the final prompt to the clipboard
-      --open-chatgpt       Open https://chatgpt.com with the prompt
-  -h, --help               Show this help message
+  <intent>                  Rough intent text (quoted)
+  -f, --intent-file <path>  Read intent from file
+      --model <name>        Override model for generation (default from config)
+  -i, --interactive         Enable interactive refinement loop
+      --polish              Run the polish pass after generation
+      --polish-model <name> Override the model used for polishing
+      --json                Emit machine-readable JSON (non-interactive only)
+      --copy                Copy the final prompt to the clipboard
+      --open-chatgpt        Open https://chatgpt.com with the final prompt
+  -h, --help                Show this help message
 `)
 }

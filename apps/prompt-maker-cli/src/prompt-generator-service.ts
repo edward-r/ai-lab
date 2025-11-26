@@ -37,7 +37,7 @@ export const resolveDefaultGenerateModel = async (): Promise<string> => {
   )
 }
 
-const ensureModelCredentials = async (model: string): Promise<void> => {
+export const ensureModelCredentials = async (model: string): Promise<void> => {
   if (isGeminiModel(model)) {
     if (!process.env.GEMINI_API_KEY) {
       const credentials = await resolveGeminiCredentials()

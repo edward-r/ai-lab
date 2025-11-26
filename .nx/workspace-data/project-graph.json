@@ -13381,11 +13381,6 @@
         "source": "prompt-maker-cli",
         "target": "prompt-maker-core",
         "type": "static"
-      },
-      {
-        "source": "prompt-maker-cli",
-        "target": "npm:openai",
-        "type": "static"
       }
     ],
     "perceptron-core": [
@@ -30340,5 +30335,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1764112595417
+  "computedAt": 1764180608220
 }
