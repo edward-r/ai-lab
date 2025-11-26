@@ -4,7 +4,6 @@
 
 - Install deps: `npm install`.
 - Build Vite sim: `npx nx build perceptron-sim`.
-- Build Next app: `npx nx build prompt-maker`.
 - Lint all: `npx nx lint`; per-project: `npx nx lint <project>`.
 - Run tests: `npx nx test perceptron-sim` / `npx nx test perceptron-core`.
 - Single test example: `npx nx test perceptron-core -- --run src/lib/activation.test.ts`.
