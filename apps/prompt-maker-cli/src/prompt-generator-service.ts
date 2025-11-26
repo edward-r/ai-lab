@@ -1,7 +1,6 @@
-import OpenAI from 'openai'
-import type { ChatCompletionContentPart } from 'openai/resources/chat/completions'
+import { callLLM, type Message } from '@prompt-maker/core'
 
-import { loadCliConfig, resolveOpenAiCredentials } from './config'
+import { loadCliConfig, resolveGeminiCredentials, resolveOpenAiCredentials } from './config'
 
 const META_PROMPT =
   "You are an expert Prompt Engineer. Your goal is to take the user's rough notes/intent and convert them into a structured, optimized prompt. You should include sections for Role, Context, Constraints, and Output Format. If the request implies code, suggest a tech stack and file structure. Output ONLY the final prompt text."
@@ -13,40 +12,20 @@ export type PromptGenerationRequest = {
 }
 
 export class PromptGeneratorService {
-  private readonly client: OpenAI
-
-  constructor(client: OpenAI) {
-    this.client = client
-  }
-
   async generatePrompt(request: PromptGenerationRequest): Promise<string> {
-    const response = await this.client.chat.completions.create({
-      model: request.model,
-      temperature: 0.15,
-      messages: [
-        { role: 'system', content: META_PROMPT },
-        { role: 'user', content: buildUserMessage(request.intent, request.refinements) },
-      ],
-    })
+    await ensureModelCredentials(request.model)
 
-    const content = response.choices?.[0]?.message?.content
-    if (!content) {
-      throw new Error('OpenAI response did not include assistant content.')
-    }
+    const messages: Message[] = [
+      { role: 'system', content: META_PROMPT },
+      { role: 'user', content: buildUserMessage(request.intent, request.refinements) },
+    ]
 
-    return normalizeContent(content)
+    return await callLLM(messages, request.model)
   }
 }
 
 export const createPromptGeneratorService = async (): Promise<PromptGeneratorService> => {
-  const credentials = await resolveOpenAiCredentials()
-
-  const client = new OpenAI({
-    apiKey: credentials.apiKey,
-    baseURL: credentials.baseUrl,
-  })
-
-  return new PromptGeneratorService(client)
+  return new PromptGeneratorService()
 }
 
 export const resolveDefaultGenerateModel = async (): Promise<string> => {
@@ -58,33 +37,28 @@ export const resolveDefaultGenerateModel = async (): Promise<string> => {
   )
 }
 
-type ChatContent = string | ChatCompletionContentPart[] | null
-
-const normalizeContent = (content: ChatContent): string => {
-  if (typeof content === 'string') {
-    return content.trim()
-  }
-
-  if (!Array.isArray(content) || content.length === 0) {
-    throw new Error('OpenAI response did not include text content.')
-  }
-
-  const text = content
-    .map((part: ChatCompletionContentPart) => {
-      if (part.type === 'text') {
-        return part.text
+const ensureModelCredentials = async (model: string): Promise<void> => {
+  if (isGeminiModel(model)) {
+    if (!process.env.GEMINI_API_KEY) {
+      const credentials = await resolveGeminiCredentials()
+      process.env.GEMINI_API_KEY = credentials.apiKey
+      if (credentials.baseUrl && !process.env.GEMINI_BASE_URL) {
+        process.env.GEMINI_BASE_URL = credentials.baseUrl
       }
-      return ''
-    })
-    .join('')
-    .trim()
-
-  if (!text) {
-    throw new Error('OpenAI response did not include text content.')
+    }
+    return
   }
 
-  return text
+  if (!process.env.OPENAI_API_KEY) {
+    const credentials = await resolveOpenAiCredentials()
+    process.env.OPENAI_API_KEY = credentials.apiKey
+    if (credentials.baseUrl && !process.env.OPENAI_BASE_URL) {
+      process.env.OPENAI_BASE_URL = credentials.baseUrl
+    }
+  }
 }
+
+const isGeminiModel = (model: string): boolean => model.trim().toLowerCase().startsWith('gemini')
 
 const buildUserMessage = (intent: string, refinements: string[]): string => {
   const sections = [`User intent (rough notes):\n${intent.trim()}`]

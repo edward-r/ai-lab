@@ -9,6 +9,8 @@ export type PromptGeneratorConfig = {
 export type PromptMakerCliConfig = {
   openaiApiKey?: string
   openaiBaseUrl?: string
+  geminiApiKey?: string
+  geminiBaseUrl?: string
   promptGenerator?: PromptGeneratorConfig
 }
 
@@ -83,6 +85,38 @@ export const resolveOpenAiCredentials = async (): Promise<{
   )
 }
 
+export const resolveGeminiCredentials = async (): Promise<{
+  apiKey: string
+  baseUrl?: string
+}> => {
+  const envKey = process.env.GEMINI_API_KEY?.trim()
+  const envBaseUrl = process.env.GEMINI_BASE_URL?.trim()
+
+  if (envKey) {
+    const credentials: { apiKey: string; baseUrl?: string } = { apiKey: envKey }
+    if (envBaseUrl) {
+      credentials.baseUrl = envBaseUrl
+    }
+    return credentials
+  }
+
+  const config = await loadCliConfig()
+  const apiKey = config?.geminiApiKey?.trim()
+
+  if (apiKey) {
+    const baseUrl = config?.geminiBaseUrl?.trim()
+    const credentials: { apiKey: string; baseUrl?: string } = { apiKey }
+    if (baseUrl) {
+      credentials.baseUrl = baseUrl
+    }
+    return credentials
+  }
+
+  throw new Error(
+    'Missing Gemini credentials. Set GEMINI_API_KEY or add "geminiApiKey" to ~/.config/prompt-maker-cli/config.json.',
+  )
+}
+
 const parseConfig = (raw: unknown): PromptMakerCliConfig => {
   if (!isRecord(raw)) {
     throw new Error('CLI config must be a JSON object.')
@@ -96,6 +130,14 @@ const parseConfig = (raw: unknown): PromptMakerCliConfig => {
 
   if (raw.openaiBaseUrl !== undefined) {
     config.openaiBaseUrl = expectString(raw.openaiBaseUrl, 'openaiBaseUrl')
+  }
+
+  if (raw.geminiApiKey !== undefined) {
+    config.geminiApiKey = expectString(raw.geminiApiKey, 'geminiApiKey')
+  }
+
+  if (raw.geminiBaseUrl !== undefined) {
+    config.geminiBaseUrl = expectString(raw.geminiBaseUrl, 'geminiBaseUrl')
   }
 
   if (raw.promptGenerator !== undefined) {

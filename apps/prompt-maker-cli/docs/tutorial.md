@@ -6,7 +6,7 @@ This guide walks through every major capability of the `prompt-maker-cli` so you
 
 - Node.js 18+ and npm installed locally.
 - Repository dependencies installed (`npm install`).
-- `OPENAI_API_KEY` in your shell (or a config file referenced by `PROMPT_MAKER_CLI_CONFIG`) to unlock both the polish pass _and_ the AI Prompt Generation flow.
+- `OPENAI_API_KEY` **or** `GEMINI_API_KEY` in your shell (or the config file referenced by `PROMPT_MAKER_CLI_CONFIG`) to unlock the polish pass and AI Prompt Generation. Pick whichever provider matches the model you plan to run (e.g., `gpt-4o-mini`, `gemini-1.5-flash`).
 - Familiarity with shell piping and JSON tooling such as `jq` helps when scripting.
 
 ## 2. Anatomy of the CLI
@@ -40,22 +40,22 @@ That command adds a `prompt-maker-cli` executable to your PATH so editor integra
 
 Key flags:
 
-| Flag / Command                                    | Description                                                |
-| ------------------------------------------------- | ---------------------------------------------------------- |
-| `-p, --prompt <text>`                             | Inline prompt text for the improve command.                |
-| `-f, --prompt-file <path>`                        | Read prompt (improve) or intent (generate) from a file.    |
-| `--answers-json <json>` / `--answers-file <path>` | Provide clarifying answers as JSON (improve flow).         |
-| `-q, --max-questions <n>`                         | Limit clarifying questions (default 4).                    |
-| `--json`                                          | Emit machine-readable JSON for automation.                 |
-| `--no-interactive`                                | Skip TTY questions even if stdin/stdout are interactive.   |
-| `--polish`                                        | Run the OpenAI finishing pass (requires `OPENAI_API_KEY`). |
-| `--model <name>`                                  | Override the OpenAI model (polish or generate).            |
-| `generate <intent>`                               | New subcommand for AI Prompt Generation.                   |
-| `--intent-file <path>`                            | Provide fuzzy intent from a file (generate flow).          |
-| `-i, --interactive`                               | Enable iterative regenerate/refine loop for generate.      |
-| `--copy`                                          | Copy the generated prompt to the clipboard automatically.  |
-| `--open-chatgpt`                                  | URL-encode the output and open `https://chatgpt.com/?q=…`. |
-| `--help`                                          | Show usage for the current command.                        |
+| Flag / Command                                    | Description                                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `-p, --prompt <text>`                             | Inline prompt text for the improve command.                                           |
+| `-f, --prompt-file <path>`                        | Read prompt (improve) or intent (generate) from a file.                               |
+| `--answers-json <json>` / `--answers-file <path>` | Provide clarifying answers as JSON (improve flow).                                    |
+| `-q, --max-questions <n>`                         | Limit clarifying questions (default 4).                                               |
+| `--json`                                          | Emit machine-readable JSON for automation.                                            |
+| `--no-interactive`                                | Skip TTY questions even if stdin/stdout are interactive.                              |
+| `--polish`                                        | Run the finishing pass (Set `OPENAI_API_KEY` or `GEMINI_API_KEY` to match the model). |
+| `--model <name>`                                  | Override the LLM model (e.g., `gpt-4o-mini`, `gemini-1.5-flash`).                     |
+| `generate <intent>`                               | New subcommand for AI Prompt Generation.                                              |
+| `--intent-file <path>`                            | Provide fuzzy intent from a file (generate flow).                                     |
+| `-i, --interactive`                               | Enable iterative regenerate/refine loop for generate.                                 |
+| `--copy`                                          | Copy the generated prompt to the clipboard automatically.                             |
+| `--open-chatgpt`                                  | URL-encode the output and open `https://chatgpt.com/?q=…`.                            |
+| `--help`                                          | Show usage for the current command.                                                   |
 
 The CLI always produces:
 
@@ -216,7 +216,7 @@ Treat the CLI as a tight feedback loop:
 1. **Diagnose** – run the CLI with only your raw draft to gather scores and clarifying questions. This is your prompt “bloodwork.”
 2. **Align** – answer the questions (either interactively or by editing `answers.json`). Each answer locks a criterion (outcome, output format, constraints, context, process, uncertainty).
 3. **Improve** – re-run with the updated answers to produce a structured contract. Iterate until the questions list comes back empty.
-4. **Polish** (optional) – once satisfied with the structure, add `--polish` to get the OpenAI finishing pass. Keep the improved prompt as your source of truth; the polish layer is a thin rewrite for tone/fluency.
+4. **Polish** (optional) – once satisfied with the structure, add `--polish` to get a finishing pass. It uses OpenAI by default, but you can switch to Gemini via `--model gemini-*`. Keep the improved prompt as your source of truth; the polish layer is a thin rewrite for tone/fluency.
 
 Key cadence:
 
@@ -248,8 +248,19 @@ Use the `generate` subcommand when you only have fuzzy intent notes and want the
    npx nx run prompt-maker-cli:build --skip-nx-cache
    ```
 
-   > [!NOTE]
-   > The generate command uses OpenAI by default. Either export `OPENAI_API_KEY` (as above) or create `~/.config/prompt-maker-cli/config.json` with the key and default model.
+> [!NOTE]
+> The generate command uses OpenAI by default. Export `OPENAI_API_KEY` (as above) or create `~/.config/prompt-maker-cli/config.json` with the key and default model. Prefer Gemini instead? Set `GEMINI_API_KEY` (or add `"geminiApiKey"` to the same config) and run with `--model gemini-1.5-flash` or set `promptGenerator.defaultModel` accordingly.
+>
+> ```json
+> // ~/.config/prompt-maker-cli/config.json
+> {
+>   "openaiApiKey": "sk-...",
+>   "geminiApiKey": "gk-...",
+>   "promptGenerator": {
+>     "defaultModel": "gemini-1.5-flash"
+>   }
+> }
+> ```
 
 3. **Run a non-interactive generation and capture artifacts.**
 
@@ -264,6 +275,9 @@ Use the `generate` subcommand when you only have fuzzy intent notes and want the
    - The CLI prints a titled block (“AI Prompt Generator… Generated prompt”) followed by the contract text.
    - `tee` writes the exact stdout into `prompts/onboarding-generated.md` while still showing it in your terminal.
    - `--copy` mirrors the final prompt into your clipboard for immediate pasting.
+
+   > [!NOTE]
+   > Swap `--model gpt-4o-mini` for `--model gemini-1.5-flash` (or any other Gemini model) when you want Google Gemini to handle the generation. Set `GEMINI_API_KEY` (or add `"geminiApiKey"` to your config) before running the command.
 
 4. **Record metadata for traceability.** Capture the same output (plus timestamps, refinements, etc.) under `runs/` so you can diff changes later.
 
@@ -326,7 +340,7 @@ Refine? (y/n): n
 - **stdin everywhere:** `cat intents/onboarding-notes.md | node ... generate --model gpt-4o-mini > prompts/...` works the same as `--intent-file`.
 - **Clipboard only:** `... generate --copy >/dev/null` keeps your terminal clean when you only care about pasting into another tool.
 - **Concurrent capture:** `... generate | tee prompts/foo.md | pbcopy` lets you log to disk and populate your clipboard simultaneously.
-- **Defaults file:** place model preferences in `~/.config/prompt-maker-cli/config.json` so you can omit `--model` entirely.
+- **Defaults file:** place model preferences in `~/.config/prompt-maker-cli/config.json` so you can omit `--model` entirely (e.g., set `"defaultModel": "gemini-1.5-flash"`).
 - **Improve handoff:** `node ... generate > prompts/foo.md && node ... --prompt-file prompts/foo.md --json --no-interactive` keeps generate + diagnose in one shell chain.
 
 > [!TIP]
@@ -334,7 +348,7 @@ Refine? (y/n): n
 
 ### Generator recipe pack (copy/paste tests)
 
-Use these commands verbatim to smoke-test the generator or to demo it for teammates:
+Use these commands verbatim to smoke-test the generator or to demo it for teammates. Prefer Gemini? Swap any `--model gpt-4o-mini` flag for `--model gemini-1.5-flash` (or your preferred Gemini SKU) and ensure `GEMINI_API_KEY` is set.
 
 1. **Cover letter coach**
 
@@ -620,6 +634,13 @@ npx nx run prompt-maker-cli:serve \
   --prompt-file prompt.txt \
   --polish \
   --model gpt-4o-mini
+
+# Or use Gemini
+export GEMINI_API_KEY=abc-...
+npx nx run prompt-maker-cli:serve \
+  --prompt-file prompt.txt \
+  --polish \
+  --model gemini-1.5-flash
 ```
 
 Behavior:
