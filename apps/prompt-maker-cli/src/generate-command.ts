@@ -13,6 +13,7 @@ import { readFromStdin } from './io'
 import { resolveFileContext, type FileContext } from './file-context'
 import { appendToHistory } from './history-logger'
 import { countTokens, formatTokenCount } from './token-counter'
+
 import {
   createPromptGeneratorService,
   ensureModelCredentials,
@@ -21,6 +22,15 @@ import {
 } from './prompt-generator-service'
 
 const MAX_INTENT_FILE_BYTES = 512 * 1024
+const VALUE_FLAGS = new Set([
+  '--intent-file',
+  '-f',
+  '--model',
+  '--polish-model',
+  '--context',
+  '-c',
+  '--image',
+])
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
 
@@ -148,7 +158,9 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 }
 
 const parseGenerateArgs = (argv: string[]): ParsedArgs => {
-  const parser = yargs(argv)
+  const { optionArgs, positionalIntent } = extractIntentArg(argv)
+
+  const parser = yargs(optionArgs)
     .scriptName('prompt-maker-cli')
     .usage('Prompt Maker CLI (generate-only)\n\nUsage:\n  prompt-maker-cli [intent] [options]')
     .option('intent-file', {
@@ -212,7 +224,8 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     .alias('help', 'h')
     .exitProcess(false)
     .showHelpOnFail(false)
-    .strict()
+    .parserConfiguration({ 'halt-at-non-option': true })
+    .strict(false)
     .fail((msg, err) => {
       throw err ?? new Error(msg ?? 'Invalid CLI arguments.')
     })
@@ -230,10 +243,10 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     help?: boolean
     context: string[]
     image: string[]
+    _?: (string | number)[]
   }>
 
-  const positional = parsed._[0]
-  const intent = typeof positional === 'string' ? positional : undefined
+  const intent = positionalIntent ?? (typeof parsed._?.[0] === 'string' ? parsed._?.[0] : undefined)
 
   const args: GenerateArgs = {
     interactive: parsed.interactive ?? false,
@@ -512,6 +525,46 @@ const maybeOpenChatGpt = async (shouldOpen: boolean, prompt: string): Promise<vo
     const message = error instanceof Error ? error.message : 'Unknown browser error.'
     console.warn(`Failed to open ChatGPT: ${message}`)
   }
+}
+
+const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalIntent?: string } => {
+  const optionArgs: string[] = []
+  let positionalIntent: string | undefined
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i]
+    if (token === undefined) {
+      continue
+    }
+
+    if (token === '--') {
+      optionArgs.push(...argv.slice(i))
+      break
+    }
+
+    if (token.startsWith('-')) {
+      optionArgs.push(token)
+
+      if (VALUE_FLAGS.has(token)) {
+        const next = argv[i + 1]
+        if (next !== undefined) {
+          optionArgs.push(next)
+          i += 1
+        }
+      }
+
+      continue
+    }
+
+    if (!positionalIntent) {
+      positionalIntent = token
+      continue
+    }
+
+    optionArgs.push(token)
+  }
+
+  return positionalIntent ? { optionArgs, positionalIntent } : { optionArgs }
 }
 
 const startProgress = (label: string): ((finalMessage?: string) => void) => {
