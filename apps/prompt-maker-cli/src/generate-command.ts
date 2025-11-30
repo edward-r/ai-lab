@@ -32,6 +32,7 @@ type GenerateArgs = {
   progress: boolean
   help: boolean
   context: string[]
+  images: string[]
 }
 
 type LoopContext = {
@@ -39,6 +40,7 @@ type LoopContext = {
   refinements: string[]
   model: string
   fileContext: FileContext[]
+  images: string[]
 }
 
 type GenerateJsonPayload = {
@@ -83,7 +85,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
-    context: { intent, refinements, model, fileContext },
+    context: { intent, refinements, model, fileContext, images: args.images },
     interactive,
     display: shouldDisplay,
   })
@@ -140,6 +142,7 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
     progress: true,
     help: false,
     context: [],
+    images: [],
   }
 
   let capturedIntent = false
@@ -192,6 +195,15 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
           throw new Error('Missing value for --context flag.')
         }
         args.context.push(value)
+        i += 1
+        break
+      }
+      case '--image': {
+        const value = argv[i + 1]
+        if (!value) {
+          throw new Error('Missing value for --image flag.')
+        }
+        args.images.push(value)
         i += 1
         break
       }
@@ -340,6 +352,7 @@ const generateAndMaybeDisplay = async (
     intent: context.intent,
     model: context.model,
     fileContext: context.fileContext,
+    images: context.images,
   }
 
   if (context.previousPrompt && context.latestRefinement) {
@@ -473,6 +486,7 @@ Options:
   -f, --intent-file <path>  Read intent from file
       --model <name>        Override model for generation (default from config)
   -c, --context <pattern>   Add file context via glob (repeatable)
+      --image <path>        Attach an image (repeatable)
   -i, --interactive         Enable interactive refinement loop
       --polish              Run the polish pass after generation
       --polish-model <name> Override the model used for polishing

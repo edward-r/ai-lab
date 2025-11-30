@@ -1,7 +1,8 @@
-import { callLLM, type Message } from '@prompt-maker/core'
+import { callLLM, type Message, type MessageContent } from '@prompt-maker/core'
 
 import { loadCliConfig, resolveGeminiCredentials, resolveOpenAiCredentials } from './config'
 import { formatContextForPrompt, type FileContext } from './file-context'
+import { resolveImageParts } from './image-loader'
 
 const GEN_SYSTEM_PROMPT =
   "You are an expert Prompt Engineer. Analyze the user's intent and context files. " +
@@ -18,6 +19,7 @@ export type PromptGenerationRequest = {
   intent: string
   model: string
   fileContext: FileContext[]
+  images: string[]
   previousPrompt?: string
   refinementInstruction?: string
 }
@@ -34,26 +36,36 @@ export class PromptGeneratorService {
   }
 
   private async createInitialPrompt(request: PromptGenerationRequest): Promise<string> {
+    const userContent = await buildInitialUserMessage(
+      request.intent,
+      request.fileContext,
+      request.images,
+    )
+
     const messages: Message[] = [
       { role: 'system', content: GEN_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: buildInitialUserMessage(request.intent, request.fileContext),
+        content: userContent,
       },
     ]
     return await callLLM(messages, request.model)
   }
 
   private async refinePrompt(request: PromptGenerationRequest): Promise<string> {
+    const userContent = await buildRefinementMessage(
+      request.previousPrompt!,
+      request.refinementInstruction!,
+      request.intent,
+      request.fileContext,
+      request.images,
+    )
+
     const messages: Message[] = [
       { role: 'system', content: REFINE_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: buildRefinementMessage(
-          request.previousPrompt!,
-          request.refinementInstruction!,
-          request.intent,
-        ),
+        content: userContent,
       },
     ]
     return await callLLM(messages, request.model)
@@ -96,7 +108,11 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
 
 const isGeminiModel = (model: string): boolean => model.trim().toLowerCase().startsWith('gemini')
 
-const buildInitialUserMessage = (intent: string, files: FileContext[]): string => {
+const buildInitialUserMessage = async (
+  intent: string,
+  files: FileContext[],
+  imagePaths: string[],
+): Promise<MessageContent> => {
   const sections: string[] = []
 
   if (files.length > 0) {
@@ -106,21 +122,37 @@ const buildInitialUserMessage = (intent: string, files: FileContext[]): string =
   sections.push(`User Intent:\n${intent.trim()}`)
   sections.push('Return the final structured prompt now.')
 
-  return sections.join('\n\n')
+  const text = sections.join('\n\n')
+  return await mergeImagesWithText(text, imagePaths)
 }
 
-const buildRefinementMessage = (
+const buildRefinementMessage = async (
   previousPrompt: string,
   instruction: string,
   originalIntent: string,
-): string => {
-  return [
-    `Original Intent (for reference):\n${originalIntent}`,
-    '---',
-    `Current Prompt Draft:\n${previousPrompt}`,
-    '---',
-    `Refinement Instruction:\n${instruction}`,
-    '---',
-    'Return the fully updated prompt text.',
-  ].join('\n\n')
+  files: FileContext[],
+  imagePaths: string[],
+): Promise<MessageContent> => {
+  const sections: string[] = []
+
+  if (files.length > 0) {
+    sections.push('Context Files:\n' + formatContextForPrompt(files))
+  }
+
+  sections.push(`Original Intent (for reference):\n${originalIntent}`)
+  sections.push(`Current Prompt Draft:\n${previousPrompt}`)
+  sections.push(`Refinement Instruction:\n${instruction}`)
+  sections.push('Return the fully updated prompt text.')
+
+  const text = sections.join('\n\n')
+  return await mergeImagesWithText(text, imagePaths)
+}
+
+const mergeImagesWithText = async (text: string, imagePaths: string[]): Promise<MessageContent> => {
+  const imageParts = await resolveImageParts(imagePaths)
+  if (imageParts.length === 0) {
+    return text
+  }
+
+  return [...imageParts, { type: 'text', text }]
 }
