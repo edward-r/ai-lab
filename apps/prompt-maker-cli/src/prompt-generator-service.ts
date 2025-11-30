@@ -28,6 +28,8 @@ You must output a valid JSON object with exactly two keys:
 Do not output any text outside of this JSON object.
 `
 
+const GEMINI_MODEL_PREFIXES = ['gemini', 'gemma']
+
 export type PromptGenerationRequest = {
   intent: string
   model: string
@@ -116,7 +118,10 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
   }
 }
 
-const isGeminiModel = (model: string): boolean => model.trim().toLowerCase().startsWith('gemini')
+const isGeminiModel = (model: string): boolean => {
+  const normalized = model.trim().toLowerCase()
+  return GEMINI_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+}
 
 const buildInitialUserMessage = async (
   intent: string,

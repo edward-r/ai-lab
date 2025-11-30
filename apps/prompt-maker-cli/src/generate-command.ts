@@ -18,6 +18,8 @@ import {
   type PromptGenerationRequest,
 } from './prompt-generator-service'
 
+const MAX_INTENT_FILE_BYTES = 512 * 1024
+
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
 
 type GenerateArgs = {
@@ -253,8 +255,20 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
   }
 
   if (args.intentFile) {
-    const data = await fs.readFile(args.intentFile, 'utf8')
-    const trimmed = data.trim()
+    const stats = await fs.stat(args.intentFile)
+    if (stats.size > MAX_INTENT_FILE_BYTES) {
+      const sizeKb = (stats.size / 1024).toFixed(1)
+      throw new Error(`Intent file ${args.intentFile} is too large (${sizeKb} KB).`)
+    }
+
+    const buffer = await fs.readFile(args.intentFile)
+    if (buffer.includes(0)) {
+      throw new Error(
+        `Intent file ${args.intentFile} appears to be binary. Provide a UTF-8 text file.`,
+      )
+    }
+
+    const trimmed = buffer.toString('utf8').trim()
     if (!trimmed) {
       throw new Error(`Intent file ${args.intentFile} is empty.`)
     }
