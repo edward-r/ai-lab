@@ -4,16 +4,29 @@ import { loadCliConfig, resolveGeminiCredentials, resolveOpenAiCredentials } fro
 import { formatContextForPrompt, type FileContext } from './file-context'
 import { resolveImageParts } from './image-loader'
 
-const GEN_SYSTEM_PROMPT =
-  "You are an expert Prompt Engineer. Analyze the user's intent and context files. " +
-  'Structure the output with clear sections: Role, Context, Constraints, and Output Format. ' +
-  'Output ONLY the final prompt text.'
+const META_PROMPT = `
+You are an expert Prompt Engineer. Your goal is to convert the user's intent into an optimized prompt.
 
-const REFINE_SYSTEM_PROMPT =
-  'You are an expert Prompt Engineer. You are refining an existing prompt based on user feedback. ' +
-  "You will receive the 'Current Prompt' and a 'Refinement Instruction'. " +
-  'Modify the prompt to incorporate the feedback while preserving the existing structure where possible. ' +
-  'Output ONLY the updated prompt text.'
+Response Format:
+You must output a valid JSON object with exactly two keys:
+1. "reasoning": A string containing your step-by-step analysis of the user's intent, missing details, and strategy.
+2. "prompt": The final, polished prompt text (including all markdown formatting).
+
+Do not output any text outside of this JSON object.
+`
+
+const GEN_SYSTEM_PROMPT = META_PROMPT
+
+const REFINE_SYSTEM_PROMPT = `
+You are an expert Prompt Engineer refining an existing prompt based on user feedback.
+
+Response Format:
+You must output a valid JSON object with exactly two keys:
+1. "reasoning": A string explaining how you interpreted the refinement instructions and intent.
+2. "prompt": The fully updated prompt text, preserving useful structure from the prior draft.
+
+Do not output any text outside of this JSON object.
+`
 
 export type PromptGenerationRequest = {
   intent: string
@@ -24,51 +37,48 @@ export type PromptGenerationRequest = {
   refinementInstruction?: string
 }
 
+type CoTResponse = {
+  reasoning: string
+  prompt: string
+}
+
 export class PromptGeneratorService {
   async generatePrompt(request: PromptGenerationRequest): Promise<string> {
     await ensureModelCredentials(request.model)
 
-    if (request.previousPrompt && request.refinementInstruction) {
-      return await this.refinePrompt(request)
+    const isRefinement = Boolean(request.previousPrompt && request.refinementInstruction)
+    const systemContent = isRefinement ? REFINE_SYSTEM_PROMPT : GEN_SYSTEM_PROMPT
+
+    const userContent = isRefinement
+      ? await buildRefinementMessage(
+          request.previousPrompt!,
+          request.refinementInstruction!,
+          request.intent,
+          request.fileContext,
+          request.images,
+        )
+      : await buildInitialUserMessage(request.intent, request.fileContext, request.images)
+
+    const messages: Message[] = [
+      { role: 'system', content: systemContent },
+      { role: 'user', content: userContent },
+    ]
+
+    const rawResponse = await callLLM(messages, request.model)
+
+    try {
+      const result = parseLLMJson<CoTResponse>(rawResponse)
+
+      if (process.env.DEBUG || process.env.VERBOSE) {
+        console.error('\n--- AI Reasoning ---')
+        console.error(result.reasoning)
+        console.error('--------------------\n')
+      }
+
+      return result.prompt
+    } catch (error) {
+      return rawResponse
     }
-
-    return await this.createInitialPrompt(request)
-  }
-
-  private async createInitialPrompt(request: PromptGenerationRequest): Promise<string> {
-    const userContent = await buildInitialUserMessage(
-      request.intent,
-      request.fileContext,
-      request.images,
-    )
-
-    const messages: Message[] = [
-      { role: 'system', content: GEN_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: userContent,
-      },
-    ]
-    return await callLLM(messages, request.model)
-  }
-
-  private async refinePrompt(request: PromptGenerationRequest): Promise<string> {
-    const userContent = await buildRefinementMessage(
-      request.previousPrompt!,
-      request.refinementInstruction!,
-      request.intent,
-      request.fileContext,
-      request.images,
-    )
-
-    const messages: Message[] = [
-      { role: 'system', content: REFINE_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: userContent,
-      },
-    ]
-    return await callLLM(messages, request.model)
   }
 }
 
@@ -155,4 +165,20 @@ const mergeImagesWithText = async (text: string, imagePaths: string[]): Promise<
   }
 
   return [...imageParts, { type: 'text', text }]
+}
+
+const parseLLMJson = <T>(text: string): T => {
+  const cleaned = text
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/i, '')
+    .trim()
+
+  try {
+    return JSON.parse(cleaned) as T
+  } catch (error) {
+    console.warn('Failed to parse LLM JSON response. Falling back to raw text.')
+    throw new Error('LLM did not return valid JSON.')
+  }
 }
