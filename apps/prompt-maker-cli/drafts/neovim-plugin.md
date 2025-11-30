@@ -7,31 +7,15 @@ I need to create a Neovim plugin that integrates with the Prompt Maker CLI. The 
 - Error handling to notify users of any issues during prompt generation or polishing.
 - Configuration options to set default models and other CLI parameters.
 - Documentation on how to install and use the plugin.
-- The ability to select which model to use for generation and polishing.
+- The ability to select which model to use for generation and which to use for polishing.
 
 Here is information about the Prompt Maker CLI from the tutorial:
 
-# Prompt Maker CLI Tutorial (Generate Edition)
-
-This guide focuses on the **AI Prompt Generation** workflow. The improve/diagnose flow has been retired—every command now routes through the generator, and polishing is available as an optional second pass.
-
-## 1. Prerequisites
-
-- Node.js 18+ and npm installed.
-- Workspace dependencies installed (`npm install`).
-- At least one provider credential in your environment or config:
-  - `OPENAI_API_KEY` for GPT models (optionally `OPENAI_BASE_URL`).
-  - `GEMINI_API_KEY` for Google Gemini models (optionally `GEMINI_BASE_URL`).
-- Optional config file at `~/.config/prompt-maker-cli/config.json` (see section 8).
-- Familiarity with piping/redirecting shell output (`jq`, `tee`, etc.) helps when automating.
-
-## 2. CLI anatomy
+## 1. CLI anatomy
 
 `prompt-maker-cli` exposes a single entry point. Run it via Nx while developing, or via the globally installed binary:
 
 ```bash
-# Build the bundle
-npx nx run prompt-maker-cli:build
 
 # Run from the repo
 node apps/prompt-maker-cli/dist/index.js "Draft an onboarding bot spec" --model gpt-4o-mini
@@ -61,8 +45,6 @@ Key flags (generator + polish):
 Produce a clean JSON artifact in three steps:
 
 ```bash
-# 1) Build (forces a fresh bundle if you add --skip-nx-cache)
-npx nx run prompt-maker-cli:build
 
 # 2) Run generator with stdin + JSON output
 cat apps/prompt-maker-cli/draft.txt \

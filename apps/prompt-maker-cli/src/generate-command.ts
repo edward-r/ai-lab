@@ -8,6 +8,7 @@ import open from 'open'
 import { callLLM } from '@prompt-maker/core'
 
 import { readFromStdin } from './io'
+import { resolveFileContext, type FileContext } from './file-context'
 import {
   createPromptGeneratorService,
   ensureModelCredentials,
@@ -28,12 +29,14 @@ type GenerateArgs = {
   json: boolean
   progress: boolean
   help: boolean
+  context: string[]
 }
 
 type LoopContext = {
   intent: string
   refinements: string[]
   model: string
+  fileContext: FileContext[]
 }
 
 type GenerateJsonPayload = {
@@ -63,6 +66,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   const intent = await resolveIntent(args)
+  const fileContext = await resolveFileContext(args.context)
   const service = await createPromptGeneratorService()
   const model = args.model ?? (await resolveDefaultGenerateModel())
   const refinements: string[] = []
@@ -77,7 +81,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
-    context: { intent, refinements, model },
+    context: { intent, refinements, model, fileContext },
     interactive,
     display: shouldDisplay,
   })
@@ -133,6 +137,7 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
     json: false,
     progress: true,
     help: false,
+    context: [],
   }
 
   let capturedIntent = false
@@ -175,6 +180,16 @@ const parseGenerateArgs = (argv: string[]): GenerateArgs => {
           throw new Error('Missing value for --polish-model flag.')
         }
         args.polishModel = value
+        i += 1
+        break
+      }
+      case '--context':
+      case '-c': {
+        const value = argv[i + 1]
+        if (!value) {
+          throw new Error('Missing value for --context flag.')
+        }
+        args.context.push(value)
         i += 1
         break
       }
@@ -298,6 +313,7 @@ const generateAndMaybeDisplay = async (
     intent: context.intent,
     refinements: context.refinements,
     model: context.model,
+    fileContext: context.fileContext,
   })
 
   if (display) {
@@ -421,6 +437,7 @@ Options:
   <intent>                  Rough intent text (quoted)
   -f, --intent-file <path>  Read intent from file
       --model <name>        Override model for generation (default from config)
+  -c, --context <pattern>   Add file context via glob (repeatable)
   -i, --interactive         Enable interactive refinement loop
       --polish              Run the polish pass after generation
       --polish-model <name> Override the model used for polishing
