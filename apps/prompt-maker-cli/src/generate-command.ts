@@ -13,6 +13,7 @@ import {
   createPromptGeneratorService,
   ensureModelCredentials,
   resolveDefaultGenerateModel,
+  type PromptGenerationRequest,
 } from './prompt-generator-service'
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
@@ -267,15 +268,15 @@ const runGenerationWorkflow = async ({
   display: boolean
 }): Promise<{ prompt: string; iterations: number }> => {
   let iteration = 0
-  let latest = ''
+  let currentPrompt = ''
+
+  iteration += 1
+  currentPrompt = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
 
   if (interactive) {
     const rl = createInterface({ input, output })
 
     try {
-      iteration += 1
-      latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
-
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const wantsRefine = await promptYesNo(rl, 'Refine? (y/n): ')
@@ -291,30 +292,46 @@ const runGenerationWorkflow = async ({
 
         context.refinements.push(refinement)
         iteration += 1
-        latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
+        currentPrompt = await generateAndMaybeDisplay(
+          service,
+          {
+            ...context,
+            iteration,
+            previousPrompt: currentPrompt,
+            latestRefinement: refinement,
+          },
+          display,
+        )
       }
     } finally {
       rl.close()
     }
-  } else {
-    iteration = 1
-    latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
   }
 
-  return { prompt: latest, iterations: iteration }
+  return { prompt: currentPrompt, iterations: iteration }
 }
 
 const generateAndMaybeDisplay = async (
   service: PromptGenerator,
-  context: LoopContext & { iteration: number },
+  context: LoopContext & {
+    iteration: number
+    previousPrompt?: string
+    latestRefinement?: string
+  },
   display: boolean,
 ): Promise<string> => {
-  const prompt = await service.generatePrompt({
+  const request: PromptGenerationRequest = {
     intent: context.intent,
-    refinements: context.refinements,
     model: context.model,
     fileContext: context.fileContext,
-  })
+  }
+
+  if (context.previousPrompt && context.latestRefinement) {
+    request.previousPrompt = context.previousPrompt
+    request.refinementInstruction = context.latestRefinement
+  }
+
+  const prompt = await service.generatePrompt(request)
 
   if (display) {
     displayPrompt(prompt, context.iteration)
