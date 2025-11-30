@@ -9,6 +9,7 @@ import { callLLM } from '@prompt-maker/core'
 
 import { readFromStdin } from './io'
 import { resolveFileContext, type FileContext } from './file-context'
+import { countTokens, formatTokenCount } from './token-counter'
 import {
   createPromptGeneratorService,
   ensureModelCredentials,
@@ -270,6 +271,21 @@ const runGenerationWorkflow = async ({
   let iteration = 0
   let currentPrompt = ''
 
+  const fileTokens = context.fileContext.reduce((acc, file) => acc + countTokens(file.content), 0)
+  const intentTokens = countTokens(context.intent)
+  const totalInputTokens = fileTokens + intentTokens
+
+  if (display) {
+    console.log(`\nContext Size: ${formatTokenCount(totalInputTokens)}`)
+    if (fileTokens > 0) {
+      console.log(
+        `(Files: ~${formatTokenCount(fileTokens)}, Intent: ~${formatTokenCount(intentTokens)})`,
+      )
+    } else {
+      console.log(`(Intent: ~${formatTokenCount(intentTokens)})`)
+    }
+  }
+
   iteration += 1
   currentPrompt = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
 
@@ -334,7 +350,8 @@ const generateAndMaybeDisplay = async (
   const prompt = await service.generatePrompt(request)
 
   if (display) {
-    displayPrompt(prompt, context.iteration)
+    const outputTokens = countTokens(prompt)
+    displayPrompt(prompt, context.iteration, outputTokens)
   }
 
   return prompt
@@ -367,11 +384,12 @@ const polishPrompt = async (
   )
 }
 
-const displayPrompt = (prompt: string, iteration: number): void => {
+const displayPrompt = (prompt: string, iteration: number, tokenCount?: number): void => {
   const label = iteration === 1 ? 'Generated prompt' : `Generated prompt (iteration ${iteration})`
+  const meta = typeof tokenCount === 'number' ? ` [${formatTokenCount(tokenCount)}]` : ''
   console.log('\nAI Prompt Generator')
   console.log('────────────────────')
-  console.log(`${label}:\n`)
+  console.log(`${label}${meta}:\n`)
   console.log(prompt)
 }
 
