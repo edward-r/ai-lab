@@ -4,15 +4,33 @@ import { stdin as input, stdout as output } from 'node:process'
 
 import clipboard from 'clipboardy'
 import open from 'open'
+import yargs from 'yargs'
+import type { ArgumentsCamelCase } from 'yargs'
 
 import { callLLM } from '@prompt-maker/core'
 
 import { readFromStdin } from './io'
+import { resolveFileContext, type FileContext } from './file-context'
+import { appendToHistory } from './history-logger'
+import { countTokens, formatTokenCount } from './token-counter'
+
 import {
   createPromptGeneratorService,
   ensureModelCredentials,
   resolveDefaultGenerateModel,
+  type PromptGenerationRequest,
 } from './prompt-generator-service'
+
+const MAX_INTENT_FILE_BYTES = 512 * 1024
+const VALUE_FLAGS = new Set([
+  '--intent-file',
+  '-f',
+  '--model',
+  '--polish-model',
+  '--context',
+  '-c',
+  '--image',
+])
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
 
@@ -28,12 +46,21 @@ type GenerateArgs = {
   json: boolean
   progress: boolean
   help: boolean
+  context: string[]
+  images: string[]
+}
+
+type ParsedArgs = {
+  args: GenerateArgs
+  showHelp: () => void
 }
 
 type LoopContext = {
   intent: string
   refinements: string[]
   model: string
+  fileContext: FileContext[]
+  images: string[]
 }
 
 type GenerateJsonPayload = {
@@ -43,6 +70,7 @@ type GenerateJsonPayload = {
   refinements: string[]
   iterations: number
   interactive: boolean
+  timestamp: string
   polishedPrompt?: string
   polishModel?: string
 }
@@ -51,10 +79,10 @@ const POLISH_SYSTEM_PROMPT =
   'You refine prompt contracts for language models. Preserve headings, bullet ordering, and constraints. Only tighten wording and fix inconsistencies.'
 
 export const runGenerateCommand = async (argv: string[]): Promise<void> => {
-  const args = parseGenerateArgs(argv)
+  const { args, showHelp } = parseGenerateArgs(argv)
 
   if (args.help) {
-    printGenerateUsage()
+    showHelp()
     return
   }
 
@@ -63,6 +91,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   const intent = await resolveIntent(args)
+  const fileContext = await resolveFileContext(args.context)
   const service = await createPromptGeneratorService()
   const model = args.model ?? (await resolveDefaultGenerateModel())
   const refinements: string[] = []
@@ -77,7 +106,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
-    context: { intent, refinements, model },
+    context: { intent, refinements, model, fileContext, images: args.images },
     interactive,
     display: shouldDisplay,
   })
@@ -100,116 +129,157 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   await maybeCopyToClipboard(args.copy, artifact)
   await maybeOpenChatGpt(args.openChatGpt, artifact)
 
+  const payload: GenerateJsonPayload = {
+    intent,
+    model,
+    prompt: generatedPrompt,
+    refinements: [...refinements],
+    iterations,
+    interactive,
+    timestamp: new Date().toISOString(),
+  }
+
+  if (polishedPrompt) {
+    payload.polishedPrompt = polishedPrompt
+    payload.polishModel = polishModel
+  }
+
   if (args.json) {
-    const payload: GenerateJsonPayload = {
-      intent,
-      model,
-      prompt: generatedPrompt,
-      refinements: [...refinements],
-      iterations,
-      interactive,
-    }
-
-    if (polishedPrompt) {
-      payload.polishedPrompt = polishedPrompt
-      payload.polishModel = polishModel
-    }
-
     console.log(JSON.stringify(payload, null, 2))
+    await appendToHistory(payload)
     return
   }
 
   if (polishedPrompt) {
     displayPolishedPrompt(polishedPrompt, polishModel)
   }
+
+  await appendToHistory(payload)
 }
 
-const parseGenerateArgs = (argv: string[]): GenerateArgs => {
+const parseGenerateArgs = (argv: string[]): ParsedArgs => {
+  const { optionArgs, positionalIntent } = extractIntentArg(argv)
+
+  const parser = yargs(optionArgs)
+    .scriptName('prompt-maker-cli')
+    .usage('Prompt Maker CLI (generate-only)\n\nUsage:\n  prompt-maker-cli [intent] [options]')
+    .option('intent-file', {
+      alias: 'f',
+      type: 'string',
+      describe: 'Read intent from file',
+    })
+    .option('model', {
+      type: 'string',
+      describe: 'Override model for generation',
+    })
+    .option('polish-model', {
+      type: 'string',
+      describe: 'Override the model used for polishing',
+    })
+    .option('interactive', {
+      alias: 'i',
+      type: 'boolean',
+      default: false,
+      describe: 'Enable interactive refinement loop',
+    })
+    .option('copy', {
+      type: 'boolean',
+      default: false,
+      describe: 'Copy the final prompt to the clipboard',
+    })
+    .option('open-chatgpt', {
+      type: 'boolean',
+      default: false,
+      describe: 'Open ChatGPT with the final prompt',
+    })
+    .option('polish', {
+      type: 'boolean',
+      default: false,
+      describe: 'Run the polish pass after generation',
+    })
+    .option('json', {
+      type: 'boolean',
+      default: false,
+      describe: 'Emit machine-readable JSON (non-interactive only)',
+    })
+    .option('progress', {
+      type: 'boolean',
+      default: true,
+      describe: 'Show progress indicator',
+    })
+    .option('context', {
+      alias: 'c',
+      type: 'string',
+      array: true,
+      default: [],
+      describe: 'Add file context via glob (repeatable)',
+    })
+    .option('image', {
+      type: 'string',
+      array: true,
+      default: [],
+      describe: 'Attach an image (repeatable)',
+    })
+    .help('help')
+    .alias('help', 'h')
+    .exitProcess(false)
+    .showHelpOnFail(false)
+    .parserConfiguration({ 'halt-at-non-option': true })
+    .strict(false)
+    .fail((msg, err) => {
+      throw err ?? new Error(msg ?? 'Invalid CLI arguments.')
+    })
+
+  const parsed = parser.parseSync() as ArgumentsCamelCase<{
+    intentFile?: string
+    model?: string
+    polishModel?: string
+    interactive: boolean
+    copy: boolean
+    openChatgpt: boolean
+    polish: boolean
+    json: boolean
+    progress: boolean
+    help?: boolean
+    context: string[]
+    image: string[]
+    _?: (string | number)[]
+  }>
+
+  const intent = positionalIntent ?? (typeof parsed._?.[0] === 'string' ? parsed._?.[0] : undefined)
+
   const args: GenerateArgs = {
-    interactive: false,
-    copy: false,
-    openChatGpt: false,
-    polish: false,
-    json: false,
-    progress: true,
-    help: false,
+    interactive: parsed.interactive ?? false,
+    copy: parsed.copy ?? false,
+    openChatGpt: parsed.openChatgpt ?? false,
+    polish: parsed.polish ?? false,
+    json: parsed.json ?? false,
+    progress: parsed.progress ?? true,
+    help: Boolean(parsed.help),
+    context: (parsed.context ?? []).map((value) => value.toString()),
+    images: (parsed.image ?? []).map((value) => value.toString()),
   }
 
-  let capturedIntent = false
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i]
-    if (!token) {
-      continue
-    }
-
-    if (!token.startsWith('-') && !capturedIntent) {
-      args.intent = token
-      capturedIntent = true
-      continue
-    }
-
-    switch (token) {
-      case '--intent-file':
-      case '-f': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --intent-file flag.')
-        }
-        args.intentFile = value
-        i += 1
-        break
-      }
-      case '--model': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --model flag.')
-        }
-        args.model = value
-        i += 1
-        break
-      }
-      case '--polish-model': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --polish-model flag.')
-        }
-        args.polishModel = value
-        i += 1
-        break
-      }
-      case '--interactive':
-      case '-i':
-        args.interactive = true
-        break
-      case '--copy':
-        args.copy = true
-        break
-      case '--open-chatgpt':
-        args.openChatGpt = true
-        break
-      case '--polish':
-        args.polish = true
-        break
-      case '--json':
-        args.json = true
-        break
-      case '--progress':
-        args.progress = true
-        break
-      case '--no-progress':
-        args.progress = false
-        break
-      case '--help':
-      case '-h':
-        args.help = true
-        break
-      default:
-        throw new Error(`Unknown flag for generate command: ${token}`)
-    }
+  if (intent) {
+    args.intent = intent
   }
 
-  return args
+  if (parsed.intentFile) {
+    args.intentFile = parsed.intentFile
+  }
+
+  if (parsed.model) {
+    args.model = parsed.model
+  }
+
+  if (parsed.polishModel) {
+    args.polishModel = parsed.polishModel
+  }
+
+  return {
+    args,
+    showHelp: () => parser.showHelp(),
+  }
 }
 
 const resolveIntent = async (args: GenerateArgs): Promise<string> => {
@@ -218,8 +288,20 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
   }
 
   if (args.intentFile) {
-    const data = await fs.readFile(args.intentFile, 'utf8')
-    const trimmed = data.trim()
+    const stats = await fs.stat(args.intentFile)
+    if (stats.size > MAX_INTENT_FILE_BYTES) {
+      const sizeKb = (stats.size / 1024).toFixed(1)
+      throw new Error(`Intent file ${args.intentFile} is too large (${sizeKb} KB).`)
+    }
+
+    const buffer = await fs.readFile(args.intentFile)
+    if (buffer.includes(0)) {
+      throw new Error(
+        `Intent file ${args.intentFile} appears to be binary. Provide a UTF-8 text file.`,
+      )
+    }
+
+    const trimmed = buffer.toString('utf8').trim()
     if (!trimmed) {
       throw new Error(`Intent file ${args.intentFile} is empty.`)
     }
@@ -252,15 +334,30 @@ const runGenerationWorkflow = async ({
   display: boolean
 }): Promise<{ prompt: string; iterations: number }> => {
   let iteration = 0
-  let latest = ''
+  let currentPrompt = ''
+
+  const fileTokens = context.fileContext.reduce((acc, file) => acc + countTokens(file.content), 0)
+  const intentTokens = countTokens(context.intent)
+  const totalInputTokens = fileTokens + intentTokens
+
+  if (display) {
+    console.log(`\nContext Size: ${formatTokenCount(totalInputTokens)}`)
+    if (fileTokens > 0) {
+      console.log(
+        `(Files: ~${formatTokenCount(fileTokens)}, Intent: ~${formatTokenCount(intentTokens)})`,
+      )
+    } else {
+      console.log(`(Intent: ~${formatTokenCount(intentTokens)})`)
+    }
+  }
+
+  iteration += 1
+  currentPrompt = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
 
   if (interactive) {
     const rl = createInterface({ input, output })
 
     try {
-      iteration += 1
-      latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
-
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const wantsRefine = await promptYesNo(rl, 'Refine? (y/n): ')
@@ -276,32 +373,51 @@ const runGenerationWorkflow = async ({
 
         context.refinements.push(refinement)
         iteration += 1
-        latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
+        currentPrompt = await generateAndMaybeDisplay(
+          service,
+          {
+            ...context,
+            iteration,
+            previousPrompt: currentPrompt,
+            latestRefinement: refinement,
+          },
+          display,
+        )
       }
     } finally {
       rl.close()
     }
-  } else {
-    iteration = 1
-    latest = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
   }
 
-  return { prompt: latest, iterations: iteration }
+  return { prompt: currentPrompt, iterations: iteration }
 }
 
 const generateAndMaybeDisplay = async (
   service: PromptGenerator,
-  context: LoopContext & { iteration: number },
+  context: LoopContext & {
+    iteration: number
+    previousPrompt?: string
+    latestRefinement?: string
+  },
   display: boolean,
 ): Promise<string> => {
-  const prompt = await service.generatePrompt({
+  const request: PromptGenerationRequest = {
     intent: context.intent,
-    refinements: context.refinements,
     model: context.model,
-  })
+    fileContext: context.fileContext,
+    images: context.images,
+  }
+
+  if (context.previousPrompt && context.latestRefinement) {
+    request.previousPrompt = context.previousPrompt
+    request.refinementInstruction = context.latestRefinement
+  }
+
+  const prompt = await service.generatePrompt(request)
 
   if (display) {
-    displayPrompt(prompt, context.iteration)
+    const outputTokens = countTokens(prompt)
+    displayPrompt(prompt, context.iteration, outputTokens)
   }
 
   return prompt
@@ -334,11 +450,12 @@ const polishPrompt = async (
   )
 }
 
-const displayPrompt = (prompt: string, iteration: number): void => {
+const displayPrompt = (prompt: string, iteration: number, tokenCount?: number): void => {
   const label = iteration === 1 ? 'Generated prompt' : `Generated prompt (iteration ${iteration})`
+  const meta = typeof tokenCount === 'number' ? ` [${formatTokenCount(tokenCount)}]` : ''
   console.log('\nAI Prompt Generator')
   console.log('────────────────────')
-  console.log(`${label}:\n`)
+  console.log(`${label}${meta}:\n`)
   console.log(prompt)
 }
 
@@ -410,26 +527,44 @@ const maybeOpenChatGpt = async (shouldOpen: boolean, prompt: string): Promise<vo
   }
 }
 
-const printGenerateUsage = () => {
-  console.log(`Prompt Maker CLI (generate-only)
+const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalIntent?: string } => {
+  const optionArgs: string[] = []
+  let positionalIntent: string | undefined
 
-Usage:
-  prompt-maker-cli [intent] [options]
-  prompt-maker-cli generate [intent] [options]
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i]
+    if (token === undefined) {
+      continue
+    }
 
-Options:
-  <intent>                  Rough intent text (quoted)
-  -f, --intent-file <path>  Read intent from file
-      --model <name>        Override model for generation (default from config)
-  -i, --interactive         Enable interactive refinement loop
-      --polish              Run the polish pass after generation
-      --polish-model <name> Override the model used for polishing
-      --json                Emit machine-readable JSON (non-interactive only)
-      --no-progress         Disable progress indicator (stderr)
-      --copy                Copy the final prompt to the clipboard
-      --open-chatgpt        Open https://chatgpt.com with the final prompt
-  -h, --help                Show this help message
-`)
+    if (token === '--') {
+      optionArgs.push(...argv.slice(i))
+      break
+    }
+
+    if (token.startsWith('-')) {
+      optionArgs.push(token)
+
+      if (VALUE_FLAGS.has(token)) {
+        const next = argv[i + 1]
+        if (next !== undefined) {
+          optionArgs.push(next)
+          i += 1
+        }
+      }
+
+      continue
+    }
+
+    if (!positionalIntent) {
+      positionalIntent = token
+      continue
+    }
+
+    optionArgs.push(token)
+  }
+
+  return positionalIntent ? { optionArgs, positionalIntent } : { optionArgs }
 }
 
 const startProgress = (label: string): ((finalMessage?: string) => void) => {

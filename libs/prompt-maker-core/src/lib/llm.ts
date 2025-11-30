@@ -1,17 +1,33 @@
-type Message = { role: 'system' | 'user'; content: string }
+export type TextPart = { type: 'text'; text: string }
+export type ImagePart = { type: 'image'; mimeType: string; data: string }
+export type MessageContent = string | (TextPart | ImagePart)[]
 
-type ChatCompletionMessage = Message | { role: 'assistant'; content: string }
+export type Message = {
+  role: 'system' | 'user' | 'assistant'
+  content: MessageContent
+}
+
+type OpenAIChatMessageContent =
+  | string
+  | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>
+
+type OpenAIChatCompletionMessage = {
+  role: 'system' | 'user' | 'assistant'
+  content: OpenAIChatMessageContent
+}
+
+type OpenAIResponseContentPart = { type: 'text'; text: string }
 
 type ChatCompletionChoice = {
   index: number
-  message: ChatCompletionMessage
+  message: { role: 'assistant'; content: string | OpenAIResponseContentPart[] }
 }
 
 type ChatCompletionResponse = {
   choices: ChatCompletionChoice[]
 }
 
-type GeminiContentPart = { text: string }
+type GeminiContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
 
 type GeminiContent = {
   role: 'user' | 'model' | 'system'
@@ -19,7 +35,7 @@ type GeminiContent = {
 }
 
 type GeminiResponse = {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+  candidates?: Array<{ content?: { parts?: GeminiContentPart[] } }>
 }
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? process.env.GEMINI_MODEL ?? 'gpt-5.1-codex'
@@ -53,6 +69,8 @@ const callOpenAI = async (messages: Message[], model: string): Promise<string> =
     throw new Error('OPENAI_API_KEY env var is not set.')
   }
 
+  const payloadMessages = messages.map(toOpenAIMessage)
+
   const response = await fetch(OPENAI_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -62,7 +80,7 @@ const callOpenAI = async (messages: Message[], model: string): Promise<string> =
     body: JSON.stringify({
       model,
       temperature: 0.2,
-      messages,
+      messages: payloadMessages,
     }),
   })
 
@@ -72,7 +90,16 @@ const callOpenAI = async (messages: Message[], model: string): Promise<string> =
   }
 
   const data = (await response.json()) as ChatCompletionResponse
-  const content = data.choices?.[0]?.message?.content?.trim()
+  const rawContent = data.choices?.[0]?.message?.content
+  const content =
+    typeof rawContent === 'string'
+      ? rawContent.trim()
+      : rawContent
+        ? rawContent
+            .map((part) => part.text ?? '')
+            .join('')
+            .trim()
+        : ''
 
   if (!content) {
     throw new Error('OpenAI response did not include assistant content.')
@@ -122,17 +149,21 @@ const buildGeminiRequestBody = (
   systemInstruction?: GeminiContent
   generationConfig: { temperature: number }
 } => {
-  const systemMessages = messages
-    .filter((message) => message.role === 'system')
-    .map((message) => message.content.trim())
-    .filter(Boolean)
+  const systemMessages = messages.filter((message) => message.role === 'system')
 
   const contents: GeminiContent[] = messages
     .filter((message) => message.role !== 'system')
-    .map((message) => ({
-      role: message.role === 'user' ? 'user' : 'model',
-      parts: [{ text: message.content }],
-    }))
+    .map((message) => {
+      const role = message.role === 'user' ? 'user' : 'model'
+      const parts = toGeminiParts(message.content)
+      if (parts.length === 0) {
+        parts.push({ text: '' })
+      }
+      return {
+        role,
+        parts,
+      }
+    })
 
   if (contents.length === 0) {
     throw new Error('Gemini requests require at least one user message.')
@@ -147,10 +178,12 @@ const buildGeminiRequestBody = (
     generationConfig: { temperature: 0.2 },
   }
 
-  if (systemMessages.length > 0) {
+  const systemParts = systemMessages.flatMap((message) => toGeminiParts(message.content))
+
+  if (systemParts.length > 0) {
     payload.systemInstruction = {
       role: 'system',
-      parts: [{ text: systemMessages.join('\n\n') }],
+      parts: systemParts,
     }
   }
 
@@ -161,11 +194,43 @@ const extractGeminiText = (response: GeminiResponse): string | null => {
   const firstCandidate = response.candidates?.[0]
   const parts = firstCandidate?.content?.parts ?? []
   const text = parts
-    .map((part) => part.text ?? '')
+    .map((part) => ('text' in part ? (part.text ?? '') : ''))
     .join('')
     .trim()
 
   return text || null
 }
 
-export type { Message }
+const toOpenAIMessage = (message: Message): OpenAIChatCompletionMessage => ({
+  role: message.role,
+  content: toOpenAIContent(message.content),
+})
+
+const toOpenAIContent = (content: MessageContent): OpenAIChatMessageContent => {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  return content.map((part) => {
+    if (part.type === 'text') {
+      return { type: 'text', text: part.text }
+    }
+    return {
+      type: 'image_url',
+      image_url: { url: `data:${part.mimeType};base64,${part.data}` },
+    }
+  })
+}
+
+const toGeminiParts = (content: MessageContent): GeminiContentPart[] => {
+  if (typeof content === 'string') {
+    return content ? [{ text: content }] : []
+  }
+
+  return content.map((part) => {
+    if (part.type === 'text') {
+      return { text: part.text }
+    }
+    return { inlineData: { mimeType: part.mimeType, data: part.data } }
+  })
+}

@@ -5,12 +5,10 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "prompt-maker-cli": "dist/index.js"
+    "prompt-maker-cli": "index.js"
   },
   "files": [
-    "dist",
-    "README.md",
-    "docs"
+    "index.js"
   ],
   "scripts": {
     "build": "node ../../node_modules/nx/bin/nx.js build prompt-maker-cli",

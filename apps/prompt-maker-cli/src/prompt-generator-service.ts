@@ -1,26 +1,86 @@
-import { callLLM, type Message } from '@prompt-maker/core'
+import { callLLM, type Message, type MessageContent } from '@prompt-maker/core'
 
 import { loadCliConfig, resolveGeminiCredentials, resolveOpenAiCredentials } from './config'
+import { formatContextForPrompt, type FileContext } from './file-context'
+import { resolveImageParts } from './image-loader'
 
-const META_PROMPT =
-  "You are an expert Prompt Engineer. Your goal is to take the user's rough notes/intent and convert them into a structured, optimized prompt. You should include sections for Role, Context, Constraints, and Output Format. If the request implies code, suggest a tech stack and file structure. Output ONLY the final prompt text."
+const META_PROMPT = `
+You are an expert Prompt Engineer. Your goal is to convert the user's intent into an optimized prompt.
+
+Response Format:
+You must output a valid JSON object with exactly two keys:
+1. "reasoning": A string containing your step-by-step analysis of the user's intent, missing details, and strategy.
+2. "prompt": The final, polished prompt text (including all markdown formatting).
+
+Do not output any text outside of this JSON object.
+`
+
+const GEN_SYSTEM_PROMPT = META_PROMPT
+
+const REFINE_SYSTEM_PROMPT = `
+You are an expert Prompt Engineer refining an existing prompt based on user feedback.
+
+Response Format:
+You must output a valid JSON object with exactly two keys:
+1. "reasoning": A string explaining how you interpreted the refinement instructions and intent.
+2. "prompt": The fully updated prompt text, preserving useful structure from the prior draft.
+
+Do not output any text outside of this JSON object.
+`
+
+const GEMINI_MODEL_PREFIXES = ['gemini', 'gemma']
 
 export type PromptGenerationRequest = {
   intent: string
-  refinements: string[]
   model: string
+  fileContext: FileContext[]
+  images: string[]
+  previousPrompt?: string
+  refinementInstruction?: string
+}
+
+type CoTResponse = {
+  reasoning: string
+  prompt: string
 }
 
 export class PromptGeneratorService {
   async generatePrompt(request: PromptGenerationRequest): Promise<string> {
     await ensureModelCredentials(request.model)
 
+    const isRefinement = Boolean(request.previousPrompt && request.refinementInstruction)
+    const systemContent = isRefinement ? REFINE_SYSTEM_PROMPT : GEN_SYSTEM_PROMPT
+
+    const userContent = isRefinement
+      ? await buildRefinementMessage(
+          request.previousPrompt!,
+          request.refinementInstruction!,
+          request.intent,
+          request.fileContext,
+          request.images,
+        )
+      : await buildInitialUserMessage(request.intent, request.fileContext, request.images)
+
     const messages: Message[] = [
-      { role: 'system', content: META_PROMPT },
-      { role: 'user', content: buildUserMessage(request.intent, request.refinements) },
+      { role: 'system', content: systemContent },
+      { role: 'user', content: userContent },
     ]
 
-    return await callLLM(messages, request.model)
+    const rawResponse = await callLLM(messages, request.model)
+
+    try {
+      const result = parseLLMJson<CoTResponse>(rawResponse)
+
+      if (process.env.DEBUG || process.env.VERBOSE) {
+        console.error('\n--- AI Reasoning ---')
+        console.error(result.reasoning)
+        console.error('--------------------\n')
+      }
+
+      return result.prompt
+    } catch (error) {
+      return rawResponse
+    }
   }
 }
 
@@ -58,16 +118,72 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
   }
 }
 
-const isGeminiModel = (model: string): boolean => model.trim().toLowerCase().startsWith('gemini')
+const isGeminiModel = (model: string): boolean => {
+  const normalized = model.trim().toLowerCase()
+  return GEMINI_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+}
 
-const buildUserMessage = (intent: string, refinements: string[]): string => {
-  const sections = [`User intent (rough notes):\n${intent.trim()}`]
+const buildInitialUserMessage = async (
+  intent: string,
+  files: FileContext[],
+  imagePaths: string[],
+): Promise<MessageContent> => {
+  const sections: string[] = []
 
-  refinements.forEach((refinement, index) => {
-    sections.push(`Refinement ${index + 1}:\n${refinement.trim()}`)
-  })
+  if (files.length > 0) {
+    sections.push('Context Files:\n' + formatContextForPrompt(files))
+  }
 
+  sections.push(`User Intent:\n${intent.trim()}`)
   sections.push('Return the final structured prompt now.')
 
-  return sections.join('\n\n')
+  const text = sections.join('\n\n')
+  return await mergeImagesWithText(text, imagePaths)
+}
+
+const buildRefinementMessage = async (
+  previousPrompt: string,
+  instruction: string,
+  originalIntent: string,
+  files: FileContext[],
+  imagePaths: string[],
+): Promise<MessageContent> => {
+  const sections: string[] = []
+
+  if (files.length > 0) {
+    sections.push('Context Files:\n' + formatContextForPrompt(files))
+  }
+
+  sections.push(`Original Intent (for reference):\n${originalIntent}`)
+  sections.push(`Current Prompt Draft:\n${previousPrompt}`)
+  sections.push(`Refinement Instruction:\n${instruction}`)
+  sections.push('Return the fully updated prompt text.')
+
+  const text = sections.join('\n\n')
+  return await mergeImagesWithText(text, imagePaths)
+}
+
+const mergeImagesWithText = async (text: string, imagePaths: string[]): Promise<MessageContent> => {
+  const imageParts = await resolveImageParts(imagePaths)
+  if (imageParts.length === 0) {
+    return text
+  }
+
+  return [...imageParts, { type: 'text', text }]
+}
+
+const parseLLMJson = <T>(text: string): T => {
+  const cleaned = text
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/i, '')
+    .trim()
+
+  try {
+    return JSON.parse(cleaned) as T
+  } catch (error) {
+    console.warn('Failed to parse LLM JSON response. Falling back to raw text.')
+    throw new Error('LLM did not return valid JSON.')
+  }
 }
