@@ -9,6 +9,7 @@ import { callLLM } from '@prompt-maker/core'
 
 import { readFromStdin } from './io'
 import { resolveFileContext, type FileContext } from './file-context'
+import { appendToHistory } from './history-logger'
 import { countTokens, formatTokenCount } from './token-counter'
 import {
   createPromptGeneratorService,
@@ -50,6 +51,7 @@ type GenerateJsonPayload = {
   refinements: string[]
   iterations: number
   interactive: boolean
+  timestamp: string
   polishedPrompt?: string
   polishModel?: string
 }
@@ -108,28 +110,32 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   await maybeCopyToClipboard(args.copy, artifact)
   await maybeOpenChatGpt(args.openChatGpt, artifact)
 
+  const payload: GenerateJsonPayload = {
+    intent,
+    model,
+    prompt: generatedPrompt,
+    refinements: [...refinements],
+    iterations,
+    interactive,
+    timestamp: new Date().toISOString(),
+  }
+
+  if (polishedPrompt) {
+    payload.polishedPrompt = polishedPrompt
+    payload.polishModel = polishModel
+  }
+
   if (args.json) {
-    const payload: GenerateJsonPayload = {
-      intent,
-      model,
-      prompt: generatedPrompt,
-      refinements: [...refinements],
-      iterations,
-      interactive,
-    }
-
-    if (polishedPrompt) {
-      payload.polishedPrompt = polishedPrompt
-      payload.polishModel = polishModel
-    }
-
     console.log(JSON.stringify(payload, null, 2))
+    await appendToHistory(payload)
     return
   }
 
   if (polishedPrompt) {
     displayPolishedPrompt(polishedPrompt, polishModel)
   }
+
+  await appendToHistory(payload)
 }
 
 const parseGenerateArgs = (argv: string[]): GenerateArgs => {
