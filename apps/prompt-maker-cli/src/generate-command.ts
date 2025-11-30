@@ -4,6 +4,8 @@ import { stdin as input, stdout as output } from 'node:process'
 
 import clipboard from 'clipboardy'
 import open from 'open'
+import yargs from 'yargs'
+import type { ArgumentsCamelCase } from 'yargs'
 
 import { callLLM } from '@prompt-maker/core'
 
@@ -38,6 +40,11 @@ type GenerateArgs = {
   images: string[]
 }
 
+type ParsedArgs = {
+  args: GenerateArgs
+  showHelp: () => void
+}
+
 type LoopContext = {
   intent: string
   refinements: string[]
@@ -62,10 +69,10 @@ const POLISH_SYSTEM_PROMPT =
   'You refine prompt contracts for language models. Preserve headings, bullet ordering, and constraints. Only tighten wording and fix inconsistencies.'
 
 export const runGenerateCommand = async (argv: string[]): Promise<void> => {
-  const args = parseGenerateArgs(argv)
+  const { args, showHelp } = parseGenerateArgs(argv)
 
   if (args.help) {
-    printGenerateUsage()
+    showHelp()
     return
   }
 
@@ -140,113 +147,126 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   await appendToHistory(payload)
 }
 
-const parseGenerateArgs = (argv: string[]): GenerateArgs => {
+const parseGenerateArgs = (argv: string[]): ParsedArgs => {
+  const parser = yargs(argv)
+    .scriptName('prompt-maker-cli')
+    .usage('Prompt Maker CLI (generate-only)\n\nUsage:\n  prompt-maker-cli [intent] [options]')
+    .option('intent-file', {
+      alias: 'f',
+      type: 'string',
+      describe: 'Read intent from file',
+    })
+    .option('model', {
+      type: 'string',
+      describe: 'Override model for generation',
+    })
+    .option('polish-model', {
+      type: 'string',
+      describe: 'Override the model used for polishing',
+    })
+    .option('interactive', {
+      alias: 'i',
+      type: 'boolean',
+      default: false,
+      describe: 'Enable interactive refinement loop',
+    })
+    .option('copy', {
+      type: 'boolean',
+      default: false,
+      describe: 'Copy the final prompt to the clipboard',
+    })
+    .option('open-chatgpt', {
+      type: 'boolean',
+      default: false,
+      describe: 'Open ChatGPT with the final prompt',
+    })
+    .option('polish', {
+      type: 'boolean',
+      default: false,
+      describe: 'Run the polish pass after generation',
+    })
+    .option('json', {
+      type: 'boolean',
+      default: false,
+      describe: 'Emit machine-readable JSON (non-interactive only)',
+    })
+    .option('progress', {
+      type: 'boolean',
+      default: true,
+      describe: 'Show progress indicator',
+    })
+    .option('context', {
+      alias: 'c',
+      type: 'string',
+      array: true,
+      default: [],
+      describe: 'Add file context via glob (repeatable)',
+    })
+    .option('image', {
+      type: 'string',
+      array: true,
+      default: [],
+      describe: 'Attach an image (repeatable)',
+    })
+    .help('help')
+    .alias('help', 'h')
+    .exitProcess(false)
+    .showHelpOnFail(false)
+    .strict()
+    .fail((msg, err) => {
+      throw err ?? new Error(msg ?? 'Invalid CLI arguments.')
+    })
+
+  const parsed = parser.parseSync() as ArgumentsCamelCase<{
+    intentFile?: string
+    model?: string
+    polishModel?: string
+    interactive: boolean
+    copy: boolean
+    openChatgpt: boolean
+    polish: boolean
+    json: boolean
+    progress: boolean
+    help?: boolean
+    context: string[]
+    image: string[]
+  }>
+
+  const positional = parsed._[0]
+  const intent = typeof positional === 'string' ? positional : undefined
+
   const args: GenerateArgs = {
-    interactive: false,
-    copy: false,
-    openChatGpt: false,
-    polish: false,
-    json: false,
-    progress: true,
-    help: false,
-    context: [],
-    images: [],
+    interactive: parsed.interactive ?? false,
+    copy: parsed.copy ?? false,
+    openChatGpt: parsed.openChatgpt ?? false,
+    polish: parsed.polish ?? false,
+    json: parsed.json ?? false,
+    progress: parsed.progress ?? true,
+    help: Boolean(parsed.help),
+    context: (parsed.context ?? []).map((value) => value.toString()),
+    images: (parsed.image ?? []).map((value) => value.toString()),
   }
 
-  let capturedIntent = false
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i]
-    if (!token) {
-      continue
-    }
-
-    if (!token.startsWith('-') && !capturedIntent) {
-      args.intent = token
-      capturedIntent = true
-      continue
-    }
-
-    switch (token) {
-      case '--intent-file':
-      case '-f': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --intent-file flag.')
-        }
-        args.intentFile = value
-        i += 1
-        break
-      }
-      case '--model': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --model flag.')
-        }
-        args.model = value
-        i += 1
-        break
-      }
-      case '--polish-model': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --polish-model flag.')
-        }
-        args.polishModel = value
-        i += 1
-        break
-      }
-      case '--context':
-      case '-c': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --context flag.')
-        }
-        args.context.push(value)
-        i += 1
-        break
-      }
-      case '--image': {
-        const value = argv[i + 1]
-        if (!value) {
-          throw new Error('Missing value for --image flag.')
-        }
-        args.images.push(value)
-        i += 1
-        break
-      }
-      case '--interactive':
-      case '-i':
-        args.interactive = true
-        break
-      case '--copy':
-        args.copy = true
-        break
-      case '--open-chatgpt':
-        args.openChatGpt = true
-        break
-      case '--polish':
-        args.polish = true
-        break
-      case '--json':
-        args.json = true
-        break
-      case '--progress':
-        args.progress = true
-        break
-      case '--no-progress':
-        args.progress = false
-        break
-      case '--help':
-      case '-h':
-        args.help = true
-        break
-      default:
-        throw new Error(`Unknown flag for generate command: ${token}`)
-    }
+  if (intent) {
+    args.intent = intent
   }
 
-  return args
+  if (parsed.intentFile) {
+    args.intentFile = parsed.intentFile
+  }
+
+  if (parsed.model) {
+    args.model = parsed.model
+  }
+
+  if (parsed.polishModel) {
+    args.polishModel = parsed.polishModel
+  }
+
+  return {
+    args,
+    showHelp: () => parser.showHelp(),
+  }
 }
 
 const resolveIntent = async (args: GenerateArgs): Promise<string> => {
@@ -492,30 +512,6 @@ const maybeOpenChatGpt = async (shouldOpen: boolean, prompt: string): Promise<vo
     const message = error instanceof Error ? error.message : 'Unknown browser error.'
     console.warn(`Failed to open ChatGPT: ${message}`)
   }
-}
-
-const printGenerateUsage = () => {
-  console.log(`Prompt Maker CLI (generate-only)
-
-Usage:
-  prompt-maker-cli [intent] [options]
-  prompt-maker-cli generate [intent] [options]
-
-Options:
-  <intent>                  Rough intent text (quoted)
-  -f, --intent-file <path>  Read intent from file
-      --model <name>        Override model for generation (default from config)
-  -c, --context <pattern>   Add file context via glob (repeatable)
-      --image <path>        Attach an image (repeatable)
-  -i, --interactive         Enable interactive refinement loop
-      --polish              Run the polish pass after generation
-      --polish-model <name> Override the model used for polishing
-      --json                Emit machine-readable JSON (non-interactive only)
-      --no-progress         Disable progress indicator (stderr)
-      --copy                Copy the final prompt to the clipboard
-      --open-chatgpt        Open https://chatgpt.com with the final prompt
-  -h, --help                Show this help message
-`)
 }
 
 const startProgress = (label: string): ((finalMessage?: string) => void) => {
