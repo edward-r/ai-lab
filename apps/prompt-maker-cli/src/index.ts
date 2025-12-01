@@ -1,25 +1,33 @@
 #!/usr/bin/env node
 
 import { runGenerateCommand } from './generate-command'
+import { runTestCommand } from './test-command'
 
-const argv = process.argv.slice(2)
-const normalizedArgs = normalizeArgs(argv)
+const { command, args } = resolveCommand(process.argv.slice(2))
 
-void runGenerateCommand(normalizedArgs)
+if (command === 'test') {
+  void runTestCommand(args)
+} else {
+  void runGenerateCommand(args)
+}
 
-function normalizeArgs(args: string[]): string[] {
+function resolveCommand(args: string[]): { command: 'generate' | 'test'; args: string[] } {
   if (args.length === 0) {
-    return args
+    return { command: 'generate', args }
   }
 
   const [first, ...rest] = args
   if (!first) {
-    return args
+    return { command: 'generate', args }
+  }
+
+  if (first === 'test') {
+    return { command: 'test', args: rest }
   }
 
   if (!first.startsWith('-') && (first === 'generate' || first === 'expand')) {
-    return rest
+    return { command: 'generate', args: rest }
   }
 
-  return args
+  return { command: 'generate', args }
 }
