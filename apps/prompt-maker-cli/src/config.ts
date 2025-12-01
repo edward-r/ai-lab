@@ -4,6 +4,7 @@ import path from 'node:path'
 
 export type PromptGeneratorConfig = {
   defaultModel?: string
+  defaultGeminiModel?: string
 }
 
 export type PromptMakerCliConfig = {
@@ -150,6 +151,12 @@ const parseConfig = (raw: unknown): PromptMakerCliConfig => {
       promptGenerator.defaultModel = expectString(
         raw.promptGenerator.defaultModel,
         'promptGenerator.defaultModel',
+      )
+    }
+    if (raw.promptGenerator.defaultGeminiModel !== undefined) {
+      promptGenerator.defaultGeminiModel = expectString(
+        raw.promptGenerator.defaultGeminiModel,
+        'promptGenerator.defaultGeminiModel',
       )
     }
     config.promptGenerator = promptGenerator

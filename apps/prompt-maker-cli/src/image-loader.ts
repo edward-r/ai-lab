@@ -6,7 +6,13 @@ import { type ImagePart } from '@prompt-maker/core'
 const MAX_IMAGE_SIZE_MB = 20
 const SUPPORTED_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
 
-export const resolveImageParts = async (filePaths: string[]): Promise<ImagePart[]> => {
+export const resolveImageParts = async (
+  filePaths: string[],
+  onUploadStateChange?: (
+    state: 'start' | 'finish',
+    detail: { kind: 'image'; filePath: string },
+  ) => void,
+): Promise<ImagePart[]> => {
   const parts: ImagePart[] = []
 
   for (const filePath of filePaths) {
@@ -16,6 +22,7 @@ export const resolveImageParts = async (filePaths: string[]): Promise<ImagePart[
       continue
     }
 
+    onUploadStateChange?.('start', { kind: 'image', filePath })
     try {
       const buffer = await fs.readFile(filePath)
       const sizeMb = buffer.length / (1024 * 1024)
@@ -40,6 +47,8 @@ export const resolveImageParts = async (filePaths: string[]): Promise<ImagePart[
       })
     } catch (error) {
       console.warn(`Failed to read image ${filePath}:`, error)
+    } finally {
+      onUploadStateChange?.('finish', { kind: 'image', filePath })
     }
   }
 

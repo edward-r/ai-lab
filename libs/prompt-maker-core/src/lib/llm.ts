@@ -1,6 +1,7 @@
 export type TextPart = { type: 'text'; text: string }
 export type ImagePart = { type: 'image'; mimeType: string; data: string }
-export type MessageContent = string | (TextPart | ImagePart)[]
+export type VideoPart = { type: 'video_uri'; mimeType: string; fileUri: string }
+export type MessageContent = string | (TextPart | ImagePart | VideoPart)[]
 
 export type Message = {
   role: 'system' | 'user' | 'assistant'
@@ -27,7 +28,10 @@ type ChatCompletionResponse = {
   choices: ChatCompletionChoice[]
 }
 
-type GeminiContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
+type GeminiContentPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
+  | { fileData: { mimeType: string; fileUri: string } }
 
 type GeminiContent = {
   role: 'user' | 'model' | 'system'
@@ -38,8 +42,21 @@ type GeminiResponse = {
   candidates?: Array<{ content?: { parts?: GeminiContentPart[] } }>
 }
 
+type OpenAIEmbeddingResponse = {
+  data?: Array<{ embedding: number[] }>
+}
+
+type GeminiEmbeddingResponse = {
+  embedding?: { value?: number[] }
+}
+
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? process.env.GEMINI_MODEL ?? 'gpt-5.1-codex'
-const OPENAI_ENDPOINT = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1/chat/completions'
+const DEFAULT_OPENAI_EMBEDDING_MODEL = 'text-embedding-3-small'
+const DEFAULT_GEMINI_EMBEDDING_MODEL = 'text-embedding-004'
+const rawOpenAiBase = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
+const OPENAI_BASE_URL = rawOpenAiBase.replace(/\/$/, '')
+const OPENAI_CHAT_ENDPOINT = `${OPENAI_BASE_URL.replace(/\/chat\/completions$/, '')}/chat/completions`
+const OPENAI_EMBEDDING_ENDPOINT = `${OPENAI_BASE_URL.replace(/\/chat\/completions$/, '')}/embeddings`
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com'
 
 export const callLLM = async (
@@ -55,8 +72,32 @@ export const callLLM = async (
   return callOpenAI(messages, model)
 }
 
+export const getEmbedding = async (text: string, model?: string): Promise<number[]> => {
+  if (!text || !text.trim()) {
+    throw new Error('Text to embed must not be empty.')
+  }
+
+  const requestedModel = model?.trim()
+  const targetModel =
+    requestedModel && requestedModel.length > 0 ? requestedModel : DEFAULT_OPENAI_EMBEDDING_MODEL
+  const provider = resolveProvider(targetModel)
+
+  if (provider === 'gemini') {
+    const geminiModel =
+      requestedModel && requestedModel.length > 0 ? requestedModel : DEFAULT_GEMINI_EMBEDDING_MODEL
+    return callGeminiEmbedding(text, geminiModel)
+  }
+
+  return callOpenAIEmbedding(text, targetModel)
+}
+
 const resolveProvider = (model: string): 'openai' | 'gemini' => {
-  if (model.trim().toLowerCase().startsWith('gemini')) {
+  const normalized = model.trim().toLowerCase()
+  if (
+    normalized.startsWith('gemini') ||
+    normalized.startsWith('gemma') ||
+    normalized === 'text-embedding-004'
+  ) {
     return 'gemini'
   }
   return 'openai'
@@ -71,7 +112,7 @@ const callOpenAI = async (messages: Message[], model: string): Promise<string> =
 
   const payloadMessages = messages.map(toOpenAIMessage)
 
-  const response = await fetch(OPENAI_ENDPOINT, {
+  const response = await fetch(OPENAI_CHAT_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -201,6 +242,75 @@ const extractGeminiText = (response: GeminiResponse): string | null => {
   return text || null
 }
 
+const callOpenAIEmbedding = async (text: string, model: string): Promise<number[]> => {
+  const apiKey = process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY env var is not set.')
+  }
+
+  const response = await fetch(OPENAI_EMBEDDING_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, input: text }),
+  })
+
+  if (!response.ok) {
+    const details = await response.text()
+    throw new Error(`OpenAI embedding request failed with status ${response.status}: ${details}`)
+  }
+
+  const data = (await response.json()) as OpenAIEmbeddingResponse
+  const embedding = data.data?.[0]?.embedding
+
+  if (!embedding) {
+    throw new Error('OpenAI embedding response did not include embedding values.')
+  }
+
+  return embedding
+}
+
+const callGeminiEmbedding = async (text: string, model: string): Promise<number[]> => {
+  const apiKey = process.env.GEMINI_API_KEY
+
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY env var is not set.')
+  }
+
+  const endpointBase = GEMINI_BASE_URL.replace(/\/$/, '')
+  const url = `${endpointBase}/v1beta/models/${model}:embedContent?key=${apiKey}`
+  const body = {
+    content: {
+      parts: [{ text }],
+    },
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const details = await response.text()
+    throw new Error(`Gemini embedding request failed with status ${response.status}: ${details}`)
+  }
+
+  const data = (await response.json()) as GeminiEmbeddingResponse
+  const embedding = data.embedding?.value
+
+  if (!embedding) {
+    throw new Error('Gemini embedding response did not include embedding values.')
+  }
+
+  return embedding
+}
+
 const toOpenAIMessage = (message: Message): OpenAIChatCompletionMessage => ({
   role: message.role,
   content: toOpenAIContent(message.content),
@@ -212,13 +322,25 @@ const toOpenAIContent = (content: MessageContent): OpenAIChatMessageContent => {
   }
 
   return content.map((part) => {
-    if (part.type === 'text') {
+    if ('text' in part) {
       return { type: 'text', text: part.text }
     }
-    return {
-      type: 'image_url',
-      image_url: { url: `data:${part.mimeType};base64,${part.data}` },
+
+    if ('data' in part) {
+      const imagePart = part as ImagePart
+      return {
+        type: 'image_url',
+        image_url: { url: `data:${imagePart.mimeType};base64,${imagePart.data}` },
+      }
     }
+
+    if ('fileUri' in part) {
+      throw new Error(
+        'Video inputs are only supported when using Gemini models. Remove --video or switch to a Gemini model.',
+      )
+    }
+
+    return { type: 'text', text: '' }
   })
 }
 
@@ -228,9 +350,20 @@ const toGeminiParts = (content: MessageContent): GeminiContentPart[] => {
   }
 
   return content.map((part) => {
-    if (part.type === 'text') {
+    if ('text' in part) {
       return { text: part.text }
     }
-    return { inlineData: { mimeType: part.mimeType, data: part.data } }
+
+    if ('data' in part) {
+      const imagePart = part as ImagePart
+      return { inlineData: { mimeType: imagePart.mimeType, data: imagePart.data } }
+    }
+
+    if ('fileUri' in part) {
+      const videoPart = part as VideoPart
+      return { fileData: { mimeType: videoPart.mimeType, fileUri: videoPart.fileUri } }
+    }
+
+    return { text: '' }
   })
 }

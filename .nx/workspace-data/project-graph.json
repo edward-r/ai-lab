@@ -2242,6 +2242,15 @@
         "hash": "sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q=="
       }
     },
+    "npm:@google/generative-ai": {
+      "type": "npm",
+      "name": "npm:@google/generative-ai",
+      "data": {
+        "version": "0.24.1",
+        "packageName": "@google/generative-ai",
+        "hash": "sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q=="
+      }
+    },
     "npm:@humanwhocodes/config-array": {
       "type": "npm",
       "name": "npm:@humanwhocodes/config-array",
@@ -4006,6 +4015,15 @@
         "hash": "sha512-ED6LB+Z1AVylNTu7hdzuBqOgMnvG/ld6wGCG8wFnAzKX5uyW2K3WD52v0gnLCTK/VLpXtKckgWuyScYK6cSPaw=="
       }
     },
+    "npm:@types/js-yaml": {
+      "type": "npm",
+      "name": "npm:@types/js-yaml",
+      "data": {
+        "version": "4.0.9",
+        "packageName": "@types/js-yaml",
+        "hash": "sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg=="
+      }
+    },
     "npm:@types/json-schema": {
       "type": "npm",
       "name": "npm:@types/json-schema",
@@ -4487,9 +4505,9 @@
       "type": "npm",
       "name": "npm:js-yaml",
       "data": {
-        "version": "4.1.0",
+        "version": "4.1.1",
         "packageName": "js-yaml",
-        "hash": "2840282957090541370"
+        "hash": "sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA=="
       }
     },
     "npm:@zkochan/js-yaml": {
@@ -11133,6 +11151,15 @@
         "packageName": "yoctocolors",
         "hash": "sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug=="
       }
+    },
+    "npm:zod": {
+      "type": "npm",
+      "name": "npm:zod",
+      "data": {
+        "version": "3.25.76",
+        "packageName": "zod",
+        "hash": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="
+      }
     }
   },
   "dependencies": {
@@ -11172,6 +11199,21 @@
     "prompt-maker-cli": [
       {
         "source": "prompt-maker-cli",
+        "target": "npm:@types/js-yaml",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:js-yaml",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:zod",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
         "target": "npm:fast-glob",
         "type": "static"
       },
@@ -11193,6 +11235,11 @@
       {
         "source": "prompt-maker-cli",
         "target": "prompt-maker-core",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:@google/generative-ai",
         "type": "static"
       },
       {
@@ -22006,6 +22053,11 @@
         "source": "npm:openai",
         "target": "npm:ws",
         "type": "static"
+      },
+      {
+        "source": "npm:openai",
+        "target": "npm:zod",
+        "type": "static"
       }
     ],
     "npm:optionator": [
@@ -24967,5 +25019,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1764536478678
+  "computedAt": 1764610118276
 }

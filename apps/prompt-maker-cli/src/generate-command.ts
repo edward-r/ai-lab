@@ -1,27 +1,58 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { createInterface, Interface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 
 import clipboard from 'clipboardy'
+import fg from 'fast-glob'
 import open from 'open'
 import yargs from 'yargs'
 import type { ArgumentsCamelCase } from 'yargs'
 
 import { callLLM } from '@prompt-maker/core'
 
+import { loadCliConfig } from './config'
 import { readFromStdin } from './io'
 import { resolveFileContext, type FileContext } from './file-context'
 import { appendToHistory } from './history-logger'
 import { countTokens, formatTokenCount } from './token-counter'
+import * as vectorStore from './rag/vector-store'
 
 import {
   createPromptGeneratorService,
   ensureModelCredentials,
+  isGemini,
   resolveDefaultGenerateModel,
   type PromptGenerationRequest,
+  type UploadStateChange,
 } from './prompt-generator-service'
 
 const MAX_INTENT_FILE_BYTES = 512 * 1024
+const SMART_CONTEXT_PATTERNS = ['**/*.{ts,tsx,js,jsx,py,md,json}']
+const SMART_CONTEXT_IGNORES = [
+  '**/node_modules/**',
+  '**/.git/**',
+  '**/dist/**',
+  '**/build/**',
+  '**/.next/**',
+  '**/.turbo/**',
+  '**/coverage/**',
+]
+
+const SMART_CONTEXT_IGNORE_PATTERNS = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/coverage/**',
+  '**/.git/**',
+  '**/.nx/**',
+  '**/.next/**',
+  '**/package-lock.json',
+  '**/pnpm-lock.yaml',
+  '**/yarn.lock',
+]
+
+const MAX_EMBEDDING_FILE_SIZE = 25 * 1024
+
 const VALUE_FLAGS = new Set([
   '--intent-file',
   '-f',
@@ -30,6 +61,7 @@ const VALUE_FLAGS = new Set([
   '--context',
   '-c',
   '--image',
+  '--video',
 ])
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
@@ -48,6 +80,8 @@ type GenerateArgs = {
   help: boolean
   context: string[]
   images: string[]
+  video: string[]
+  smartContext: boolean
 }
 
 type ParsedArgs = {
@@ -61,6 +95,7 @@ type LoopContext = {
   model: string
   fileContext: FileContext[]
   images: string[]
+  videos: string[]
 }
 
 type GenerateJsonPayload = {
@@ -91,9 +126,15 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   const intent = await resolveIntent(args)
-  const fileContext = await resolveFileContext(args.context)
+  let fileContext = await resolveFileContext(args.context)
   const service = await createPromptGeneratorService()
-  const model = args.model ?? (await resolveDefaultGenerateModel())
+  let model = args.model ?? (await resolveDefaultGenerateModel())
+
+  if (args.video.length > 0 && !isGemini(model)) {
+    model = await resolveGeminiVideoModel()
+    console.warn('Switching to Gemini 1.5 Pro to support video input.')
+  }
+
   const refinements: string[] = []
   const interactive = args.interactive && input.isTTY && output.isTTY
 
@@ -103,24 +144,37 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 
   const shouldDisplay = !args.json
   const showProgress = args.progress && !interactive
-  const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
+
+  if (args.smartContext) {
+    const smartFiles = await resolveSmartContextFiles(intent, fileContext, showProgress)
+    if (smartFiles.length > 0) {
+      fileContext = [...fileContext, ...smartFiles]
+    }
+  }
+
+  const generationProgress = showProgress ? startProgress('Generating prompt') : null
+  const handleUploadStateChange = generationProgress
+    ? createUploadStateTracker(generationProgress, 'Generating prompt')
+    : undefined
+
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
-    context: { intent, refinements, model, fileContext, images: args.images },
+    context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
     interactive,
     display: shouldDisplay,
+    ...(handleUploadStateChange ? { onUploadStateChange: handleUploadStateChange } : {}),
   })
-  stopGenerationProgress?.('Generated prompt ✓')
+  generationProgress?.stop('Generated prompt ✓')
 
   const polishModel = args.polishModel ?? process.env.PROMPT_MAKER_POLISH_MODEL ?? model
   let polishedPrompt: string | undefined
 
   if (args.polish) {
-    const stopPolishProgress = showProgress ? startProgress('Polishing prompt') : null
+    const polishProgress = showProgress ? startProgress('Polishing prompt') : null
     try {
       polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
     } finally {
-      stopPolishProgress?.('Polished prompt ✓')
+      polishProgress?.stop('Polished prompt ✓')
     }
   }
 
@@ -220,6 +274,17 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       default: [],
       describe: 'Attach an image (repeatable)',
     })
+    .option('video', {
+      type: 'string',
+      array: true,
+      default: [],
+      describe: 'Attach a video file (repeatable)',
+    })
+    .option('smart-context', {
+      type: 'boolean',
+      default: false,
+      describe: 'Automatically attach relevant files via local embeddings',
+    })
     .help('help')
     .alias('help', 'h')
     .exitProcess(false)
@@ -243,6 +308,8 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     help?: boolean
     context: string[]
     image: string[]
+    video: string[]
+    smartContext: boolean
     _?: (string | number)[]
   }>
 
@@ -258,6 +325,8 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     help: Boolean(parsed.help),
     context: (parsed.context ?? []).map((value) => value.toString()),
     images: (parsed.image ?? []).map((value) => value.toString()),
+    video: (parsed.video ?? []).map((value) => value.toString()),
+    smartContext: parsed.smartContext ?? false,
   }
 
   if (intent) {
@@ -280,6 +349,15 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     args,
     showHelp: () => parser.showHelp(),
   }
+}
+
+const resolveGeminiVideoModel = async (): Promise<string> => {
+  const config = await loadCliConfig()
+  const configured = config?.promptGenerator?.defaultGeminiModel?.trim()
+  if (configured && isGemini(configured)) {
+    return configured
+  }
+  return 'gemini-1.5-pro'
 }
 
 const resolveIntent = async (args: GenerateArgs): Promise<string> => {
@@ -322,16 +400,102 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
   )
 }
 
+const collectSmartContextFiles = async (
+  intent: string,
+  currentContext: FileContext[],
+  showProgress: boolean,
+): Promise<FileContext[]> => {
+  const filesToIndex = await fg(SMART_CONTEXT_PATTERNS, {
+    dot: true,
+    absolute: true,
+    ignore: SMART_CONTEXT_IGNORES,
+  })
+
+  if (filesToIndex.length === 0) {
+    return []
+  }
+
+  const uniqueFiles = [...new Set(filesToIndex.map((filePath) => path.resolve(filePath)))]
+  const smartContextProgress = showProgress ? startProgress('Indexing smart context') : null
+
+  try {
+    await vectorStore.indexFiles(uniqueFiles)
+    smartContextProgress?.stop('Indexed smart context ✓')
+  } catch (error) {
+    smartContextProgress?.stop('Failed to index smart context')
+    const message = error instanceof Error ? error.message : 'Unknown smart context error.'
+    console.warn(`Smart context indexing failed: ${message}`)
+    return []
+  }
+
+  let relatedPaths: string[] = []
+  try {
+    relatedPaths = await vectorStore.search(intent, 5)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown smart context search error.'
+    console.warn(`Smart context search failed: ${message}`)
+    return []
+  }
+
+  const availableSet = new Set(uniqueFiles.map((filePath) => normalizePath(filePath)))
+  const filtered = relatedPaths
+    .map((filePath) => normalizePath(filePath))
+    .filter((filePath) => availableSet.has(filePath))
+
+  if (filtered.length === 0) {
+    return []
+  }
+
+  return await readSmartContextFiles(filtered, currentContext)
+}
+
+const readSmartContextFiles = async (
+  candidatePaths: string[],
+  currentContext: FileContext[],
+): Promise<FileContext[]> => {
+  const existingPaths = new Set(currentContext.map((file) => normalizePath(file.path)))
+  const results: FileContext[] = []
+
+  for (const filePath of candidatePaths) {
+    if (existingPaths.has(filePath)) {
+      continue
+    }
+
+    try {
+      const content = await fs.readFile(filePath, 'utf8')
+      results.push({ path: toDisplayPath(filePath), content })
+      existingPaths.add(filePath)
+    } catch (error) {
+      console.warn(`Warning: Failed to read smart context file ${filePath}`)
+    }
+  }
+
+  return results
+}
+
+const normalizePath = (filePath: string): string => path.resolve(filePath)
+
+const toDisplayPath = (absolutePath: string): string => {
+  const cwd = process.cwd()
+  const relative = path.relative(cwd, absolutePath)
+  if (!relative || relative.startsWith('..')) {
+    return absolutePath
+  }
+  return relative
+}
+
 const runGenerationWorkflow = async ({
   service,
   context,
   interactive,
   display,
+  onUploadStateChange,
 }: {
   service: PromptGenerator
   context: LoopContext
   interactive: boolean
   display: boolean
+  onUploadStateChange?: UploadStateChange
 }): Promise<{ prompt: string; iterations: number }> => {
   let iteration = 0
   let currentPrompt = ''
@@ -352,7 +516,12 @@ const runGenerationWorkflow = async ({
   }
 
   iteration += 1
-  currentPrompt = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
+  currentPrompt = await generateAndMaybeDisplay(
+    service,
+    { ...context, iteration },
+    display,
+    onUploadStateChange,
+  )
 
   if (interactive) {
     const rl = createInterface({ input, output })
@@ -382,6 +551,7 @@ const runGenerationWorkflow = async ({
             latestRefinement: refinement,
           },
           display,
+          onUploadStateChange,
         )
       }
     } finally {
@@ -400,12 +570,18 @@ const generateAndMaybeDisplay = async (
     latestRefinement?: string
   },
   display: boolean,
+  onUploadStateChange?: UploadStateChange,
 ): Promise<string> => {
   const request: PromptGenerationRequest = {
     intent: context.intent,
     model: context.model,
     fileContext: context.fileContext,
     images: context.images,
+    videos: context.videos,
+  }
+
+  if (onUploadStateChange) {
+    request.onUploadStateChange = onUploadStateChange
   }
 
   if (context.previousPrompt && context.latestRefinement) {
@@ -567,23 +743,135 @@ const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalInt
   return positionalIntent ? { optionArgs, positionalIntent } : { optionArgs }
 }
 
-const startProgress = (label: string): ((finalMessage?: string) => void) => {
+type ProgressHandle = {
+  stop: (finalMessage?: string) => void
+  setLabel: (label: string) => void
+}
+
+const startProgress = (label: string): ProgressHandle => {
   const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
   let index = 0
   let active = true
-  process.stderr.write(`${label} ${frames[index]}`)
+  let currentLabel = label
+
+  const render = (): void => {
+    process.stderr.write(`\r${currentLabel} ${frames[index]}`)
+  }
+
+  process.stderr.write(`${currentLabel} ${frames[index]}`)
   const timer = setInterval(() => {
     index = (index + 1) % frames.length
-    process.stderr.write(`\r${label} ${frames[index]}`)
+    render()
   }, 120)
 
-  return (finalMessage?: string) => {
+  const stop = (finalMessage?: string): void => {
     if (!active) {
       return
     }
     active = false
     clearInterval(timer)
-    const message = finalMessage ?? `${label} ✓`
+    const message = finalMessage ?? `${currentLabel} ✓`
     process.stderr.write(`\r${message}\n`)
   }
+
+  const setLabel = (nextLabel: string): void => {
+    if (!active) {
+      return
+    }
+    currentLabel = nextLabel
+    render()
+  }
+
+  return { stop, setLabel }
+}
+
+const createUploadStateTracker = (
+  progress: ProgressHandle,
+  defaultLabel: string,
+): UploadStateChange => {
+  let uploadsInFlight = 0
+  const uploadLabel = 'Uploading...'
+
+  return (state, _detail) => {
+    if (state === 'start') {
+      uploadsInFlight += 1
+      if (uploadsInFlight === 1) {
+        progress.setLabel(uploadLabel)
+      }
+      return
+    }
+
+    uploadsInFlight = Math.max(0, uploadsInFlight - 1)
+    if (uploadsInFlight === 0) {
+      progress.setLabel(defaultLabel)
+    }
+  }
+}
+
+const resolveSmartContextFiles = async (
+  intent: string,
+  currentContext: FileContext[],
+  showProgress: boolean,
+): Promise<FileContext[]> => {
+  // 1. Scan the workspace
+  // We use the patterns defined at the top of your file, plus our robust ignore list
+  const filesToIndex = await fg(SMART_CONTEXT_PATTERNS, {
+    dot: true,
+    absolute: true,
+    ignore: SMART_CONTEXT_IGNORE_PATTERNS, // <--- Apply the blocklist
+  })
+
+  if (filesToIndex.length === 0) {
+    return []
+  }
+
+  // 2. Filter by size before we even hash or index them
+  const uniqueFiles = [...new Set(filesToIndex.map((filePath) => path.resolve(filePath)))]
+  const validFiles: string[] = []
+
+  for (const file of uniqueFiles) {
+    try {
+      const stats = await fs.stat(file)
+      if (stats.size < MAX_EMBEDDING_FILE_SIZE) {
+        validFiles.push(file)
+      }
+    } catch (e) {
+      // Ignore files that vanished or can't be read
+    }
+  }
+
+  // 3. Indexing Phase
+  const smartContextProgress = showProgress ? startProgress('Indexing smart context') : null
+
+  try {
+    await vectorStore.indexFiles(validFiles)
+    smartContextProgress?.stop('Indexed smart context ✓')
+  } catch (error) {
+    smartContextProgress?.stop('Failed to index smart context')
+    const message = error instanceof Error ? error.message : 'Unknown smart context error.'
+    console.warn(`Smart context indexing failed: ${message}`)
+    return []
+  }
+
+  // 4. Search Phase
+  let relatedPaths: string[] = []
+  try {
+    relatedPaths = await vectorStore.search(intent, 5)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown smart context search error.'
+    console.warn(`Smart context search failed: ${message}`)
+    return []
+  }
+
+  // 5. Read & Return Phase
+  const availableSet = new Set(validFiles.map((filePath) => normalizePath(filePath)))
+  const filtered = relatedPaths
+    .map((filePath) => normalizePath(filePath))
+    .filter((filePath) => availableSet.has(filePath))
+
+  if (filtered.length === 0) {
+    return []
+  }
+
+  return await readSmartContextFiles(filtered, currentContext)
 }

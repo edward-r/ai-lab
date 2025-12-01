@@ -1,0 +1,15 @@
+tests:
+  - name: 'RAG Feature Check'
+    intent: 'Explain the vector store implementation'
+    # We force the context here to ensure the GENERATION has the right info
+    context: ['apps/prompt-maker-cli/src/rag/vector-store.ts']
+    expect:
+      - 'Mention cosine similarity'
+      - 'Mention file hashing'
+      - 'Explain how indexFiles works'
+
+  - name: 'Simple Greeting'
+    intent: 'Write a friendly hello world python script'
+    expect:
+      - "Must contain print('Hello World')"
+      - 'Must be in Python'

@@ -1,8 +1,9 @@
-import { callLLM, type Message, type MessageContent } from '@prompt-maker/core'
+import { callLLM, type Message, type MessageContent, type VideoPart } from '@prompt-maker/core'
 
 import { loadCliConfig, resolveGeminiCredentials, resolveOpenAiCredentials } from './config'
 import { formatContextForPrompt, type FileContext } from './file-context'
 import { resolveImageParts } from './image-loader'
+import { inferVideoMimeType, uploadFileForGemini } from './media-loader'
 
 const META_PROMPT = `
 You are an expert Prompt Engineer. Your goal is to convert the user's intent into an optimized prompt.
@@ -30,13 +31,19 @@ Do not output any text outside of this JSON object.
 
 const GEMINI_MODEL_PREFIXES = ['gemini', 'gemma']
 
+export type UploadState = 'start' | 'finish'
+export type UploadDetail = { kind: 'image' | 'video'; filePath: string }
+export type UploadStateChange = (state: UploadState, detail: UploadDetail) => void
+
 export type PromptGenerationRequest = {
   intent: string
   model: string
   fileContext: FileContext[]
   images: string[]
+  videos: string[]
   previousPrompt?: string
   refinementInstruction?: string
+  onUploadStateChange?: UploadStateChange
 }
 
 type CoTResponse = {
@@ -58,8 +65,16 @@ export class PromptGeneratorService {
           request.intent,
           request.fileContext,
           request.images,
+          request.videos,
+          request.onUploadStateChange,
         )
-      : await buildInitialUserMessage(request.intent, request.fileContext, request.images)
+      : await buildInitialUserMessage(
+          request.intent,
+          request.fileContext,
+          request.images,
+          request.videos,
+          request.onUploadStateChange,
+        )
 
     const messages: Message[] = [
       { role: 'system', content: systemContent },
@@ -98,7 +113,7 @@ export const resolveDefaultGenerateModel = async (): Promise<string> => {
 }
 
 export const ensureModelCredentials = async (model: string): Promise<void> => {
-  if (isGeminiModel(model)) {
+  if (isGemini(model)) {
     if (!process.env.GEMINI_API_KEY) {
       const credentials = await resolveGeminiCredentials()
       process.env.GEMINI_API_KEY = credentials.apiKey
@@ -118,7 +133,7 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
   }
 }
 
-const isGeminiModel = (model: string): boolean => {
+export const isGemini = (model: string): boolean => {
   const normalized = model.trim().toLowerCase()
   return GEMINI_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
 }
@@ -127,6 +142,8 @@ const buildInitialUserMessage = async (
   intent: string,
   files: FileContext[],
   imagePaths: string[],
+  videoPaths: string[],
+  onUploadStateChange?: UploadStateChange,
 ): Promise<MessageContent> => {
   const sections: string[] = []
 
@@ -138,7 +155,7 @@ const buildInitialUserMessage = async (
   sections.push('Return the final structured prompt now.')
 
   const text = sections.join('\n\n')
-  return await mergeImagesWithText(text, imagePaths)
+  return await mergeMediaWithText(text, imagePaths, videoPaths, onUploadStateChange)
 }
 
 const buildRefinementMessage = async (
@@ -147,6 +164,8 @@ const buildRefinementMessage = async (
   originalIntent: string,
   files: FileContext[],
   imagePaths: string[],
+  videoPaths: string[],
+  onUploadStateChange?: UploadStateChange,
 ): Promise<MessageContent> => {
   const sections: string[] = []
 
@@ -160,16 +179,48 @@ const buildRefinementMessage = async (
   sections.push('Return the fully updated prompt text.')
 
   const text = sections.join('\n\n')
-  return await mergeImagesWithText(text, imagePaths)
+  return await mergeMediaWithText(text, imagePaths, videoPaths, onUploadStateChange)
 }
 
-const mergeImagesWithText = async (text: string, imagePaths: string[]): Promise<MessageContent> => {
-  const imageParts = await resolveImageParts(imagePaths)
-  if (imageParts.length === 0) {
+const mergeMediaWithText = async (
+  text: string,
+  imagePaths: string[],
+  videoPaths: string[],
+  onUploadStateChange?: UploadStateChange,
+): Promise<MessageContent> => {
+  const [imageParts, videoParts] = await Promise.all([
+    resolveImageParts(imagePaths, onUploadStateChange),
+    resolveVideoParts(videoPaths, onUploadStateChange),
+  ])
+
+  if (imageParts.length === 0 && videoParts.length === 0) {
     return text
   }
 
-  return [...imageParts, { type: 'text', text }]
+  return [...imageParts, ...videoParts, { type: 'text', text }]
+}
+
+const resolveVideoParts = async (
+  videoPaths: string[],
+  onUploadStateChange?: UploadStateChange,
+): Promise<VideoPart[]> => {
+  const parts: VideoPart[] = []
+
+  for (const videoPath of videoPaths) {
+    onUploadStateChange?.('start', { kind: 'video', filePath: videoPath })
+    try {
+      const fileUri = await uploadFileForGemini(videoPath)
+      const mimeType = inferVideoMimeType(videoPath)
+      parts.push({ type: 'video_uri', fileUri, mimeType })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown video upload error.'
+      console.warn(`Failed to upload video ${videoPath}: ${message}`)
+    } finally {
+      onUploadStateChange?.('finish', { kind: 'video', filePath: videoPath })
+    }
+  }
+
+  return parts
 }
 
 const parseLLMJson = <T>(text: string): T => {
