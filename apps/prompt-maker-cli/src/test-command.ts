@@ -12,6 +12,7 @@ import {
   resolveDefaultGenerateModel,
   type PromptGenerationRequest,
 } from './prompt-generator-service'
+import { resolveSmartContextFiles } from './smart-context-service'
 import { parsePromptTestSuite, type PromptTestSuite, type PromptTest } from './testing/test-schema'
 import { evaluatePrompt } from './testing/evaluator'
 
@@ -112,14 +113,21 @@ const runSingleTest = async ({
   model: string
 }): Promise<TestResult> => {
   try {
-    const contextFiles = await resolveContextFiles(test.context)
+    let fileContext = await resolveContextFiles(test.context)
+
+    if (test.smartContext) {
+      const smartFiles = await resolveSmartContextFiles(test.intent, fileContext, () => {})
+      if (smartFiles.length > 0) {
+        fileContext = [...fileContext, ...smartFiles]
+      }
+    }
 
     const promptRequest: PromptGenerationRequest = {
       intent: test.intent,
       model,
-      fileContext: contextFiles,
-      images: [],
-      videos: [],
+      fileContext,
+      images: test.image ?? [],
+      videos: test.video ?? [],
     }
 
     const generatedPrompt = await service.generatePrompt(promptRequest)
