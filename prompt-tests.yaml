@@ -11,5 +11,19 @@ tests:
   - name: 'Simple Greeting'
     intent: 'Write a friendly hello world python script'
     expect:
-      - "Must contain print('Hello World')"
+      - "Must contain print('Hello, World!')"
       - 'Must be in Python'
+
+  - name: 'Video Bug Analysis'
+    intent: 'Analyze this video to find the UI glitch'
+    video: ['test-assets/demo.mp4']
+    expect:
+      - 'Must mention the flickering button'
+      - 'Must suggest a CSS fix'
+
+  - name: 'Smart Context Refactor'
+    intent: 'Refactor the vector store class to use a singleton pattern'
+    smartContext: true
+    expect:
+      - 'Must find vector-store.ts automatically'
+      - 'Must provide valid TypeScript code'
