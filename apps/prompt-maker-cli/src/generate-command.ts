@@ -38,6 +38,21 @@ const SMART_CONTEXT_IGNORES = [
   '**/.turbo/**',
   '**/coverage/**',
 ]
+
+const SMART_CONTEXT_IGNORE_PATTERNS = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/coverage/**',
+  '**/.git/**',
+  '**/.nx/**',
+  '**/.next/**',
+  '**/package-lock.json',
+  '**/pnpm-lock.yaml',
+  '**/yarn.lock',
+]
+
+const MAX_EMBEDDING_FILE_SIZE = 25 * 1024
+
 const VALUE_FLAGS = new Set([
   '--intent-file',
   '-f',
@@ -131,7 +146,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const showProgress = args.progress && !interactive
 
   if (args.smartContext) {
-    const smartFiles = await collectSmartContextFiles(intent, fileContext, showProgress)
+    const smartFiles = await resolveSmartContextFiles(intent, fileContext, showProgress)
     if (smartFiles.length > 0) {
       fileContext = [...fileContext, ...smartFiles]
     }
@@ -791,4 +806,72 @@ const createUploadStateTracker = (
       progress.setLabel(defaultLabel)
     }
   }
+}
+
+const resolveSmartContextFiles = async (
+  intent: string,
+  currentContext: FileContext[],
+  showProgress: boolean,
+): Promise<FileContext[]> => {
+  // 1. Scan the workspace
+  // We use the patterns defined at the top of your file, plus our robust ignore list
+  const filesToIndex = await fg(SMART_CONTEXT_PATTERNS, {
+    dot: true,
+    absolute: true,
+    ignore: SMART_CONTEXT_IGNORE_PATTERNS, // <--- Apply the blocklist
+  })
+
+  if (filesToIndex.length === 0) {
+    return []
+  }
+
+  // 2. Filter by size before we even hash or index them
+  const uniqueFiles = [...new Set(filesToIndex.map((filePath) => path.resolve(filePath)))]
+  const validFiles: string[] = []
+
+  for (const file of uniqueFiles) {
+    try {
+      const stats = await fs.stat(file)
+      if (stats.size < MAX_EMBEDDING_FILE_SIZE) {
+        validFiles.push(file)
+      }
+    } catch (e) {
+      // Ignore files that vanished or can't be read
+    }
+  }
+
+  // 3. Indexing Phase
+  const smartContextProgress = showProgress ? startProgress('Indexing smart context') : null
+
+  try {
+    await vectorStore.indexFiles(validFiles)
+    smartContextProgress?.stop('Indexed smart context ✓')
+  } catch (error) {
+    smartContextProgress?.stop('Failed to index smart context')
+    const message = error instanceof Error ? error.message : 'Unknown smart context error.'
+    console.warn(`Smart context indexing failed: ${message}`)
+    return []
+  }
+
+  // 4. Search Phase
+  let relatedPaths: string[] = []
+  try {
+    relatedPaths = await vectorStore.search(intent, 5)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown smart context search error.'
+    console.warn(`Smart context search failed: ${message}`)
+    return []
+  }
+
+  // 5. Read & Return Phase
+  const availableSet = new Set(validFiles.map((filePath) => normalizePath(filePath)))
+  const filtered = relatedPaths
+    .map((filePath) => normalizePath(filePath))
+    .filter((filePath) => availableSet.has(filePath))
+
+  if (filtered.length === 0) {
+    return []
+  }
+
+  return await readSmartContextFiles(filtered, currentContext)
 }

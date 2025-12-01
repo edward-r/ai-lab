@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import readline from 'node:readline'
 
 import yaml from 'js-yaml'
 import yargs from 'yargs'
@@ -15,6 +16,7 @@ import { parsePromptTestSuite, type PromptTestSuite, type PromptTest } from './t
 import { evaluatePrompt } from './testing/evaluator'
 
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
+const PROGRESS_BAR_WIDTH = 24
 
 type TestArgs = {
   file: string
@@ -24,6 +26,12 @@ type TestResult = {
   name: string
   pass: boolean
   reason: string
+}
+
+type TestProgressReporter = {
+  startTest: (ordinal: number, testName: string) => void
+  completeTest: () => void
+  completeAll: () => void
 }
 
 export const runTestCommand = async (argv: string[]): Promise<void> => {
@@ -81,12 +89,16 @@ const executePromptTests = async (suite: PromptTestSuite): Promise<TestResult[]>
   const service = await createPromptGeneratorService()
   const defaultModel = await resolveDefaultGenerateModel()
   const results: TestResult[] = []
+  const progressReporter = createTestProgressReporter(suite.tests.length)
 
-  for (const test of suite.tests) {
+  for (const [index, test] of suite.tests.entries()) {
+    progressReporter.startTest(index + 1, test.name)
     const result = await runSingleTest({ test, service, model: defaultModel })
     results.push(result)
+    progressReporter.completeTest()
   }
 
+  progressReporter.completeAll()
   return results
 }
 
@@ -158,6 +170,73 @@ const loadTestSuite = async (filePath: string): Promise<PromptTestSuite> => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown schema error.'
     throw new Error(`Test file ${formatDisplayPath(filePath)} is invalid: ${message}`)
+  }
+}
+
+const createTestProgressReporter = (total: number): TestProgressReporter => {
+  if (total <= 0) {
+    return {
+      startTest: () => {},
+      completeTest: () => {},
+      completeAll: () => {},
+    }
+  }
+
+  if (!process.stdout.isTTY) {
+    let completed = 0
+    return {
+      startTest(ordinal, testName) {
+        console.log(`Running test ${ordinal}/${total}: ${testName}`)
+      },
+      completeTest() {
+        completed = Math.min(completed + 1, total)
+        console.log(`Progress ${completed}/${total}`)
+      },
+      completeAll() {
+        console.log('All tests complete.')
+      },
+    }
+  }
+
+  return createTtyProgressReporter(total)
+}
+
+const createTtyProgressReporter = (total: number): TestProgressReporter => {
+  let completed = 0
+  let currentLabel = ''
+  let hasRendered = false
+
+  const render = (): void => {
+    if (!hasRendered) {
+      process.stdout.write('\n')
+      hasRendered = true
+    }
+
+    const ratio = total === 0 ? 1 : completed / total
+    const filledUnits = Math.min(PROGRESS_BAR_WIDTH, Math.round(ratio * PROGRESS_BAR_WIDTH))
+    const emptyUnits = PROGRESS_BAR_WIDTH - filledUnits
+    const bar = `${'█'.repeat(filledUnits)}${'░'.repeat(emptyUnits)}`
+    const line = `[${bar}] ${completed}/${total} ${currentLabel}`
+
+    readline.clearLine(process.stdout, 0)
+    readline.cursorTo(process.stdout, 0)
+    process.stdout.write(line)
+  }
+
+  return {
+    startTest(ordinal, testName) {
+      currentLabel = `Running test ${ordinal}/${total}: ${testName}`
+      render()
+    },
+    completeTest() {
+      completed = Math.min(completed + 1, total)
+      render()
+    },
+    completeAll() {
+      currentLabel = 'All tests complete'
+      render()
+      process.stdout.write('\n')
+    },
   }
 }
 
