@@ -24,6 +24,7 @@ import {
   isGemini,
   resolveDefaultGenerateModel,
   type PromptGenerationRequest,
+  type UploadStateChange,
 } from './prompt-generator-service'
 
 const MAX_INTENT_FILE_BYTES = 512 * 1024
@@ -136,24 +137,29 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     }
   }
 
-  const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
+  const generationProgress = showProgress ? startProgress('Generating prompt') : null
+  const handleUploadStateChange = generationProgress
+    ? createUploadStateTracker(generationProgress, 'Generating prompt')
+    : undefined
+
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
     context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
     interactive,
     display: shouldDisplay,
+    ...(handleUploadStateChange ? { onUploadStateChange: handleUploadStateChange } : {}),
   })
-  stopGenerationProgress?.('Generated prompt ✓')
+  generationProgress?.stop('Generated prompt ✓')
 
   const polishModel = args.polishModel ?? process.env.PROMPT_MAKER_POLISH_MODEL ?? model
   let polishedPrompt: string | undefined
 
   if (args.polish) {
-    const stopPolishProgress = showProgress ? startProgress('Polishing prompt') : null
+    const polishProgress = showProgress ? startProgress('Polishing prompt') : null
     try {
       polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
     } finally {
-      stopPolishProgress?.('Polished prompt ✓')
+      polishProgress?.stop('Polished prompt ✓')
     }
   }
 
@@ -395,13 +401,13 @@ const collectSmartContextFiles = async (
   }
 
   const uniqueFiles = [...new Set(filesToIndex.map((filePath) => path.resolve(filePath)))]
-  const stopSmartContextProgress = showProgress ? startProgress('Indexing smart context') : null
+  const smartContextProgress = showProgress ? startProgress('Indexing smart context') : null
 
   try {
     await vectorStore.indexFiles(uniqueFiles)
-    stopSmartContextProgress?.('Indexed smart context ✓')
+    smartContextProgress?.stop('Indexed smart context ✓')
   } catch (error) {
-    stopSmartContextProgress?.('Failed to index smart context')
+    smartContextProgress?.stop('Failed to index smart context')
     const message = error instanceof Error ? error.message : 'Unknown smart context error.'
     console.warn(`Smart context indexing failed: ${message}`)
     return []
@@ -468,11 +474,13 @@ const runGenerationWorkflow = async ({
   context,
   interactive,
   display,
+  onUploadStateChange,
 }: {
   service: PromptGenerator
   context: LoopContext
   interactive: boolean
   display: boolean
+  onUploadStateChange?: UploadStateChange
 }): Promise<{ prompt: string; iterations: number }> => {
   let iteration = 0
   let currentPrompt = ''
@@ -493,7 +501,12 @@ const runGenerationWorkflow = async ({
   }
 
   iteration += 1
-  currentPrompt = await generateAndMaybeDisplay(service, { ...context, iteration }, display)
+  currentPrompt = await generateAndMaybeDisplay(
+    service,
+    { ...context, iteration },
+    display,
+    onUploadStateChange,
+  )
 
   if (interactive) {
     const rl = createInterface({ input, output })
@@ -523,6 +536,7 @@ const runGenerationWorkflow = async ({
             latestRefinement: refinement,
           },
           display,
+          onUploadStateChange,
         )
       }
     } finally {
@@ -541,6 +555,7 @@ const generateAndMaybeDisplay = async (
     latestRefinement?: string
   },
   display: boolean,
+  onUploadStateChange?: UploadStateChange,
 ): Promise<string> => {
   const request: PromptGenerationRequest = {
     intent: context.intent,
@@ -548,6 +563,10 @@ const generateAndMaybeDisplay = async (
     fileContext: context.fileContext,
     images: context.images,
     videos: context.videos,
+  }
+
+  if (onUploadStateChange) {
+    request.onUploadStateChange = onUploadStateChange
   }
 
   if (context.previousPrompt && context.latestRefinement) {
@@ -709,23 +728,67 @@ const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalInt
   return positionalIntent ? { optionArgs, positionalIntent } : { optionArgs }
 }
 
-const startProgress = (label: string): ((finalMessage?: string) => void) => {
+type ProgressHandle = {
+  stop: (finalMessage?: string) => void
+  setLabel: (label: string) => void
+}
+
+const startProgress = (label: string): ProgressHandle => {
   const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
   let index = 0
   let active = true
-  process.stderr.write(`${label} ${frames[index]}`)
+  let currentLabel = label
+
+  const render = (): void => {
+    process.stderr.write(`\r${currentLabel} ${frames[index]}`)
+  }
+
+  process.stderr.write(`${currentLabel} ${frames[index]}`)
   const timer = setInterval(() => {
     index = (index + 1) % frames.length
-    process.stderr.write(`\r${label} ${frames[index]}`)
+    render()
   }, 120)
 
-  return (finalMessage?: string) => {
+  const stop = (finalMessage?: string): void => {
     if (!active) {
       return
     }
     active = false
     clearInterval(timer)
-    const message = finalMessage ?? `${label} ✓`
+    const message = finalMessage ?? `${currentLabel} ✓`
     process.stderr.write(`\r${message}\n`)
+  }
+
+  const setLabel = (nextLabel: string): void => {
+    if (!active) {
+      return
+    }
+    currentLabel = nextLabel
+    render()
+  }
+
+  return { stop, setLabel }
+}
+
+const createUploadStateTracker = (
+  progress: ProgressHandle,
+  defaultLabel: string,
+): UploadStateChange => {
+  let uploadsInFlight = 0
+  const uploadLabel = 'Uploading...'
+
+  return (state, _detail) => {
+    if (state === 'start') {
+      uploadsInFlight += 1
+      if (uploadsInFlight === 1) {
+        progress.setLabel(uploadLabel)
+      }
+      return
+    }
+
+    uploadsInFlight = Math.max(0, uploadsInFlight - 1)
+    if (uploadsInFlight === 0) {
+      progress.setLabel(defaultLabel)
+    }
   }
 }
