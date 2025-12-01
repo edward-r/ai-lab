@@ -5,7 +5,14 @@ import yaml from 'js-yaml'
 import yargs from 'yargs'
 import type { ArgumentsCamelCase } from 'yargs'
 
-import { parsePromptTestSuite, type PromptTestSuite } from './testing/test-schema'
+import { resolveFileContext, type FileContext } from './file-context'
+import {
+  createPromptGeneratorService,
+  resolveDefaultGenerateModel,
+  type PromptGenerationRequest,
+} from './prompt-generator-service'
+import { parsePromptTestSuite, type PromptTestSuite, type PromptTest } from './testing/test-schema'
+import { evaluatePrompt } from './testing/evaluator'
 
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
 
@@ -13,17 +20,34 @@ type TestArgs = {
   file: string
 }
 
+type TestResult = {
+  name: string
+  pass: boolean
+  reason: string
+}
+
 export const runTestCommand = async (argv: string[]): Promise<void> => {
   const { file } = parseTestArgs(argv)
   const filePath = path.resolve(process.cwd(), file)
 
   const suite = await loadTestSuite(filePath)
-
   console.log(`Loaded ${suite.tests.length} test(s) from ${formatDisplayPath(filePath)}.`)
-  console.log('Test execution not yet implemented; iterating over test cases:')
 
-  for (const test of suite.tests) {
-    console.log(`- ${test.name} (${test.context.length} context file(s))`)
+  const results = await executePromptTests(suite)
+
+  console.log('\nTest Results')
+  console.log('────────────')
+  for (const result of results) {
+    const status = result.pass ? 'PASS' : 'FAIL'
+    console.log(`${status.padEnd(4)}  ${result.name} - ${result.reason}`)
+  }
+
+  const failures = results.filter((result) => !result.pass)
+  if (failures.length > 0) {
+    console.log(`\n${failures.length} test(s) failed.`)
+    process.exitCode = 1
+  } else {
+    console.log('\nAll tests passed!')
   }
 }
 
@@ -51,6 +75,65 @@ const parseTestArgs = (argv: string[]): TestArgs => {
       ? parsed.file
       : DEFAULT_TEST_FILE
   return { file }
+}
+
+const executePromptTests = async (suite: PromptTestSuite): Promise<TestResult[]> => {
+  const service = await createPromptGeneratorService()
+  const defaultModel = await resolveDefaultGenerateModel()
+  const results: TestResult[] = []
+
+  for (const test of suite.tests) {
+    const result = await runSingleTest({ test, service, model: defaultModel })
+    results.push(result)
+  }
+
+  return results
+}
+
+const runSingleTest = async ({
+  test,
+  service,
+  model,
+}: {
+  test: PromptTest
+  service: Awaited<ReturnType<typeof createPromptGeneratorService>>
+  model: string
+}): Promise<TestResult> => {
+  try {
+    const contextFiles = await resolveContextFiles(test.context)
+
+    const promptRequest: PromptGenerationRequest = {
+      intent: test.intent,
+      model,
+      fileContext: contextFiles,
+      images: [],
+      videos: [],
+    }
+
+    const generatedPrompt = await service.generatePrompt(promptRequest)
+    const verdict = await evaluatePrompt(generatedPrompt, test.expect)
+
+    return {
+      name: test.name,
+      pass: verdict.pass,
+      reason: verdict.reason,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown test error.'
+    return {
+      name: test.name,
+      pass: false,
+      reason: message,
+    }
+  }
+}
+
+const resolveContextFiles = async (patterns: string[]): Promise<FileContext[]> => {
+  if (!patterns || patterns.length === 0) {
+    return []
+  }
+
+  return await resolveFileContext(patterns)
 }
 
 const loadTestSuite = async (filePath: string): Promise<PromptTestSuite> => {
