@@ -65,6 +65,7 @@ type LoopContext = {
   model: string
   fileContext: FileContext[]
   images: string[]
+  videos: string[]
 }
 
 type GenerateJsonPayload = {
@@ -116,7 +117,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
-    context: { intent, refinements, model, fileContext, images: args.images },
+    context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
     interactive,
     display: shouldDisplay,
   })
@@ -433,6 +434,7 @@ const generateAndMaybeDisplay = async (
     model: context.model,
     fileContext: context.fileContext,
     images: context.images,
+    videos: context.videos,
   }
 
   if (context.previousPrompt && context.latestRefinement) {

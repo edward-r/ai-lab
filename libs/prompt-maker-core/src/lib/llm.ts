@@ -1,6 +1,7 @@
 export type TextPart = { type: 'text'; text: string }
 export type ImagePart = { type: 'image'; mimeType: string; data: string }
-export type MessageContent = string | (TextPart | ImagePart)[]
+export type VideoPart = { type: 'video_uri'; mimeType: string; fileUri: string }
+export type MessageContent = string | (TextPart | ImagePart | VideoPart)[]
 
 export type Message = {
   role: 'system' | 'user' | 'assistant'
@@ -27,7 +28,10 @@ type ChatCompletionResponse = {
   choices: ChatCompletionChoice[]
 }
 
-type GeminiContentPart = { text: string } | { inlineData: { mimeType: string; data: string } }
+type GeminiContentPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
+  | { fileData: { mimeType: string; fileUri: string } }
 
 type GeminiContent = {
   role: 'user' | 'model' | 'system'
@@ -212,13 +216,25 @@ const toOpenAIContent = (content: MessageContent): OpenAIChatMessageContent => {
   }
 
   return content.map((part) => {
-    if (part.type === 'text') {
+    if ('text' in part) {
       return { type: 'text', text: part.text }
     }
-    return {
-      type: 'image_url',
-      image_url: { url: `data:${part.mimeType};base64,${part.data}` },
+
+    if ('data' in part) {
+      const imagePart = part as ImagePart
+      return {
+        type: 'image_url',
+        image_url: { url: `data:${imagePart.mimeType};base64,${imagePart.data}` },
+      }
     }
+
+    if ('fileUri' in part) {
+      throw new Error(
+        'Video inputs are only supported when using Gemini models. Remove --video or switch to a Gemini model.',
+      )
+    }
+
+    return { type: 'text', text: '' }
   })
 }
 
@@ -228,9 +244,20 @@ const toGeminiParts = (content: MessageContent): GeminiContentPart[] => {
   }
 
   return content.map((part) => {
-    if (part.type === 'text') {
+    if ('text' in part) {
       return { text: part.text }
     }
-    return { inlineData: { mimeType: part.mimeType, data: part.data } }
+
+    if ('data' in part) {
+      const imagePart = part as ImagePart
+      return { inlineData: { mimeType: imagePart.mimeType, data: imagePart.data } }
+    }
+
+    if ('fileUri' in part) {
+      const videoPart = part as VideoPart
+      return { fileData: { mimeType: videoPart.mimeType, fileUri: videoPart.fileUri } }
+    }
+
+    return { text: '' }
   })
 }

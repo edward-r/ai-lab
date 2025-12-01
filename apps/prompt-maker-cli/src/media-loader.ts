@@ -6,7 +6,7 @@ import { GoogleAIFileManager } from '@google/generative-ai/server'
 const POLL_INTERVAL_MS = 3_000
 const PROCESSING_TIMEOUT_MS = 5 * 60_000
 
-const MIME_TYPES: Record<string, string> = {
+const VIDEO_MIME_TYPES: Record<string, string> = {
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
   '.m4v': 'video/x-m4v',
@@ -24,7 +24,7 @@ type FileState = 'STATE_UNSPECIFIED' | 'PROCESSING' | 'ACTIVE' | 'FAILED'
 export const uploadFileForGemini = async (filePath: string): Promise<string> => {
   await assertReadableFile(filePath)
 
-  const mimeType = resolveMimeType(filePath)
+  const mimeType = inferVideoMimeType(filePath)
   const manager = createFileManager()
 
   const uploadResponse = await manager.uploadFile(filePath, {
@@ -53,9 +53,9 @@ const assertReadableFile = async (filePath: string): Promise<void> => {
   }
 }
 
-const resolveMimeType = (filePath: string): string => {
+export const inferVideoMimeType = (filePath: string): string => {
   const ext = path.extname(filePath).toLowerCase()
-  const mimeType = MIME_TYPES[ext]
+  const mimeType = VIDEO_MIME_TYPES[ext]
   if (!mimeType) {
     throw new Error(`Unsupported media type for ${filePath}.`)
   }
