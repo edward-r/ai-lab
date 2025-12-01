@@ -20,6 +20,7 @@
     "format": "prettier -w ."
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "clipboardy": "^5.0.1",
     "clsx": "^2.1.1",
     "d3-interpolate": "^3.0.1",

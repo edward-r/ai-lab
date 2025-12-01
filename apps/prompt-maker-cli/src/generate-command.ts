@@ -9,6 +9,7 @@ import type { ArgumentsCamelCase } from 'yargs'
 
 import { callLLM } from '@prompt-maker/core'
 
+import { loadCliConfig } from './config'
 import { readFromStdin } from './io'
 import { resolveFileContext, type FileContext } from './file-context'
 import { appendToHistory } from './history-logger'
@@ -17,6 +18,7 @@ import { countTokens, formatTokenCount } from './token-counter'
 import {
   createPromptGeneratorService,
   ensureModelCredentials,
+  isGemini,
   resolveDefaultGenerateModel,
   type PromptGenerationRequest,
 } from './prompt-generator-service'
@@ -30,6 +32,7 @@ const VALUE_FLAGS = new Set([
   '--context',
   '-c',
   '--image',
+  '--video',
 ])
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
@@ -48,6 +51,7 @@ type GenerateArgs = {
   help: boolean
   context: string[]
   images: string[]
+  video: string[]
 }
 
 type ParsedArgs = {
@@ -93,7 +97,13 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const intent = await resolveIntent(args)
   const fileContext = await resolveFileContext(args.context)
   const service = await createPromptGeneratorService()
-  const model = args.model ?? (await resolveDefaultGenerateModel())
+  let model = args.model ?? (await resolveDefaultGenerateModel())
+
+  if (args.video.length > 0 && !isGemini(model)) {
+    model = await resolveGeminiVideoModel()
+    console.warn('Switching to Gemini 1.5 Pro to support video input.')
+  }
+
   const refinements: string[] = []
   const interactive = args.interactive && input.isTTY && output.isTTY
 
@@ -220,6 +230,12 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       default: [],
       describe: 'Attach an image (repeatable)',
     })
+    .option('video', {
+      type: 'string',
+      array: true,
+      default: [],
+      describe: 'Attach a video file (repeatable)',
+    })
     .help('help')
     .alias('help', 'h')
     .exitProcess(false)
@@ -243,6 +259,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     help?: boolean
     context: string[]
     image: string[]
+    video: string[]
     _?: (string | number)[]
   }>
 
@@ -258,6 +275,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     help: Boolean(parsed.help),
     context: (parsed.context ?? []).map((value) => value.toString()),
     images: (parsed.image ?? []).map((value) => value.toString()),
+    video: (parsed.video ?? []).map((value) => value.toString()),
   }
 
   if (intent) {
@@ -280,6 +298,15 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     args,
     showHelp: () => parser.showHelp(),
   }
+}
+
+const resolveGeminiVideoModel = async (): Promise<string> => {
+  const config = await loadCliConfig()
+  const configured = config?.promptGenerator?.defaultGeminiModel?.trim()
+  if (configured && isGemini(configured)) {
+    return configured
+  }
+  return 'gemini-1.5-pro'
 }
 
 const resolveIntent = async (args: GenerateArgs): Promise<string> => {

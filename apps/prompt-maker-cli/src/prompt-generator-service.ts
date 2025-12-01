@@ -98,7 +98,7 @@ export const resolveDefaultGenerateModel = async (): Promise<string> => {
 }
 
 export const ensureModelCredentials = async (model: string): Promise<void> => {
-  if (isGeminiModel(model)) {
+  if (isGemini(model)) {
     if (!process.env.GEMINI_API_KEY) {
       const credentials = await resolveGeminiCredentials()
       process.env.GEMINI_API_KEY = credentials.apiKey
@@ -118,7 +118,7 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
   }
 }
 
-const isGeminiModel = (model: string): boolean => {
+export const isGemini = (model: string): boolean => {
   const normalized = model.trim().toLowerCase()
   return GEMINI_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
 }
