@@ -1,295 +1,165 @@
 # Prompt Maker CLI Tutorial (Generate Edition)
 
-This guide focuses on the **AI Prompt Generation** workflow. The improve/diagnose flow has been retired—every command now routes through the generator, and polishing is available as an optional second pass.
+The CLI now revolves around a single **Generate** workflow enhanced with stateful refinements, image/file context, token telemetry, and automatic history logging. This guide walks you through installation, day-to-day usage, and automation patterns.
 
 ## 1. Prerequisites
 
-- Node.js 18+ and npm installed.
-- Workspace dependencies installed (`npm install`).
-- At least one provider credential in your environment or config:
-  - `OPENAI_API_KEY` for GPT models (optionally `OPENAI_BASE_URL`).
-  - `GEMINI_API_KEY` for Google Gemini models (optionally `GEMINI_BASE_URL`).
-- Optional config file at `~/.config/prompt-maker-cli/config.json` (see section 8).
-- Familiarity with piping/redirecting shell output (`jq`, `tee`, etc.) helps when automating.
+- Node.js 18+ (the repo uses `nvm`—`nvm use` / `nvm install` if needed).
+- `npm install` at repo root to pull workspace deps.
+- Provider credentials via env or config:
+  - `OPENAI_API_KEY` (and optional `OPENAI_BASE_URL`).
+  - `GEMINI_API_KEY` (and optional `GEMINI_BASE_URL`).
+- Optional config file at `~/.config/prompt-maker-cli/config.json` (see §8).
+- Familiarity with piping/redirecting output (`jq`, `tee`, etc.) helps when automating.
 
-## 2. CLI anatomy
-
-`prompt-maker-cli` exposes a single entry point. Run it via Nx while developing, or via the globally installed binary:
+## 2. Build + install flow
 
 ```bash
-# Build the bundle
-npx nx run prompt-maker-cli:build
+# From repo root
+npx nx build prompt-maker-cli --skip-nx-cache
+npm uninstall -g @perceptron/prompt-maker-cli   # safe if missing
+npm install -g apps/prompt-maker-cli/dist
 
-# Run from the repo
-node apps/prompt-maker-cli/dist/index.js "Draft an onboarding bot spec" --model gpt-4o-mini
-
-# Or install globally after building once
-cd apps/prompt-maker-cli && npm install -g .
-prompt-maker-cli "Draft an onboarding bot spec" --model gemini-1.5-flash
+# Or run locally without global install
+node apps/prompt-maker-cli/dist/index.js "Draft onboarding bot spec" --model gpt-4o-mini
 ```
 
-Key flags (generator + polish):
+Because the global binary is named `prompt-maker-cli`, many users add `alias pmc=prompt-maker-cli` to their shell config. Re-run the commands above whenever you modify the CLI.
 
-| Flag / Command             | Description                                                               |
-| -------------------------- | ------------------------------------------------------------------------- |
-| `<intent>`                 | Inline rough intent text (quoted).                                        |
-| `-f, --intent-file <path>` | Read intent from a file or heredoc.                                       |
-| `--model <name>`           | Override the generation model (e.g., `gpt-4o-mini`, `gemini-1.5-flash`).  |
-| `-i, --interactive`        | Enable iterative refine loop (TTY only).                                  |
-| `--polish`                 | Run a finishing pass on the generated prompt.                             |
-| `--polish-model <name>`    | Override the model used for polishing (defaults to the generation model). |
-| `--json`                   | Emit machine-readable JSON (non-interactive only).                        |
-| `--no-progress`            | Disable the stderr spinner shown during `--json` runs.                    |
-| `--copy`                   | Copy the final prompt (polished if present) to the clipboard.             |
-| `--open-chatgpt`           | Open `https://chatgpt.com/?q=...` with the final prompt.                  |
-| `--help`                   | Show usage for the generator.                                             |
+## 3. CLI anatomy at a glance
 
-## 3. Quick-start pipeline
+`prompt-maker-cli` exposes one entry point with an optional polish pass:
 
-Produce a clean JSON artifact in three steps:
+| Flag / Input                                | Description                                                       |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| `<intent>` / `--intent-file <path>` / stdin | Provide the rough intent text.                                    |
+| `-c, --context <glob>`                      | Attach file context (globs resolved via `fast-glob`). Repeatable. |
+| `--image <path>`                            | Attach PNG/JPG/JPEG/WEBP/GIF (≤ 20 MB). Repeatable.               |
+| `--model <name>`                            | Override the generation model (OpenAI/Gemini).                    |
+| `-i, --interactive`                         | Enable stateful refinement loop (TTY).                            |
+| `--polish`, `--polish-model <name>`         | Run an optional finishing pass.                                   |
+| `--json`                                    | Emit JSON payload (non-interactive).                              |
+| `--copy`, `--open-chatgpt`                  | Copy/open the final artifact.                                     |
+| `--no-progress`                             | Silence the spinner when `--json` is set.                         |
+| `--help`                                    | Show auto-generated help.                                         |
+
+Every run prints estimated input tokens (`Context Size`) and the size of each generated prompt (`Generated prompt [N tokens]`). All invocations append a JSONL record to `~/.config/prompt-maker-cli/history.jsonl` with timestamps, intent, iterations, etc.
+
+## 4. Quick-start pipeline
 
 ```bash
-# 1) Build (forces a fresh bundle if you add --skip-nx-cache)
-npx nx run prompt-maker-cli:build
+# 1) Build (once per change)
+npx nx build prompt-maker-cli --skip-nx-cache
 
-# 2) Run generator with stdin + JSON output
-cat apps/prompt-maker-cli/draft.txt \
-  | node apps/prompt-maker-cli/dist/index.js \
-      --model gemini-1.5-flash \
+# 2) Run generator with context + JSON capture
+cat docs/intent.md \
+  | prompt-maker-cli --model gemini-1.5-flash \
+      --context src/**/*.{ts,tsx} \
+      --image assets/wireframe.png \
       --json \
-  > apps/prompt-maker-cli/result.json
+  > runs/intent-001.json
+
+# 3) Extract final prompt
+jq -r '.polishedPrompt // .prompt' runs/intent-001.json > prompts/intent.md
 ```
 
-- Nx prints its own task logs to stderr; stdout only contains JSON when `--json` is set.
-- The JSON payload includes the model, refinement count, base prompt, and optional `polishedPrompt` if you add `--polish`.
-- Use `jq -r '.polishedPrompt // .prompt' result.json > prompts/final.md` to isolate the text you need.
-- A spinner updates on stderr during JSON runs so you know the CLI is still working. Pass `--no-progress` to silence it.
+During JSON runs the CLI writes a spinner to stderr; add `--no-progress` if you require silent stderr.
 
-> [!NOTE]
-> Need a polished version in the same command? Add `--polish` (and optionally `--polish-model gpt-4o-mini`). The JSON payload will include both `prompt` and `polishedPrompt` so you can choose either downstream.
+## 5. Statefully refining prompts
 
-## 4. Step-by-step: Intent → Generate → Polish
-
-Follow this routine whenever you start from scratch:
-
-1. **Create working folders and capture raw intent.**
-
-   ```bash
-   mkdir -p drafts prompts runs
-   cat <<'EOF' > drafts/onboarding-notes.md
-   Need a documentation prompt for our onboarding bot.
-   Highlight every user touchpoint after signup.
-   Specify telemetry/events and approval workflow.
-   Prefer Functional TypeScript and markdown tables.
-   EOF
-   ```
-
-2. **Export credentials + build once.**
-
-   ```bash
-   export OPENAI_API_KEY=sk-...
-   npx nx run prompt-maker-cli:build --skip-nx-cache
-   ```
-
-   > Swap the env var for `GEMINI_API_KEY` if you want Gemini by default. The CLI reads either the env var or `promptGenerator.defaultModel` from the config file.
-
-3. **Generate a draft prompt and store the console transcript.**
-
-   ```bash
-   node apps/prompt-maker-cli/dist/index.js generate \
-     --intent-file drafts/onboarding-notes.md \
-     --model gpt-4o-mini \
-     | tee prompts/onboarding-generated.md
-   ```
-
-   - `tee` mirrors the stdout block (“AI Prompt Generator…”) into `prompts/onboarding-generated.md`.
-   - Use `--copy` to mirror the same text into your clipboard for immediate pasting.
-
-4. **Capture deterministic JSON for automation.**
-
-   ```bash
-   node apps/prompt-maker-cli/dist/index.js \
-     --intent-file drafts/onboarding-notes.md \
-     --model gpt-4o-mini \
-     --json \
-     > runs/onboarding-generate-001.json
-   jq -r '.prompt' runs/onboarding-generate-001.json > prompts/onboarding-generated.md
-   ```
-
-5. **Add a polish pass when ready.**
-
-   ```bash
-   node apps/prompt-maker-cli/dist/index.js \
-     --intent-file drafts/onboarding-notes.md \
-     --model gpt-4o-mini \
-     --polish \
-     --json \
-     | tee runs/onboarding-polished.json \
-     | jq -r '.polishedPrompt // .prompt' > prompts/onboarding-polished.md
-   ```
-
-6. **Repeat as the intent evolves.**
-   - Bump the `runs/*.json` filename (`002`, `003`, …) to keep an audit trail.
-   - Only interactive editing (section 5) modifies the intent; non-interactive runs are deterministic given the same input file.
-
-## 5. Interactive refinement walkthrough
-
-Interactive mode lets you stay inside the terminal and append refinement notes between generations.
+Interactive mode keeps the latest prompt and feeds it back as `previousPrompt`, plus your new instruction:
 
 ```bash
-node apps/prompt-maker-cli/dist/index.js generate \
-  --intent-file drafts/onboarding-notes.md \
-  --interactive \
-  --model gemini-1.5-flash \
-  --open-chatgpt
+prompt-maker-cli --intent-file drafts/onboarding-notes.md --interactive --model gpt-4o-mini
 ```
 
-Sample transcript:
+Transcript excerpt:
 
-```text
+```
 AI Prompt Generator
 ────────────────────
-Generated prompt:
-(Role/Context/Constraints block …)
-
+Generated prompt [43 tokens]:
+(...)
 Refine? (y/n): y
 Describe the refinement. Submit an empty line to finish.
-> Require a timeline table and highlight data-retention rules.
+> Emphasize telemetry + TypeScript strict mode.
 >
-AI Prompt Generator
-────────────────────
-Generated prompt (iteration 2):
-(updated contract …)
+Generated prompt (iteration 2) [58 tokens]:
+(... updated contract ...)
 Refine? (y/n): n
 ```
 
-Tips:
+- New instructions stack; iteration 3 sees iterations 1–2 plus your latest notes.
+- `DEBUG=1` or `VERBOSE=1` prints the model’s JSON `reasoning` to stderr.
+- `--copy` / `--open-chatgpt` trigger only once the session ends (polished prompt if available).
 
-- Press **Enter** on an empty line to accept the current draft during the refinement prompt.
-- Each refinement is appended to the request, so iteration 3 sees everything from iterations 1 and 2.
-- `--copy` and `--open-chatgpt` always act on the _final_ artifact (polished if requested).
-- Interactive mode writes nothing to `stdout` suitable for `jq`; add `--json` only when running non-interactively.
-
-## 6. Automation patterns
-
-- **JSON to Markdown:** `node ... --json | jq -r '.prompt' > prompts/foo.md`
-- **Watch mode:** `while inotifywait drafts/onboarding-notes.md; do node ... --json > runs/latest.json; done`
-- **Clipboard-only:** `node ... generate --copy > /dev/null`
-- **Split capture:** `node ... generate --model gemini-1.5-flash | tee prompts/foo.md | pbcopy`
-- **Progress indicator:** leave the default spinner on stderr for JSON runs, or add `--no-progress` if those logs need to stay silent.
-- **Polish after generation:** `node ... generate > prompts/foo.md && node ... --intent-file prompts/foo.md --polish --json`
-
-## 7. Polish pass reference
-
-`--polish` reuses the generated contract and runs it through a constrained “tightening” prompt. By default it uses the same provider/model as generation, but you can override it:
+## 6. Working with context + images
 
 ```bash
-# Generate with Gemini, polish with GPT
-export GEMINI_API_KEY=...
-export OPENAI_API_KEY=...
-node apps/prompt-maker-cli/dist/index.js \
-  --intent-file drafts/onboarding-notes.md \
-  --model gemini-1.5-flash \
-  --polish \
-  --polish-model gpt-4o-mini \
-  --json \
-  | jq -r '.polishedPrompt'
+prompt-maker-cli \
+  "Create onboarding bot spec" \
+  --context drafts/spec.md \
+  --context src/**/*.ts \
+  --image assets/ui-flow.png \
+  --model gemini-1.5-flash
 ```
 
-Polish output is included inline when running without `--json` and lives under `.polishedPrompt` (plus `.polishModel`) in JSON mode. If the polish request fails, the CLI surfaces the error message but still returns the generated prompt.
+- File globs respect hidden files (`dot: true`). Each resolved path becomes a `<file path="…">…</file>` block in the user message.
+- Images are checked for extension + size, converted to Base64, and sent via provider-specific multimodal payloads (OpenAI `image_url`, Gemini `inlineData`). Unsupported or oversize files log a warning and are skipped.
 
-## 8. Provider configuration
+## 7. Token telemetry + history
 
-Instead of exporting env vars every time, drop a config file so the CLI can resolve defaults automatically:
+- The CLI logs `Context Size` (intent + files) before generation and appends `[NN tokens]` to each prompt.
+- Every invocation (regardless of `--json`) writes a JSONL record to `~/.config/prompt-maker-cli/history.jsonl`. Each entry matches the `--json` schema (intent, model, iterations, timestamps, optional `polishedPrompt`).
+- Tail or import that file to audit past prompts:
+  ```bash
+  tail -n 20 ~/.config/prompt-maker-cli/history.jsonl | jq '.intent'
+  ```
+
+## 8. Polish pass + JSON structure
+
+`--polish` reuses the generated contract and passes it through a constrained “tighten wording” prompt. Default behavior uses the same model as generation, but you can override it:
+
+```bash
+prompt-maker-cli --intent-file drafts/onboarding-notes.md \
+  --model gemini-1.5-flash \
+  --polish --polish-model gpt-4o-mini \
+  --json \
+  | jq -r '.polishedPrompt // .prompt'
+```
+
+All generation responses are valid JSON objects with two keys:
 
 ```json
-// ~/.config/prompt-maker-cli/config.json
+{
+  "reasoning": "Step-by-step analysis …",
+  "prompt": "Final prompt text …"
+}
+```
+
+If parsing fails (e.g., a provider hiccup), the CLI logs a warning and returns the raw text so you are never blocked.
+
+## 9. Provider configuration
+
+`~/.config/prompt-maker-cli/config.json` allows you to store credentials and defaults:
+
+```json
 {
   "openaiApiKey": "sk-...",
-  "openaiBaseUrl": "https://api.openai.com/v1",
   "geminiApiKey": "gk-...",
-  "geminiBaseUrl": "https://generativelanguage.googleapis.com",
   "promptGenerator": {
     "defaultModel": "gemini-1.5-flash"
   }
 }
 ```
 
-Set `PROMPT_MAKER_CLI_CONFIG=/path/to/config.json` to read a different location. When both env vars and config fields exist, env vars win.
+Env vars override config values. You can also set `PROMPT_MAKER_CLI_CONFIG=/path/custom.json` to point elsewhere.
 
-## 9. Generator recipe pack
+## 10. Automation + editor notes
 
-Use these to smoke-test releases or to demonstrate the CLI. Add `--polish` whenever you want the finishing pass, and swap `--model gpt-4o-mini` for `--model gemini-1.5-flash` if you prefer Gemini.
+- **JSON-to-Markdown:** `prompt-maker-cli --json … | jq -r '.polishedPrompt // .prompt' > prompts/final.md`
+- **Clipboard-only:** `prompt-maker-cli "Draft H1 spec" --copy > /dev/null`
+- **Silence spinner:** append `--no-progress` when scripting with `--json`.
+- **NeoVim integration:** run `prompt-maker-cli --json` inside a job, pipe `.prompt`/`.polishedPrompt` into buffers, or keep `history.jsonl` open for “recent prompts” pickers.
 
-1. **Cover letter coach**
-
-   ```bash
-   prompt-maker-cli "Write a confident cover letter for a Staff Product Manager at Linear. Mention AI planning systems and quantified GTM wins." \
-     --model gpt-4o-mini
-   ```
-
-2. **Scraper scaffold**
-
-   ```bash
-   prompt-maker-cli generate "Need a Bun + TypeScript CLI that scrapes Hacker News hourly and posts deltas to Slack. Deploy on Fly.io." \
-     --model gpt-4o-mini --copy
-   ```
-
-3. **Data-science experiment brief**
-
-   ```bash
-   prompt-maker-cli generate "Design an A/B test to compare personalized onboarding tooltips vs control. Include telemetry requirements and success metrics." \
-     --model gemini-1.5-flash
-   ```
-
-4. **LOBE-style creative brief**
-
-   ```bash
-   prompt-maker-cli "Create a LOBE design brief for a mobile habit tracker with AR streak visualizations." \
-     --model gpt-4o-mini --open-chatgpt
-   ```
-
-5. **Refinement test**
-
-   ```bash
-   prompt-maker-cli generate "Summarize all TypeScript migration tasks for a monorepo" --interactive
-   # When prompted, add: Prioritize Nx + Vite workspaces and mention lint fixes.
-   ```
-
-6. **Travel app build brief (file-based)**
-
-   ```bash
-   cat <<'EOF' > drafts/travel-app-notes.md
-   Please help me craft a prompt to build code for my travel app.
-   - Must support itinerary planning, hotel search, GPT-powered chat.
-   - Mobile-first React Native + Expo.
-   - Existing API gateway (/trips and /deals).
-   - Budget reminders + offline cache.
-   - Deliverables must include suggested folder structure and CI steps.
-   EOF
-
-   prompt-maker-cli --intent-file drafts/travel-app-notes.md --model gpt-4o-mini --polish
-   ```
-
-## 10. NeoVim / agent spec sheet (generate-only)
-
-- **Mission:** Take an existing buffer/selection, send it through `prompt-maker-cli`’s generator, optionally run the polish pass, and present the results inline.
-- **Commands:**
-  - `:PromptMakerGenerate` → `prompt-maker-cli --json --model <default> [--polish]` (parse `.prompt` / `.polishedPrompt`).
-  - `:PromptMakerGenerateInteractive` → run interactively (stream stdout) for refinements.
-  - `:PromptMakerGeneratePolish` → same as `:PromptMakerGenerate` but forces `--polish`.
-- **Inputs:**
-  - Intent text from the buffer, visual selection, or a temp file.
-  - Optional CLI config/ENV for provider defaults.
-- **Outputs to capture:**
-  - `.prompt` (always present in JSON mode).
-  - `.polishedPrompt` and `.polishModel` when `--polish` succeeds.
-  - Raw stdout when running interactively (render inside a floating window or scratch buffer).
-- **Error handling:**
-  - Non-zero exit → show stderr in a quickfix list.
-  - Malformed JSON → display the raw output for debugging.
-- **Automation:**
-  - Cache the latest JSON response per buffer so you can re-open it without re-running the CLI.
-  - Offer a toggle to run polish automatically when the user exports/shares a prompt.
-
-With these steps you can rely solely on the generator (plus optional polish) across terminals, editors, or scripts—no clarifying-question flow required.
+With context ingestion, multimodal support, token telemetry, and automatic logging, you can safely rely on `prompt-maker-cli` for repeatable prompt contracts across terminals, scripts, and editors. Build from repo root, install globally from `apps/prompt-maker-cli/dist`, and you’re ready to go.
