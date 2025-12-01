@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { createInterface, Interface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 
 import clipboard from 'clipboardy'
+import fg from 'fast-glob'
 import open from 'open'
 import yargs from 'yargs'
 import type { ArgumentsCamelCase } from 'yargs'
@@ -14,6 +16,7 @@ import { readFromStdin } from './io'
 import { resolveFileContext, type FileContext } from './file-context'
 import { appendToHistory } from './history-logger'
 import { countTokens, formatTokenCount } from './token-counter'
+import * as vectorStore from './rag/vector-store'
 
 import {
   createPromptGeneratorService,
@@ -24,6 +27,16 @@ import {
 } from './prompt-generator-service'
 
 const MAX_INTENT_FILE_BYTES = 512 * 1024
+const SMART_CONTEXT_PATTERNS = ['**/*.{ts,tsx,js,jsx,py,md,json}']
+const SMART_CONTEXT_IGNORES = [
+  '**/node_modules/**',
+  '**/.git/**',
+  '**/dist/**',
+  '**/build/**',
+  '**/.next/**',
+  '**/.turbo/**',
+  '**/coverage/**',
+]
 const VALUE_FLAGS = new Set([
   '--intent-file',
   '-f',
@@ -52,6 +65,7 @@ type GenerateArgs = {
   context: string[]
   images: string[]
   video: string[]
+  smartContext: boolean
 }
 
 type ParsedArgs = {
@@ -96,7 +110,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   const intent = await resolveIntent(args)
-  const fileContext = await resolveFileContext(args.context)
+  let fileContext = await resolveFileContext(args.context)
   const service = await createPromptGeneratorService()
   let model = args.model ?? (await resolveDefaultGenerateModel())
 
@@ -114,6 +128,14 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 
   const shouldDisplay = !args.json
   const showProgress = args.progress && !interactive
+
+  if (args.smartContext) {
+    const smartFiles = await collectSmartContextFiles(intent, fileContext, showProgress)
+    if (smartFiles.length > 0) {
+      fileContext = [...fileContext, ...smartFiles]
+    }
+  }
+
   const stopGenerationProgress = showProgress ? startProgress('Generating prompt') : null
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
@@ -237,6 +259,11 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       default: [],
       describe: 'Attach a video file (repeatable)',
     })
+    .option('smart-context', {
+      type: 'boolean',
+      default: false,
+      describe: 'Automatically attach relevant files via local embeddings',
+    })
     .help('help')
     .alias('help', 'h')
     .exitProcess(false)
@@ -261,6 +288,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     context: string[]
     image: string[]
     video: string[]
+    smartContext: boolean
     _?: (string | number)[]
   }>
 
@@ -277,6 +305,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     context: (parsed.context ?? []).map((value) => value.toString()),
     images: (parsed.image ?? []).map((value) => value.toString()),
     video: (parsed.video ?? []).map((value) => value.toString()),
+    smartContext: parsed.smartContext ?? false,
   }
 
   if (intent) {
@@ -348,6 +377,90 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
   throw new Error(
     'Intent text is required. Provide a quoted argument, use --intent-file, or pipe text via stdin.',
   )
+}
+
+const collectSmartContextFiles = async (
+  intent: string,
+  currentContext: FileContext[],
+  showProgress: boolean,
+): Promise<FileContext[]> => {
+  const filesToIndex = await fg(SMART_CONTEXT_PATTERNS, {
+    dot: true,
+    absolute: true,
+    ignore: SMART_CONTEXT_IGNORES,
+  })
+
+  if (filesToIndex.length === 0) {
+    return []
+  }
+
+  const uniqueFiles = [...new Set(filesToIndex.map((filePath) => path.resolve(filePath)))]
+  const stopSmartContextProgress = showProgress ? startProgress('Indexing smart context') : null
+
+  try {
+    await vectorStore.indexFiles(uniqueFiles)
+    stopSmartContextProgress?.('Indexed smart context ✓')
+  } catch (error) {
+    stopSmartContextProgress?.('Failed to index smart context')
+    const message = error instanceof Error ? error.message : 'Unknown smart context error.'
+    console.warn(`Smart context indexing failed: ${message}`)
+    return []
+  }
+
+  let relatedPaths: string[] = []
+  try {
+    relatedPaths = await vectorStore.search(intent, 5)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown smart context search error.'
+    console.warn(`Smart context search failed: ${message}`)
+    return []
+  }
+
+  const availableSet = new Set(uniqueFiles.map((filePath) => normalizePath(filePath)))
+  const filtered = relatedPaths
+    .map((filePath) => normalizePath(filePath))
+    .filter((filePath) => availableSet.has(filePath))
+
+  if (filtered.length === 0) {
+    return []
+  }
+
+  return await readSmartContextFiles(filtered, currentContext)
+}
+
+const readSmartContextFiles = async (
+  candidatePaths: string[],
+  currentContext: FileContext[],
+): Promise<FileContext[]> => {
+  const existingPaths = new Set(currentContext.map((file) => normalizePath(file.path)))
+  const results: FileContext[] = []
+
+  for (const filePath of candidatePaths) {
+    if (existingPaths.has(filePath)) {
+      continue
+    }
+
+    try {
+      const content = await fs.readFile(filePath, 'utf8')
+      results.push({ path: toDisplayPath(filePath), content })
+      existingPaths.add(filePath)
+    } catch (error) {
+      console.warn(`Warning: Failed to read smart context file ${filePath}`)
+    }
+  }
+
+  return results
+}
+
+const normalizePath = (filePath: string): string => path.resolve(filePath)
+
+const toDisplayPath = (absolutePath: string): string => {
+  const cwd = process.cwd()
+  const relative = path.relative(cwd, absolutePath)
+  if (!relative || relative.startsWith('..')) {
+    return absolutePath
+  }
+  return relative
 }
 
 const runGenerationWorkflow = async ({
