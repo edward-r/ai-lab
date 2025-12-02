@@ -173,6 +173,16 @@ describe('runGenerateCommand', () => {
     warn.mockRestore()
   })
 
+  it('prints context files when --show-context is provided', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--show-context'])
+    const sawContextDump = log.mock.calls.some(
+      (args) => typeof args[0] === 'string' && args[0]?.includes('<file path="ctx.md">'),
+    )
+    expect(sawContextDump).toBe(true)
+    log.mockRestore()
+  })
+
   it('runs interactive refinements when tty is present', async () => {
     setTtyState(true, true)
     const rl = {

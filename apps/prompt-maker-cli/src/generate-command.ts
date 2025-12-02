@@ -53,6 +53,7 @@ type GenerateArgs = {
   polishModel?: string
   json: boolean
   progress: boolean
+  showContext: boolean
   help: boolean
   context: string[]
   urls: string[]
@@ -156,6 +157,17 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     } finally {
       smartContextProgress?.stop()
     }
+  }
+
+  if (args.showContext) {
+    const writeLine = args.json
+      ? (value: string): void => {
+          console.error(value)
+        }
+      : (value: string): void => {
+          console.log(value)
+        }
+    displayContextFiles(fileContext, writeLine)
   }
 
   const generationProgress = showProgress ? startProgress('Generating prompt') : null
@@ -267,6 +279,11 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       default: true,
       describe: 'Show progress indicator',
     })
+    .option('show-context', {
+      type: 'boolean',
+      default: false,
+      describe: 'Print resolved context files before generation',
+    })
     .option('context', {
       alias: 'c',
       type: 'string',
@@ -323,6 +340,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     image: string | string[]
     video: string | string[]
     smartContext: boolean
+    showContext: boolean
     _?: (string | number)[]
   }>
 
@@ -345,6 +363,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     polish: parsed.polish ?? false,
     json: parsed.json ?? false,
     progress: parsed.progress ?? true,
+    showContext: parsed.showContext ?? false,
     help: Boolean(parsed.help),
     context: normalizeListArg(parsed.context),
     urls: normalizeListArg(parsed.url),
@@ -746,4 +765,23 @@ const createUploadStateTracker = (
       progress.setLabel(defaultLabel)
     }
   }
+}
+
+const displayContextFiles = (files: FileContext[], writeLine: (line: string) => void): void => {
+  writeLine('\nContext Files')
+  writeLine('──────────────')
+
+  if (files.length === 0) {
+    writeLine('(none)')
+    return
+  }
+
+  files.forEach((file, index) => {
+    writeLine(`<file path="${file.path}">`)
+    writeLine(file.content)
+    writeLine('</file>')
+    if (index < files.length - 1) {
+      writeLine('')
+    }
+  })
 }

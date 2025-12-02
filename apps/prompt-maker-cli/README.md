@@ -3,7 +3,7 @@
 Terminal-first interface for converting rough intent notes (and optional file/image context) into structured prompt contracts. The CLI now focuses exclusively on high-quality generation with optional polishing, JSON reasoning output, and built-in context tracking.
 
 - **Stateful refinement** – interactive runs feed the previous draft + your latest instruction back to the model so it can edit the existing prompt.
-- **Context injection** – attach additional files with `-c/--context` (glob-aware), mix in remote docs with `--url`, and images with `--image` (PNG/JPG/WEBP/GIF, up to 20 MB each).
+- **Context injection** – attach additional files with `-c/--context` (glob-aware), mix in remote docs with `--url`, and images with `--image` (PNG/JPG/WEBP/GIF, up to 20 MB each). Use `--show-context` to dump the resolved `<file path="…">…</file>` blocks for easy copy/paste.
 - **Token telemetry** – every run logs estimated input tokens and the size of each generated draft.
 - **History logging** – each command appends a JSONL record to `~/.config/prompt-maker-cli/history.jsonl` so you never lose a run.
 - **Separated reasoning** – models return `{ "reasoning": string, "prompt": string }`; set `DEBUG=1` (or `VERBOSE=1`) to stream the model’s reasoning to stderr.
@@ -59,6 +59,7 @@ Key flags and behaviors:
 | `<intent>` / `--intent-file <path>` / stdin | Provide the rough intent text. Pipe stdin when automating.                                                        |
 | `--context <glob>` (repeatable)             | Attach additional file(s) to the request; globs are resolved via `fast-glob`.                                     |
 | `--url <https://...>` (repeatable)          | Download remote pages or GitHub repos/files and attach them as virtual context (`url:`/`github:` paths).          |
+| `--show-context`                            | Print the resolved context files (same `<file …>` format) before generation for manual review/copying.            |
 | `--image <path>` (repeatable)               | Inline images (PNG/JPG/WEBP/GIF ≤ 20 MB) as Base64 so vision-capable models can reference them.                   |
 | `--model <name>`                            | Override the generation model (OpenAI GPT or Gemini). Defaults can be set via config/env.                         |
 | `-i, --interactive`                         | Enable the refine loop (TTY only). Each new note becomes a stateful edit of the previous prompt.                  |
@@ -74,6 +75,7 @@ Additional behaviors:
 - Interactive sessions reuse the latest prompt by passing it as `previousPrompt` plus your newest `Refinement Instruction`, so edits feel consistent.
 - Setting `DEBUG=1` or `VERBOSE=1` prints the model’s reasoning (from the `reasoning` JSON field) to stderr after each call.
 - Each completed run is saved to `~/.config/prompt-maker-cli/history.jsonl` with a timestamp, so you can reconstruct past prompts or feed them into analytics.
+- `--show-context` dumps the resolved `<file …>` blocks to stdout (or stderr when `--json`) so you can copy the exact context into another assistant.
 
 ## JSON payload example
 
