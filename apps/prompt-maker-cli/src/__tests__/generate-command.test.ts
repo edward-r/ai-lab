@@ -1,3 +1,4 @@
+// eslint-disable unnecessary-semicolon
 import clipboard from 'clipboardy'
 import open from 'open'
 
@@ -113,7 +114,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('falls back to stdin when no inline intent is provided', async () => {
-    ;(readFromStdin as jest.Mock).mockResolvedValue('stdin intent')
+    (readFromStdin as jest.Mock).mockResolvedValue('stdin intent')
     await runGenerateCommand([])
     expect(promptService.generatePrompt).toHaveBeenCalledWith(
       expect.objectContaining({ intent: 'stdin intent' }),
@@ -121,7 +122,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('appends smart context files when enabled', async () => {
-    ;(resolveSmartContextFiles as jest.Mock).mockResolvedValue([
+    (resolveSmartContextFiles as jest.Mock).mockResolvedValue([
       { path: 'smart.md', content: 'smart content' },
     ])
     await runGenerateCommand(['intent', '--smart-context', '--context', 'ctx/**/*.md'])
@@ -134,7 +135,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('switches to gemini model when video assets provided', async () => {
-    ;(isGemini as jest.Mock).mockImplementation((model: string) => model.startsWith('gemini'))
+    (isGemini as jest.Mock).mockImplementation((model: string) => model.startsWith('gemini'))
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--video', 'clip.mp4'])
     const call = promptService.generatePrompt.mock.calls[0][0]
@@ -172,7 +173,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('polishes prompt and copies/open as requested', async () => {
-    ;(callLLM as jest.Mock).mockResolvedValue('polished prompt')
+    (callLLM as jest.Mock).mockResolvedValue('polished prompt')
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--polish', '--copy', '--open-chatgpt'])
     expect(callLLM).toHaveBeenCalledWith(expect.any(Array), 'gpt-4o-mini')
