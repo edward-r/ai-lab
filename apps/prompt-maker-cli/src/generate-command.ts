@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { createInterface, Interface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 
@@ -15,6 +14,7 @@ import { readFromStdin } from './io'
 import { resolveFileContext, type FileContext } from './file-context'
 import { appendToHistory } from './history-logger'
 import { resolveSmartContextFiles } from './smart-context-service'
+import { resolveUrlContext, type ResolveUrlContextOptions } from './url-context'
 import { countTokens, formatTokenCount } from './token-counter'
 
 import {
@@ -37,6 +37,7 @@ const VALUE_FLAGS = new Set([
   '-c',
   '--image',
   '--video',
+  '--url',
 ])
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
@@ -54,6 +55,7 @@ type GenerateArgs = {
   progress: boolean
   help: boolean
   context: string[]
+  urls: string[]
   images: string[]
   video: string[]
   smartContext: boolean
@@ -119,6 +121,26 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 
   const shouldDisplay = !args.json
   const showProgress = args.progress && !interactive
+
+  if (args.urls.length > 0) {
+    const urlProgress = showProgress ? startProgress('Fetching URL context') : null
+    const urlOptions: ResolveUrlContextOptions | undefined = showProgress
+      ? {
+          onProgress: (message: string) => {
+            urlProgress?.setLabel(message)
+          },
+        }
+      : undefined
+
+    try {
+      const urlFiles = await resolveUrlContext(args.urls, urlOptions)
+      if (urlFiles.length > 0) {
+        fileContext = [...fileContext, ...urlFiles]
+      }
+    } finally {
+      urlProgress?.stop('URL context ready')
+    }
+  }
 
   if (args.smartContext) {
     const smartContextProgress = showProgress ? startProgress('Preparing smart context') : null
@@ -252,6 +274,12 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       default: [],
       describe: 'Add file context via glob (repeatable)',
     })
+    .option('url', {
+      type: 'string',
+      array: true,
+      default: [],
+      describe: 'Add URL context (repeatable)',
+    })
     .option('image', {
       type: 'string',
       array: true,
@@ -290,14 +318,25 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     json: boolean
     progress: boolean
     help?: boolean
-    context: string[]
-    image: string[]
-    video: string[]
+    context: string | string[]
+    url: string | string[]
+    image: string | string[]
+    video: string | string[]
     smartContext: boolean
     _?: (string | number)[]
   }>
 
   const intent = positionalIntent ?? (typeof parsed._?.[0] === 'string' ? parsed._?.[0] : undefined)
+
+  const normalizeListArg = (value: unknown): string[] => {
+    if (Array.isArray(value)) {
+      return value.map((entry) => entry.toString())
+    }
+    if (value === undefined || value === null) {
+      return []
+    }
+    return [value.toString()]
+  }
 
   const args: GenerateArgs = {
     interactive: parsed.interactive ?? false,
@@ -307,9 +346,10 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     json: parsed.json ?? false,
     progress: parsed.progress ?? true,
     help: Boolean(parsed.help),
-    context: (parsed.context ?? []).map((value) => value.toString()),
-    images: (parsed.image ?? []).map((value) => value.toString()),
-    video: (parsed.video ?? []).map((value) => value.toString()),
+    context: normalizeListArg(parsed.context),
+    urls: normalizeListArg(parsed.url),
+    images: normalizeListArg(parsed.image),
+    video: normalizeListArg(parsed.video),
     smartContext: parsed.smartContext ?? false,
   }
 

@@ -14,6 +14,7 @@ import {
   resolveDefaultGenerateModel,
   isGemini,
 } from '../prompt-generator-service'
+import { resolveUrlContext } from '../url-context'
 import { countTokens } from '../token-counter'
 
 jest.mock('../config', () => ({
@@ -37,6 +38,9 @@ jest.mock('../file-context', () => ({
 }))
 jest.mock('../smart-context-service', () => ({
   resolveSmartContextFiles: jest.fn().mockResolvedValue([]),
+}))
+jest.mock('../url-context', () => ({
+  resolveUrlContext: jest.fn().mockResolvedValue([]),
 }))
 jest.mock('../history-logger', () => ({ appendToHistory: jest.fn().mockResolvedValue(undefined) }))
 jest.mock('../io', () => ({ readFromStdin: jest.fn().mockResolvedValue(null) }))
@@ -86,6 +90,7 @@ describe('runGenerateCommand', () => {
     readline.createInterface.mockReset()
     ;(resolveFileContext as jest.Mock).mockResolvedValue([{ path: 'ctx.md', content: '# ctx' }])
     ;(resolveSmartContextFiles as jest.Mock).mockResolvedValue([])
+    ;(resolveUrlContext as jest.Mock).mockResolvedValue([])
     ;(readFromStdin as jest.Mock).mockResolvedValue(null)
     ;(countTokens as jest.Mock).mockReturnValue(10)
   })
@@ -114,7 +119,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('falls back to stdin when no inline intent is provided', async () => {
-    (readFromStdin as jest.Mock).mockResolvedValue('stdin intent')
+    ;(readFromStdin as jest.Mock).mockResolvedValue('stdin intent')
     await runGenerateCommand([])
     expect(promptService.generatePrompt).toHaveBeenCalledWith(
       expect.objectContaining({ intent: 'stdin intent' }),
@@ -122,7 +127,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('appends smart context files when enabled', async () => {
-    (resolveSmartContextFiles as jest.Mock).mockResolvedValue([
+    ;(resolveSmartContextFiles as jest.Mock).mockResolvedValue([
       { path: 'smart.md', content: 'smart content' },
     ])
     await runGenerateCommand(['intent', '--smart-context', '--context', 'ctx/**/*.md'])
@@ -134,8 +139,32 @@ describe('runGenerateCommand', () => {
     ])
   })
 
+  it('merges URL context before smart context resolution', async () => {
+    ;(resolveUrlContext as jest.Mock).mockResolvedValue([
+      { path: 'url:https://example.com', content: 'Example Domain' },
+    ])
+    ;(resolveSmartContextFiles as jest.Mock).mockResolvedValue([
+      { path: 'smart.md', content: 'smart content' },
+    ])
+
+    await runGenerateCommand(['intent text', '--url', 'https://example.com', '--smart-context'])
+
+    const smartCallArgs = (resolveSmartContextFiles as jest.Mock).mock.calls[0]
+    expect(smartCallArgs[1]).toEqual([
+      { path: 'ctx.md', content: '# ctx' },
+      { path: 'url:https://example.com', content: 'Example Domain' },
+    ])
+
+    const call = promptService.generatePrompt.mock.calls[0][0]
+    expect(call.fileContext).toEqual([
+      { path: 'ctx.md', content: '# ctx' },
+      { path: 'url:https://example.com', content: 'Example Domain' },
+      { path: 'smart.md', content: 'smart content' },
+    ])
+  })
+
   it('switches to gemini model when video assets provided', async () => {
-    (isGemini as jest.Mock).mockImplementation((model: string) => model.startsWith('gemini'))
+    ;(isGemini as jest.Mock).mockImplementation((model: string) => model.startsWith('gemini'))
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--video', 'clip.mp4'])
     const call = promptService.generatePrompt.mock.calls[0][0]
@@ -173,7 +202,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('polishes prompt and copies/open as requested', async () => {
-    (callLLM as jest.Mock).mockResolvedValue('polished prompt')
+    ;(callLLM as jest.Mock).mockResolvedValue('polished prompt')
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--polish', '--copy', '--open-chatgpt'])
     expect(callLLM).toHaveBeenCalledWith(expect.any(Array), 'gpt-4o-mini')
