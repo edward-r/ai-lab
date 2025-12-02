@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["jest"],
+    "esModuleInterop": true,
+    "allowJs": true,
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": ["apps/**/*.ts", "libs/**/*.ts", "apps/**/*.tsx", "libs/**/*.tsx", "jest.config.ts"]
+}
