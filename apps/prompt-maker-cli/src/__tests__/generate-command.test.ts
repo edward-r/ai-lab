@@ -3,7 +3,6 @@ import clipboard from 'clipboardy'
 import open from 'open'
 
 import { callLLM } from '@prompt-maker/core'
-
 import { runGenerateCommand } from '../generate-command'
 import { appendToHistory } from '../history-logger'
 import { readFromStdin } from '../io'
@@ -16,6 +15,17 @@ import {
 } from '../prompt-generator-service'
 import { resolveUrlContext } from '../url-context'
 import { countTokens } from '../token-counter'
+
+jest.mock('enquirer', () => {
+  const prompt = jest.fn()
+  return {
+    __esModule: true,
+    default: { prompt },
+    prompt,
+  }
+})
+
+const promptMock = (jest.requireMock('enquirer') as { prompt: jest.Mock }).prompt
 
 jest.mock('../config', () => ({
   loadCliConfig: jest.fn().mockResolvedValue({
@@ -53,17 +63,28 @@ jest.mock('../token-counter', () => ({
 jest.mock('node:fs/promises', () => ({
   readFile: jest.fn(),
   stat: jest.fn(),
-}))
-jest.mock('node:readline/promises', () => ({
-  createInterface: jest.fn(),
+  writeFile: jest.fn(),
 }))
 
-const fs = jest.requireMock('node:fs/promises') as { readFile: jest.Mock; stat: jest.Mock }
-const readline = jest.requireMock('node:readline/promises') as { createInterface: jest.Mock }
+const fs = jest.requireMock('node:fs/promises') as {
+  readFile: jest.Mock
+  stat: jest.Mock
+  writeFile: jest.Mock
+}
 
 const promptService = { generatePrompt: jest.fn() }
-;(createPromptGeneratorService as jest.Mock).mockResolvedValue(promptService)
-;(resolveDefaultGenerateModel as jest.Mock).mockResolvedValue('gpt-4o-mini')
+const mockCreatePromptService = createPromptGeneratorService as jest.Mock
+const mockResolveDefaultModel = resolveDefaultGenerateModel as jest.Mock
+const mockResolveFileContext = resolveFileContext as jest.Mock
+const mockResolveSmartContext = resolveSmartContextFiles as jest.Mock
+const mockResolveUrlContext = resolveUrlContext as jest.Mock
+const mockReadFromStdin = readFromStdin as jest.Mock
+const mockCountTokens = countTokens as jest.Mock
+const mockIsGemini = isGemini as jest.Mock
+const mockCallLLM = callLLM as jest.Mock
+
+mockCreatePromptService.mockResolvedValue(promptService)
+mockResolveDefaultModel.mockResolvedValue('gpt-4o-mini')
 
 const originalStdinIsTTY = process.stdin.isTTY
 const originalStdoutIsTTY = process.stdout.isTTY
@@ -81,18 +102,19 @@ afterAll(() => {
 describe('runGenerateCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(createPromptGeneratorService as jest.Mock).mockResolvedValue(promptService)
-    ;(resolveDefaultGenerateModel as jest.Mock).mockResolvedValue('gpt-4o-mini')
+    mockCreatePromptService.mockResolvedValue(promptService)
+    mockResolveDefaultModel.mockResolvedValue('gpt-4o-mini')
     promptService.generatePrompt.mockResolvedValue('prompt v1')
     setTtyState(false, false)
     fs.readFile.mockReset()
     fs.stat.mockReset()
-    readline.createInterface.mockReset()
-    ;(resolveFileContext as jest.Mock).mockResolvedValue([{ path: 'ctx.md', content: '# ctx' }])
-    ;(resolveSmartContextFiles as jest.Mock).mockResolvedValue([])
-    ;(resolveUrlContext as jest.Mock).mockResolvedValue([])
-    ;(readFromStdin as jest.Mock).mockResolvedValue(null)
-    ;(countTokens as jest.Mock).mockReturnValue(10)
+    fs.writeFile.mockReset()
+    promptMock.mockReset()
+    mockResolveFileContext.mockResolvedValue([{ path: 'ctx.md', content: '# ctx' }])
+    mockResolveSmartContext.mockResolvedValue([])
+    mockResolveUrlContext.mockResolvedValue([])
+    mockReadFromStdin.mockResolvedValue(null)
+    mockCountTokens.mockReturnValue(10)
   })
 
   it('generates a prompt with inline intent and logs output', async () => {
@@ -104,7 +126,10 @@ describe('runGenerateCommand', () => {
     expect(appendToHistory).toHaveBeenCalledWith(
       expect.objectContaining({ intent: 'Write something', prompt: 'prompt v1' }),
     )
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('AI Prompt Generator'))
+    const sawPrompt = log.mock.calls.some(
+      (args) => typeof args[0] === 'string' && args[0].includes('prompt v1'),
+    )
+    expect(sawPrompt).toBe(true)
     log.mockRestore()
   })
 
@@ -119,7 +144,7 @@ describe('runGenerateCommand', () => {
   })
 
   it('falls back to stdin when no inline intent is provided', async () => {
-    ;(readFromStdin as jest.Mock).mockResolvedValue('stdin intent')
+    mockReadFromStdin.mockResolvedValue('stdin intent')
     await runGenerateCommand([])
     expect(promptService.generatePrompt).toHaveBeenCalledWith(
       expect.objectContaining({ intent: 'stdin intent' }),
@@ -127,12 +152,10 @@ describe('runGenerateCommand', () => {
   })
 
   it('appends smart context files when enabled', async () => {
-    ;(resolveSmartContextFiles as jest.Mock).mockResolvedValue([
-      { path: 'smart.md', content: 'smart content' },
-    ])
+    mockResolveSmartContext.mockResolvedValue([{ path: 'smart.md', content: 'smart content' }])
     await runGenerateCommand(['intent', '--smart-context', '--context', 'ctx/**/*.md'])
     const call = promptService.generatePrompt.mock.calls[0][0]
-    expect(resolveSmartContextFiles).toHaveBeenCalled()
+    expect(mockResolveSmartContext).toHaveBeenCalled()
     expect(call.fileContext).toEqual([
       { path: 'ctx.md', content: '# ctx' },
       { path: 'smart.md', content: 'smart content' },
@@ -140,20 +163,19 @@ describe('runGenerateCommand', () => {
   })
 
   it('merges URL context before smart context resolution', async () => {
-    ;(resolveUrlContext as jest.Mock).mockResolvedValue([
+    mockResolveUrlContext.mockResolvedValue([
       { path: 'url:https://example.com', content: 'Example Domain' },
     ])
-    ;(resolveSmartContextFiles as jest.Mock).mockResolvedValue([
-      { path: 'smart.md', content: 'smart content' },
-    ])
+    mockResolveSmartContext.mockResolvedValue([{ path: 'smart.md', content: 'smart content' }])
 
     await runGenerateCommand(['intent text', '--url', 'https://example.com', '--smart-context'])
 
-    const smartCallArgs = (resolveSmartContextFiles as jest.Mock).mock.calls[0]
+    const smartCallArgs = mockResolveSmartContext.mock.calls[0]
     expect(smartCallArgs[1]).toEqual([
       { path: 'ctx.md', content: '# ctx' },
       { path: 'url:https://example.com', content: 'Example Domain' },
     ])
+    expect(smartCallArgs[3]).toBeUndefined()
 
     const call = promptService.generatePrompt.mock.calls[0][0]
     expect(call.fileContext).toEqual([
@@ -164,13 +186,20 @@ describe('runGenerateCommand', () => {
   })
 
   it('switches to gemini model when video assets provided', async () => {
-    ;(isGemini as jest.Mock).mockImplementation((model: string) => model.startsWith('gemini'))
+    mockIsGemini.mockImplementation((model: string) => model.startsWith('gemini'))
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--video', 'clip.mp4'])
     const call = promptService.generatePrompt.mock.calls[0][0]
     expect(call.model).toBe('gemini-1.5-pro')
     expect(warn).toHaveBeenCalledWith('Switching to Gemini 1.5 Pro to support video input.')
     warn.mockRestore()
+  })
+
+  it('passes smart context root through when provided', async () => {
+    mockResolveSmartContext.mockResolvedValue([{ path: 'smart.md', content: 'content' }])
+    await runGenerateCommand(['intent text', '--smart-context', '--smart-context-root', 'apps'])
+    const smartCallArgs = mockResolveSmartContext.mock.calls[0]
+    expect(smartCallArgs[3]).toBe('apps')
   })
 
   it('prints context files when --show-context is provided', async () => {
@@ -183,21 +212,50 @@ describe('runGenerateCommand', () => {
     log.mockRestore()
   })
 
+  it('prints json context when --show-context and --context-format json are provided', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--show-context', '--context-format', 'json'])
+    const jsonCall = log.mock.calls.find(
+      (args) => typeof args[0] === 'string' && args[0].trim().startsWith('['),
+    )
+    expect(jsonCall).toBeDefined()
+    log.mockRestore()
+  })
+
+  it('writes resolved context to a file when --context-file is provided', async () => {
+    fs.writeFile.mockResolvedValue(undefined)
+    await runGenerateCommand(['intent text', '--context-file', 'ctx.out'])
+    expect(fs.writeFile).toHaveBeenCalledWith(
+      'ctx.out',
+      expect.stringContaining('<file path="ctx.md">'),
+      'utf8',
+    )
+  })
+
+  it('writes json context when --context-file and --context-format json are used', async () => {
+    fs.writeFile.mockResolvedValue(undefined)
+    await runGenerateCommand([
+      'intent text',
+      '--context-file',
+      'ctx.json',
+      '--context-format',
+      'json',
+    ])
+    const [, payload] = fs.writeFile.mock.calls[0]
+    expect(typeof payload).toBe('string')
+    expect(payload.trim().startsWith('[')).toBe(true)
+  })
+
   it('runs interactive refinements when tty is present', async () => {
     setTtyState(true, true)
-    const rl = {
-      question: jest.fn(),
-      close: jest.fn(),
-    }
-    readline.createInterface.mockReturnValue(rl)
     promptService.generatePrompt
       .mockResolvedValueOnce('first prompt')
       .mockResolvedValueOnce('second prompt')
-    rl.question
-      .mockResolvedValueOnce('y')
-      .mockResolvedValueOnce('Refine tone')
-      .mockResolvedValueOnce('')
-      .mockResolvedValueOnce('n')
+
+    promptMock
+      .mockResolvedValueOnce({ refine: true })
+      .mockResolvedValueOnce({ refinement: 'Refine tone' })
+      .mockResolvedValueOnce({ refine: false })
 
     await runGenerateCommand(['intent text', '--interactive'])
 
@@ -208,11 +266,10 @@ describe('runGenerateCommand', () => {
         previousPrompt: 'first prompt',
       }),
     )
-    expect(rl.close).toHaveBeenCalled()
   })
 
   it('polishes prompt and copies/open as requested', async () => {
-    ;(callLLM as jest.Mock).mockResolvedValue('polished prompt')
+    mockCallLLM.mockResolvedValue('polished prompt')
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--polish', '--copy', '--open-chatgpt'])
     expect(callLLM).toHaveBeenCalledWith(expect.any(Array), 'gpt-4o-mini')

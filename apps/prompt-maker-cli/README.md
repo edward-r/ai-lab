@@ -60,6 +60,9 @@ Key flags and behaviors:
 | `--context <glob>` (repeatable)             | Attach additional file(s) to the request; globs are resolved via `fast-glob`.                                     |
 | `--url <https://...>` (repeatable)          | Download remote pages or GitHub repos/files and attach them as virtual context (`url:`/`github:` paths).          |
 | `--show-context`                            | Print the resolved context files (same `<file …>` format) before generation for manual review/copying.            |
+| `--context-file <path>`                     | Write the resolved context to disk (text by default, or JSON via `--context-format`).                             |
+| `--context-format text\|json`               | Choose how `--show-context` and `--context-file` render the context payloads.                                     |
+| `--smart-context-root <path>`               | Limit smart-context scanning to a specific directory (defaults to the current working directory).                 |
 | `--image <path>` (repeatable)               | Inline images (PNG/JPG/WEBP/GIF ≤ 20 MB) as Base64 so vision-capable models can reference them.                   |
 | `--model <name>`                            | Override the generation model (OpenAI GPT or Gemini). Defaults can be set via config/env.                         |
 | `-i, --interactive`                         | Enable the refine loop (TTY only). Each new note becomes a stateful edit of the previous prompt.                  |
@@ -75,7 +78,8 @@ Additional behaviors:
 - Interactive sessions reuse the latest prompt by passing it as `previousPrompt` plus your newest `Refinement Instruction`, so edits feel consistent.
 - Setting `DEBUG=1` or `VERBOSE=1` prints the model’s reasoning (from the `reasoning` JSON field) to stderr after each call.
 - Each completed run is saved to `~/.config/prompt-maker-cli/history.jsonl` with a timestamp, so you can reconstruct past prompts or feed them into analytics.
-- `--show-context` dumps the resolved `<file …>` blocks to stdout (or stderr when `--json`) so you can copy the exact context into another assistant.
+- `--show-context` dumps the resolved `<file …>` blocks to stdout (or stderr when `--json`) so you can copy the exact context into another assistant, while `--context-file` + `--context-format` capture the same payload for tooling; add `--smart-context-root <path>` when your embeddings should start from a different directory.
+- Styled telemetry banners, progress spinners, and Enquirer-powered refinement prompts make interactive mode easier to scan and drive.
 
 ## JSON payload example
 

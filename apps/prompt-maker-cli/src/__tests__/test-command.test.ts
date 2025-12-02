@@ -91,6 +91,32 @@ describe('runTestCommand', () => {
       'intent',
       [],
       expect.any(Function),
+      undefined,
+    )
+    log.mockRestore()
+  })
+
+  it('passes smartContextRoot from test definitions when provided', async () => {
+    fs.readFile.mockResolvedValue('suite')
+    const tests = [
+      {
+        name: 'Smart Root',
+        intent: 'intent',
+        expect: {},
+        smartContext: true,
+        smartContextRoot: './src',
+      },
+    ]
+    yaml.load.mockReturnValue({ tests })
+    schema.parsePromptTestSuite.mockReturnValue({ tests })
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    smartContext.resolveSmartContextFiles.mockResolvedValue([])
+    await runTestCommand([])
+    expect(smartContext.resolveSmartContextFiles).toHaveBeenCalledWith(
+      'intent',
+      [],
+      expect.any(Function),
+      './src',
     )
     log.mockRestore()
   })

@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import fg from 'fast-glob'
 
 import { resolveSmartContextFiles } from '../smart-context-service'
@@ -45,6 +47,15 @@ describe('smart-context-service', () => {
     )
     expect(vectorStore.indexFiles).toHaveBeenCalledWith(['/repo/a.md', '/repo/b.md'])
     expect(result).toEqual([{ path: '/repo/b.md', content: 'contents' }])
+  })
+
+  it('scans the provided smart context root when supplied', async () => {
+    globMock.mockResolvedValue([])
+    await resolveSmartContextFiles('intent', [], undefined, './packages')
+    expect(globMock).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ cwd: path.resolve('./packages') }),
+    )
   })
 
   it('logs warning and returns [] when indexing fails', async () => {
