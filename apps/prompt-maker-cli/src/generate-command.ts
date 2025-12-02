@@ -1,9 +1,13 @@
 import fs from 'node:fs/promises'
-import { createInterface, Interface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 
+import boxen from 'boxen'
+import chalk from 'chalk'
+import Table from 'cli-table3'
 import clipboard from 'clipboardy'
+import enquirer from 'enquirer'
 import open from 'open'
+import ora from 'ora'
 import yargs from 'yargs'
 import type { ArgumentsCamelCase } from 'yargs'
 
@@ -26,6 +30,8 @@ import {
   type UploadStateChange,
 } from './prompt-generator-service'
 
+const { prompt } = enquirer as typeof import('enquirer')
+
 const MAX_INTENT_FILE_BYTES = 512 * 1024
 
 const VALUE_FLAGS = new Set([
@@ -38,6 +44,9 @@ const VALUE_FLAGS = new Set([
   '--image',
   '--video',
   '--url',
+  '--context-file',
+  '--context-format',
+  '--smart-context-root',
 ])
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
@@ -54,12 +63,15 @@ type GenerateArgs = {
   json: boolean
   progress: boolean
   showContext: boolean
+  contextFile?: string
+  contextFormat: 'text' | 'json'
   help: boolean
   context: string[]
   urls: string[]
   images: string[]
   video: string[]
   smartContext: boolean
+  smartContextRoot?: string
 }
 
 type ParsedArgs = {
@@ -150,6 +162,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
         intent,
         fileContext,
         showProgress ? (message) => smartContextProgress?.setLabel(message) : undefined,
+        args.smartContextRoot,
       )
       if (smartFiles.length > 0) {
         fileContext = [...fileContext, ...smartFiles]
@@ -167,7 +180,11 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       : (value: string): void => {
           console.log(value)
         }
-    displayContextFiles(fileContext, writeLine)
+    displayContextFiles(fileContext, args.contextFormat, writeLine)
+  }
+
+  if (args.contextFile) {
+    await writeContextFile(args.contextFile, args.contextFormat, fileContext)
   }
 
   const generationProgress = showProgress ? startProgress('Generating prompt') : null
@@ -309,10 +326,24 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       default: [],
       describe: 'Attach a video file (repeatable)',
     })
+    .option('context-file', {
+      type: 'string',
+      describe: 'Write resolved context to the specified file',
+    })
+    .option('context-format', {
+      type: 'string',
+      choices: ['text', 'json'] as const,
+      default: 'text',
+      describe: 'Format for --show-context or --context-file output',
+    })
     .option('smart-context', {
       type: 'boolean',
       default: false,
       describe: 'Automatically attach relevant files via local embeddings',
+    })
+    .option('smart-context-root', {
+      type: 'string',
+      describe: 'Override the base directory scanned when --smart-context is enabled',
     })
     .help('help')
     .alias('help', 'h')
@@ -336,10 +367,13 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     progress: boolean
     help?: boolean
     context: string | string[]
+    contextFile?: string
+    contextFormat?: 'text' | 'json'
     url: string | string[]
     image: string | string[]
     video: string | string[]
     smartContext: boolean
+    smartContextRoot?: string
     showContext: boolean
     _?: (string | number)[]
   }>
@@ -364,12 +398,15 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     json: parsed.json ?? false,
     progress: parsed.progress ?? true,
     showContext: parsed.showContext ?? false,
+    contextFormat: parsed.contextFormat ?? 'text',
     help: Boolean(parsed.help),
     context: normalizeListArg(parsed.context),
     urls: normalizeListArg(parsed.url),
     images: normalizeListArg(parsed.image),
     video: normalizeListArg(parsed.video),
     smartContext: parsed.smartContext ?? false,
+    ...(parsed.contextFile ? { contextFile: parsed.contextFile } : {}),
+    ...(parsed.smartContextRoot ? { smartContextRoot: parsed.smartContextRoot } : {}),
   }
 
   if (intent) {
@@ -459,19 +496,21 @@ const runGenerationWorkflow = async ({
   let iteration = 0
   let currentPrompt = ''
 
-  const fileTokens = context.fileContext.reduce((acc, file) => acc + countTokens(file.content), 0)
+  const fileSummaries = context.fileContext.map((file) => ({
+    path: file.path,
+    tokens: countTokens(file.content),
+  }))
+  const fileTokens = fileSummaries.reduce((acc, file) => acc + file.tokens, 0)
   const intentTokens = countTokens(context.intent)
   const totalInputTokens = fileTokens + intentTokens
 
   if (display) {
-    console.log(`\nContext Size: ${formatTokenCount(totalInputTokens)}`)
-    if (fileTokens > 0) {
-      console.log(
-        `(Files: ~${formatTokenCount(fileTokens)}, Intent: ~${formatTokenCount(intentTokens)})`,
-      )
-    } else {
-      console.log(`(Intent: ~${formatTokenCount(intentTokens)})`)
-    }
+    displayTokenSummary({
+      files: fileSummaries,
+      intentTokens,
+      fileTokens,
+      totalTokens: totalInputTokens,
+    })
   }
 
   iteration += 1
@@ -483,38 +522,32 @@ const runGenerationWorkflow = async ({
   )
 
   if (interactive) {
-    const rl = createInterface({ input, output })
-
-    try {
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const wantsRefine = await promptYesNo(rl, 'Refine? (y/n): ')
-        if (!wantsRefine) {
-          break
-        }
-
-        const refinement = await collectRefinement(rl)
-        if (!refinement) {
-          console.log('No refinement provided. Ending interactive session.')
-          break
-        }
-
-        context.refinements.push(refinement)
-        iteration += 1
-        currentPrompt = await generateAndMaybeDisplay(
-          service,
-          {
-            ...context,
-            iteration,
-            previousPrompt: currentPrompt,
-            latestRefinement: refinement,
-          },
-          display,
-          onUploadStateChange,
-        )
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const wantsRefine = await askShouldRefine()
+      if (!wantsRefine) {
+        break
       }
-    } finally {
-      rl.close()
+
+      const refinement = await collectRefinementInstruction()
+      if (!refinement) {
+        console.log(chalk.dim('No refinement provided. Ending interactive session.'))
+        break
+      }
+
+      context.refinements.push(refinement)
+      iteration += 1
+      currentPrompt = await generateAndMaybeDisplay(
+        service,
+        {
+          ...context,
+          iteration,
+          previousPrompt: currentPrompt,
+          latestRefinement: refinement,
+        },
+        display,
+        onUploadStateChange,
+      )
     }
   }
 
@@ -585,51 +618,152 @@ const polishPrompt = async (
   )
 }
 
+type FileTokenSummary = {
+  path: string
+  tokens: number
+}
+
+type TokenTelemetry = {
+  files: FileTokenSummary[]
+  intentTokens: number
+  fileTokens: number
+  totalTokens: number
+}
+
+const displayTokenSummary = ({
+  files,
+  intentTokens,
+  fileTokens,
+  totalTokens,
+}: TokenTelemetry): void => {
+  const telemetryLines = [
+    `${chalk.gray('Total')}: ${chalk.white(formatTokenCount(totalTokens))}`,
+    `${chalk.gray('Intent')}: ${chalk.white(formatTokenCount(intentTokens))}`,
+    `${chalk.gray('Files')}: ${chalk.white(formatTokenCount(fileTokens))}`,
+  ].join('\n')
+
+  console.log('')
+  console.log(
+    boxen(telemetryLines, {
+      padding: { left: 1, right: 1, top: 0, bottom: 0 },
+      borderColor: 'cyan',
+      borderStyle: 'round',
+      title: chalk.bold.cyan('Context Telemetry'),
+      titleAlignment: 'left',
+    }),
+  )
+  console.log('')
+
+  if (files.length === 0) {
+    return
+  }
+
+  const terminalWidth = Math.max(60, Math.min(output.columns ?? 100, 110))
+  const numberColumnWidth = 4
+  const tokensColumnWidth = 14
+  const pathColumnWidth = Math.max(24, terminalWidth - numberColumnWidth - tokensColumnWidth)
+  const table = new Table({
+    head: [chalk.gray('#'), chalk.gray('Path'), chalk.gray('Tokens')],
+    style: { head: [], border: [] },
+    wordWrap: true,
+    colWidths: [numberColumnWidth, pathColumnWidth, tokensColumnWidth],
+  })
+
+  files.slice(0, 10).forEach((file, index) => {
+    table.push([
+      chalk.dim(String(index + 1)),
+      chalk.white(file.path),
+      chalk.green(formatTokenCount(file.tokens)),
+    ])
+  })
+
+  console.log(table.toString())
+  console.log('')
+
+  if (files.length > 10) {
+    console.log(chalk.dim(`…and ${files.length - 10} more context files`))
+  }
+}
+
 const displayPrompt = (prompt: string, iteration: number, tokenCount?: number): void => {
-  const label = iteration === 1 ? 'Generated prompt' : `Generated prompt (iteration ${iteration})`
-  const meta = typeof tokenCount === 'number' ? ` [${formatTokenCount(tokenCount)}]` : ''
-  console.log('\nAI Prompt Generator')
-  console.log('────────────────────')
-  console.log(`${label}${meta}:\n`)
-  console.log(prompt)
+  const label = iteration === 1 ? 'Generated Prompt' : `Iteration ${iteration}`
+  const meta = typeof tokenCount === 'number' ? chalk.dim(` · ${formatTokenCount(tokenCount)}`) : ''
+  const title = chalk.bold.green(`${label}${meta}`)
+
+  const boxed = boxen(prompt, {
+    padding: { left: 1, right: 1, top: 0, bottom: 0 },
+    borderColor: 'green',
+    borderStyle: 'round',
+    title,
+    titleAlignment: 'left',
+  })
+
+  console.log(`\n${boxed}`)
 }
 
 const displayPolishedPrompt = (prompt: string, model: string): void => {
-  console.log('\nPolished prompt')
-  console.log('────────────────────')
-  console.log(prompt)
-  console.log(`\n(Model: ${model})`)
+  const title = chalk.bold.magenta(`Polished Prompt · ${model}`)
+  const boxed = boxen(prompt, {
+    padding: { left: 1, right: 1, top: 0, bottom: 0 },
+    borderColor: 'magenta',
+    borderStyle: 'round',
+    title,
+    titleAlignment: 'left',
+  })
+
+  console.log(`\n${boxed}`)
 }
 
-const promptYesNo = async (rl: Interface, question: string): Promise<boolean> => {
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const response = (await rl.question(question)).trim().toLowerCase()
-    if (response === 'y' || response === 'yes') {
-      return true
-    }
-    if (response === 'n' || response === 'no' || response === '') {
+const askShouldRefine = async (): Promise<boolean> => {
+  try {
+    const response = await prompt<{ refine: boolean }>({
+      type: 'confirm',
+      name: 'refine',
+      message: chalk.cyan('Refine the generated prompt?'),
+      initial: false,
+    })
+
+    return Boolean(response.refine)
+  } catch (error) {
+    if (isPromptCancellation(error)) {
+      console.log(chalk.dim('\nInteractive session cancelled.'))
       return false
     }
-    console.log('Please respond with y or n.')
+    throw error
   }
 }
 
-const collectRefinement = async (rl: Interface): Promise<string | null> => {
-  console.log('\nDescribe the refinement. Submit an empty line to finish.')
-  const lines: string[] = []
+const collectRefinementInstruction = async (): Promise<string | null> => {
+  try {
+    const response = await prompt<{ refinement: string }>({
+      type: 'input',
+      name: 'refinement',
+      message: chalk.cyan('Describe the refinement (blank to finish):'),
+      multiline: true,
+    })
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const line = await rl.question('> ')
-    if (!line.trim()) {
-      break
+    const refinement = response.refinement?.trim()
+    return refinement || null
+  } catch (error) {
+    if (isPromptCancellation(error)) {
+      console.log(chalk.dim('\nRefinement input cancelled.'))
+      return null
     }
-    lines.push(line)
+    throw error
+  }
+}
+
+const isPromptCancellation = (error: unknown): boolean => {
+  if (typeof error === 'string') {
+    return true
   }
 
-  const refinement = lines.join('\n').trim()
-  return refinement || null
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase()
+    return message.includes('cancel') || message.includes('abort')
+  }
+
+  return false
 }
 
 const maybeCopyToClipboard = async (shouldCopy: boolean, prompt: string): Promise<void> => {
@@ -639,10 +773,10 @@ const maybeCopyToClipboard = async (shouldCopy: boolean, prompt: string): Promis
 
   try {
     await clipboard.write(prompt)
-    console.log('Copied prompt to clipboard.')
+    console.log(chalk.green('✓ Copied prompt to clipboard.'))
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown clipboard error.'
-    console.warn(`Failed to copy prompt to clipboard: ${message}`)
+    console.warn(chalk.yellow(`Failed to copy prompt to clipboard: ${message}`))
   }
 }
 
@@ -655,10 +789,10 @@ const maybeOpenChatGpt = async (shouldOpen: boolean, prompt: string): Promise<vo
 
   try {
     await open(url)
-    console.log('Opened ChatGPT with the generated prompt.')
+    console.log(chalk.green('✓ Opened ChatGPT with the generated prompt.'))
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown browser error.'
-    console.warn(`Failed to open ChatGPT: ${message}`)
+    console.warn(chalk.yellow(`Failed to open ChatGPT: ${message}`))
   }
 }
 
@@ -708,37 +842,30 @@ type ProgressHandle = {
 }
 
 const startProgress = (label: string): ProgressHandle => {
-  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-  let index = 0
-  let active = true
-  let currentLabel = label
-
-  const render = (): void => {
-    process.stderr.write(`\r${currentLabel} ${frames[index]}`)
-  }
-
-  process.stderr.write(`${currentLabel} ${frames[index]}`)
-  const timer = setInterval(() => {
-    index = (index + 1) % frames.length
-    render()
-  }, 120)
+  const spinner = ora({
+    text: chalk.dim(label),
+    color: 'cyan',
+    spinner: 'dots',
+  }).start()
+  let stopped = false
 
   const stop = (finalMessage?: string): void => {
-    if (!active) {
+    if (stopped) {
       return
     }
-    active = false
-    clearInterval(timer)
-    const message = finalMessage ?? `${currentLabel} ✓`
-    process.stderr.write(`\r${message}\n`)
+    stopped = true
+    if (finalMessage) {
+      spinner.succeed(finalMessage)
+      return
+    }
+    spinner.succeed(chalk.green(`${label} ✓`))
   }
 
   const setLabel = (nextLabel: string): void => {
-    if (!active) {
+    if (stopped) {
       return
     }
-    currentLabel = nextLabel
-    render()
+    spinner.text = chalk.dim(nextLabel)
   }
 
   return { stop, setLabel }
@@ -767,12 +894,27 @@ const createUploadStateTracker = (
   }
 }
 
-const displayContextFiles = (files: FileContext[], writeLine: (line: string) => void): void => {
-  writeLine('\nContext Files')
-  writeLine('──────────────')
+const displayContextFiles = (
+  files: FileContext[],
+  format: 'text' | 'json',
+  writeLine: (line: string) => void,
+): void => {
+  if (format === 'json') {
+    writeLine(
+      JSON.stringify(
+        files.map(({ path, content }) => ({ path, content })),
+        null,
+        2,
+      ),
+    )
+    return
+  }
+
+  writeLine(`\n${chalk.bold.cyan('Context Files')}`)
+  writeLine(chalk.dim('──────────────'))
 
   if (files.length === 0) {
-    writeLine('(none)')
+    writeLine(chalk.dim('(none)'))
     return
   }
 
@@ -784,4 +926,29 @@ const displayContextFiles = (files: FileContext[], writeLine: (line: string) => 
       writeLine('')
     }
   })
+}
+
+const writeContextFile = async (
+  filePath: string,
+  format: 'text' | 'json',
+  files: FileContext[],
+): Promise<void> => {
+  const payload = format === 'json' ? serializeContextAsJson(files) : serializeContextAsText(files)
+  await fs.writeFile(filePath, payload, 'utf8')
+}
+
+const serializeContextAsJson = (files: FileContext[]): string =>
+  JSON.stringify(
+    files.map(({ path, content }) => ({ path, content })),
+    null,
+    2,
+  )
+
+const serializeContextAsText = (files: FileContext[]): string => {
+  if (files.length === 0) {
+    return '(none)'
+  }
+  return files
+    .map((file) => [`<file path="${file.path}">`, file.content, '</file>'].join('\n'))
+    .join('\n\n')
 }

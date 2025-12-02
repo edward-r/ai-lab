@@ -7,6 +7,7 @@ export const PromptTestSchema = z.object({
   image: z.array(z.string()).optional(),
   video: z.array(z.string()).optional(),
   smartContext: z.boolean().optional(),
+  smartContextRoot: z.string().min(1).optional(),
   expect: z.array(z.string().min(1)).min(1, 'Each test must include at least one expectation'),
 })
 

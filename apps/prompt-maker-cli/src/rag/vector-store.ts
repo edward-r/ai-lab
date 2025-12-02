@@ -49,15 +49,27 @@ export const indexFiles = async (filePaths: string[]): Promise<void> => {
   }
 }
 
-export const search = async (query: string, k: number): Promise<string[]> => {
+export const search = async (
+  query: string,
+  k: number,
+  allowedPaths?: Iterable<string>,
+): Promise<string[]> => {
   if (!query.trim() || k <= 0) {
     return []
   }
 
   const cache = await loadCache()
-  const entries = Object.entries(cache)
+  let entries = Object.entries(cache)
   if (entries.length === 0) {
     return []
+  }
+
+  if (allowedPaths) {
+    const allowedSet = new Set(Array.from(allowedPaths, (filePath) => path.resolve(filePath)))
+    entries = entries.filter(([filePath]) => allowedSet.has(path.resolve(filePath)))
+    if (entries.length === 0) {
+      return []
+    }
   }
 
   const queryEmbedding = await getEmbedding(query)

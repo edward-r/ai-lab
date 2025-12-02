@@ -116,7 +116,12 @@ const runSingleTest = async ({
     let fileContext = await resolveContextFiles(test.context)
 
     if (test.smartContext) {
-      const smartFiles = await resolveSmartContextFiles(test.intent, fileContext, () => {})
+      const smartFiles = await resolveSmartContextFiles(
+        test.intent,
+        fileContext,
+        () => {},
+        test.smartContextRoot,
+      )
       if (smartFiles.length > 0) {
         fileContext = [...fileContext, ...smartFiles]
       }

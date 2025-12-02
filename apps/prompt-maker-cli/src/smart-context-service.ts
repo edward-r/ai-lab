@@ -27,13 +27,25 @@ export const resolveSmartContextFiles = async (
   intent: string,
   currentContext: FileContext[],
   onProgress?: ProgressCallback,
+  rootDirectory?: string,
 ): Promise<FileContext[]> => {
+  const baseDir = rootDirectory ? path.resolve(rootDirectory) : process.cwd()
+
   onProgress?.('Scanning workspace for smart context files')
-  const filesToIndex = await fg(SMART_CONTEXT_PATTERNS, {
-    dot: true,
-    absolute: true,
-    ignore: SMART_CONTEXT_IGNORE_PATTERNS,
-  })
+  let filesToIndex: string[] = []
+  try {
+    filesToIndex = await fg(SMART_CONTEXT_PATTERNS, {
+      dot: true,
+      absolute: true,
+      cwd: baseDir,
+      ignore: SMART_CONTEXT_IGNORE_PATTERNS,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown smart context glob error.'
+    console.warn(`Smart context scan failed: ${message}`)
+    onProgress?.('Smart context scan failed')
+    return []
+  }
 
   if (filesToIndex.length === 0) {
     onProgress?.('No smart context files found')
@@ -73,7 +85,7 @@ export const resolveSmartContextFiles = async (
   onProgress?.('Searching smart context')
   let relatedPaths: string[] = []
   try {
-    relatedPaths = await vectorStore.search(intent, 5)
+    relatedPaths = await vectorStore.search(intent, 5, validFiles)
   } catch (error) {
     onProgress?.('Failed to search smart context')
     const message = error instanceof Error ? error.message : 'Unknown smart context search error.'
