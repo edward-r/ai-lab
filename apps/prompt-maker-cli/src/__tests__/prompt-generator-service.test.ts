@@ -1,3 +1,4 @@
+//eslint-disable unnecessary-semicolon
 import { callLLM } from '@prompt-maker/core'
 
 import {
@@ -145,7 +146,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
   })
 
   it('returns raw response when LLM output is not JSON', async () => {
-    ;(callLLM as jest.Mock).mockResolvedValue('plain text response')
+    (callLLM as jest.Mock).mockResolvedValue('plain text response')
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     const service = await buildService()
     const prompt = await service.generatePrompt({
