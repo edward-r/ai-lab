@@ -24,10 +24,12 @@
     "node": ">=18"
   },
   "dependencies": {
+    "html-to-text": "^9.0.5",
     "js-yaml": "^4.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
     "@types/js-yaml": "^4.0.9"
   }
 }

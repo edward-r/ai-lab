@@ -3,7 +3,7 @@
 Terminal-first interface for converting rough intent notes (and optional file/image context) into structured prompt contracts. The CLI now focuses exclusively on high-quality generation with optional polishing, JSON reasoning output, and built-in context tracking.
 
 - **Stateful refinement** – interactive runs feed the previous draft + your latest instruction back to the model so it can edit the existing prompt.
-- **Context injection** – attach additional files with `-c/--context` (glob-aware) and images with `--image` (PNG/JPG/WEBP/GIF, up to 20 MB each).
+- **Context injection** – attach additional files with `-c/--context` (glob-aware), mix in remote docs with `--url`, and images with `--image` (PNG/JPG/WEBP/GIF, up to 20 MB each).
 - **Token telemetry** – every run logs estimated input tokens and the size of each generated draft.
 - **History logging** – each command appends a JSONL record to `~/.config/prompt-maker-cli/history.jsonl` so you never lose a run.
 - **Separated reasoning** – models return `{ "reasoning": string, "prompt": string }`; set `DEBUG=1` (or `VERBOSE=1`) to stream the model’s reasoning to stderr.
@@ -42,6 +42,11 @@ prompt-maker-cli "Draft a confident onboarding-bot spec" \
   --image assets/wireframe.png \
   --copy
 
+# Mix local files with remote docs/GitHub context
+prompt-maker-cli "Summarize the Example docs" \
+  --url https://example.com/docs \
+  --url https://github.com/example/repo/tree/main/docs
+
 # File-based generation with JSON capture and history logging
 echo "Need travel app brief" > drafts/travel.md
 prompt-maker-cli --intent-file drafts/travel.md --json > runs/travel.json
@@ -53,6 +58,7 @@ Key flags and behaviors:
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `<intent>` / `--intent-file <path>` / stdin | Provide the rough intent text. Pipe stdin when automating.                                                        |
 | `--context <glob>` (repeatable)             | Attach additional file(s) to the request; globs are resolved via `fast-glob`.                                     |
+| `--url <https://...>` (repeatable)          | Download remote pages or GitHub repos/files and attach them as virtual context (`url:`/`github:` paths).          |
 | `--image <path>` (repeatable)               | Inline images (PNG/JPG/WEBP/GIF ≤ 20 MB) as Base64 so vision-capable models can reference them.                   |
 | `--model <name>`                            | Override the generation model (OpenAI GPT or Gemini). Defaults can be set via config/env.                         |
 | `-i, --interactive`                         | Enable the refine loop (TTY only). Each new note becomes a stateful edit of the previous prompt.                  |
@@ -106,6 +112,7 @@ prompt-maker-cli \
 
 - Context globs are resolved with `fast-glob` (`dot: true`) so you can pass `src/**/*.{ts,tsx}` etc.
 - Each matching file is embedded as `<file path="…">…</file>` for the model.
+- Remote docs are supported via `--url`. Plain webpages are cleaned into readable text and mounted as `url:https://…` files; GitHub `blob`, `tree`, and root URLs expand into `github:owner/repo/...` entries while respecting lockfile/node_modules ignores and 64 KB-per-file caps.
 - Images are Base64 encoded and sent using the provider’s native multimodal format (OpenAI `image_url`, Gemini `inlineData`). Files over 20 MB or unsupported extensions are skipped with a warning.
 
 ## Interactive refinement snapshot
