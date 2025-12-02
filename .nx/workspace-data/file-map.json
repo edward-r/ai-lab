@@ -29,40 +29,76 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "AGENTS.md",
-        "hash": "5926859589672140026"
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
       },
       {
-        "file": "tsconfig.jest.json",
-        "hash": "1993338485262061146"
-      },
-      {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": "jest.config.ts",
-        "hash": "15625297224349611979"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "16070760580271607004"
-      },
-      {
-        "file": "eslint.config.mjs",
-        "hash": "7102272948128927942"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
+        "file": "scripts/run-cli-release.sh",
+        "hash": "1100940351036862444"
       },
       {
         "file": "package.json",
         "hash": "6921357079226742426"
       },
       {
-        "file": "tests/mocks/yargs.ts",
-        "hash": "11738161071880740242"
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "16070760580271607004"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "7102272948128927942"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "11436792623039980707"
+      },
+      {
+        "file": "README.md",
+        "hash": "2139653527659314484"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "5926859589672140026"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "13780919962843055140"
+      },
+      {
+        "file": "tsconfig.jest.json",
+        "hash": "1993338485262061146"
+      },
+      {
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": "jest.config.ts",
+        "hash": "15625297224349611979"
+      },
+      {
+        "file": "prompt-tests.yaml",
+        "hash": "5292543420146125941"
+      },
+      {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "16667827072884385791"
       },
       {
         "file": ".nvmrc",
@@ -73,52 +109,16 @@
         "hash": "4872122421842301431"
       },
       {
-        "file": ".gitignore",
-        "hash": "11436792623039980707"
-      },
-      {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
         "file": ".github/workflows/ci.yml",
         "hash": "15256470195678966833"
       },
       {
-        "file": "scripts/run-cli-release.sh",
-        "hash": "1100940351036862444"
-      },
-      {
-        "file": "tsconfig.base.json",
-        "hash": "13780919962843055140"
-      },
-      {
-        "file": "prompt-tests.yaml",
-        "hash": "5292543420146125941"
+        "file": "tests/mocks/yargs.ts",
+        "hash": "11738161071880740242"
       },
       {
         "file": "nx.json",
         "hash": "10895747293426653132"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "16667827072884385791"
       }
     ],
     "projectFileMap": {
@@ -156,10 +156,6 @@
         {
           "file": "apps/prompt-maker-cli/docs/tutorial.md",
           "hash": "8576675251915628011"
-        },
-        {
-          "file": "apps/prompt-maker-cli/draft.txt",
-          "hash": "17428478706525804586"
         },
         {
           "file": "apps/prompt-maker-cli/drafts/neovim-plugin.md",
@@ -209,16 +205,8 @@
           "hash": "712048127669049477"
         },
         {
-          "file": "apps/prompt-maker-cli/prompt-content.md",
-          "hash": "400559877098005443"
-        },
-        {
           "file": "apps/prompt-maker-cli/prompts/onboarding-spec.md",
           "hash": "5925840482516935940"
-        },
-        {
-          "file": "apps/prompt-maker-cli/result.json",
-          "hash": "13889791745075239919"
         },
         {
           "file": "apps/prompt-maker-cli/src/__tests__/config.test.ts",
@@ -343,7 +331,7 @@
         },
         {
           "file": "apps/prompt-maker-cli/src/prompt-generator-service.ts",
-          "hash": "17518901950102639259",
+          "hash": "1684790325017165560",
           "deps": [
             "prompt-maker-core"
           ]

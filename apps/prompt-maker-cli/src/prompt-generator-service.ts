@@ -5,8 +5,20 @@ import { formatContextForPrompt, type FileContext } from './file-context'
 import { resolveImageParts } from './image-loader'
 import { inferVideoMimeType, uploadFileForGemini } from './media-loader'
 
+const PROMPT_CONTRACT_REQUIREMENTS = `
+Prompt Contract Requirements:
+1. Start with a concise "# Title" summarizing the requested deliverable.
+2. Include the following sections in order, each with actionable markdown content:
+   "Role", "Context", "Goals & Tasks", "Inputs", "Constraints", "Execution Plan",
+   "Output Format", "Quality Checks".
+3. Reference any provided context files or inputs explicitly when relevant (e.g., file paths).
+4. Use bullet lists or short paragraphs; keep instructions concrete and testable.
+5. Do NOT execute the task or provide the final deliverable—only craft instructions for another assistant.
+`
+
 const META_PROMPT = `
-You are an expert Prompt Engineer. Your goal is to convert the user's intent into an optimized prompt.
+You are an expert Prompt Engineer. Your goal is to convert the user's intent into an optimized prompt contract that another assistant will later execute.
+${PROMPT_CONTRACT_REQUIREMENTS}
 
 Response Format:
 You must output a valid JSON object with exactly two keys:
@@ -19,7 +31,8 @@ Do not output any text outside of this JSON object.
 const GEN_SYSTEM_PROMPT = META_PROMPT
 
 const REFINE_SYSTEM_PROMPT = `
-You are an expert Prompt Engineer refining an existing prompt based on user feedback.
+You are an expert Prompt Engineer refining an existing prompt based on user feedback. The result must remain a prompt contract for another assistant, never the finished work.
+${PROMPT_CONTRACT_REQUIREMENTS}
 
 Response Format:
 You must output a valid JSON object with exactly two keys:
@@ -152,7 +165,12 @@ const buildInitialUserMessage = async (
   }
 
   sections.push(`User Intent:\n${intent.trim()}`)
-  sections.push('Return the final structured prompt now.')
+  sections.push(
+    [
+      'Return the final structured prompt contract now.',
+      'Do NOT perform the task yourself; only craft instructions for another assistant using the required sections.',
+    ].join(' '),
+  )
 
   const text = sections.join('\n\n')
   return await mergeMediaWithText(text, imagePaths, videoPaths, onUploadStateChange)
@@ -176,7 +194,12 @@ const buildRefinementMessage = async (
   sections.push(`Original Intent (for reference):\n${originalIntent}`)
   sections.push(`Current Prompt Draft:\n${previousPrompt}`)
   sections.push(`Refinement Instruction:\n${instruction}`)
-  sections.push('Return the fully updated prompt text.')
+  sections.push(
+    [
+      'Return the fully updated prompt contract.',
+      'Maintain the required sections and continue to avoid performing the task yourself.',
+    ].join(' '),
+  )
 
   const text = sections.join('\n\n')
   return await mergeMediaWithText(text, imagePaths, videoPaths, onUploadStateChange)
