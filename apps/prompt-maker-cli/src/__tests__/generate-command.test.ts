@@ -33,6 +33,9 @@ jest.mock('../config', () => ({
   }),
 }))
 
+const mockLoadCliConfig = (jest.requireMock('../config') as { loadCliConfig: jest.Mock })
+  .loadCliConfig
+
 jest.mock('clipboardy', () => ({ write: jest.fn() }))
 jest.mock('open', () => jest.fn())
 jest.mock('@prompt-maker/core', () => ({ callLLM: jest.fn() }))
@@ -104,6 +107,9 @@ describe('runGenerateCommand', () => {
     jest.clearAllMocks()
     mockCreatePromptService.mockResolvedValue(promptService)
     mockResolveDefaultModel.mockResolvedValue('gpt-4o-mini')
+    mockLoadCliConfig.mockResolvedValue({
+      promptGenerator: { defaultGeminiModel: 'gemini-1.5-pro' },
+    })
     promptService.generatePrompt.mockResolvedValue('prompt v1')
     setTtyState(false, false)
     fs.readFile.mockReset()
@@ -334,6 +340,50 @@ describe('runGenerateCommand', () => {
     expect(log).toHaveBeenCalledTimes(1)
     expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
     jest.useRealTimers()
+    log.mockRestore()
+  })
+
+  it('throws when an unknown context template is provided', async () => {
+    await expect(
+      runGenerateCommand(['intent text', '--context-template', 'missing']),
+    ).rejects.toThrow('Unknown context template')
+  })
+
+  it('applies the built-in nvim context template and surfaces metadata', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--json', '--context-template', 'nvim'])
+    expect(log).toHaveBeenCalled()
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('console.log was not called')
+    }
+    const [jsonOutput] = firstCall as [string]
+    const payload = JSON.parse(jsonOutput) as {
+      contextTemplate?: string
+      renderedPrompt?: string
+    }
+    expect(payload.contextTemplate).toBe('nvim')
+    expect(payload.renderedPrompt).toContain('NeoVim Prompt Buffer')
+    expect(payload.renderedPrompt).toContain('prompt v1')
+    log.mockRestore()
+  })
+
+  it('uses user-defined templates from config and appends prompt when placeholder is missing', async () => {
+    mockLoadCliConfig.mockResolvedValue({
+      promptGenerator: { defaultGeminiModel: 'gemini-1.5-pro' },
+      contextTemplates: { scratch: 'Paste into scratch buffer for review' },
+    })
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--json', '--context-template', 'scratch'])
+    expect(log).toHaveBeenCalled()
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('console.log was not called')
+    }
+    const [jsonOutput] = firstCall as [string]
+    const payload = JSON.parse(jsonOutput) as { renderedPrompt?: string }
+    expect(payload.renderedPrompt).toContain('Paste into scratch buffer for review')
+    expect(payload.renderedPrompt?.trim().endsWith('prompt v1')).toBe(true)
     log.mockRestore()
   })
 

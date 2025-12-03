@@ -68,6 +68,8 @@ Key flags and behaviors:
 | `-i, --interactive`                         | Enable the refine loop (TTY only). Each new note becomes a stateful edit of the previous prompt.                  |
 | `--polish`, `--polish-model <name>`         | Run the finishing pass and optionally choose a different model for it.                                            |
 | `--json`                                    | Emit machine-readable JSON (non-interactive). Includes `prompt`, optional `polishedPrompt`, iteration count, etc. |
+| `--quiet`                                   | Suppress UI banners/spinners while still emitting JSON/stream events (ideal for editor integrations).             |
+| `--context-template <name>`                 | Wrap the final prompt using a named template (supports built-ins like `nvim` or custom config entries).           |
 | `--copy`, `--open-chatgpt`                  | Copy/open the final (possibly polished) artifact for quick sharing.                                               |
 | `--no-progress`                             | Disable the stderr spinner (useful when `--json` is scripted).                                                    |
 | `--help`                                    | Show the auto-generated Yargs help text.                                                                          |
@@ -80,6 +82,26 @@ Additional behaviors:
 - Each completed run is saved to `~/.config/prompt-maker-cli/history.jsonl` with a timestamp, so you can reconstruct past prompts or feed them into analytics.
 - `--show-context` dumps the resolved `<file …>` blocks to stdout (or stderr when `--json`) so you can copy the exact context into another assistant, while `--context-file` + `--context-format` capture the same payload for tooling; add `--smart-context-root <path>` when your embeddings should start from a different directory.
 - Styled telemetry banners, progress spinners, and Enquirer-powered refinement prompts make interactive mode easier to scan and drive.
+
+## Context templates
+
+Use `--context-template <name>` to wrap the final prompt with editor-specific guidance. Templates can include the placeholder `{{prompt}}`; if it’s missing, the CLI appends the generated prompt after the template body with a blank line. Built-ins currently include:
+
+- `nvim` – prepends a scratch-buffer header so you can paste straight back into a NeoVim split.
+
+Add your own templates under `contextTemplates` in `~/.config/prompt-maker-cli/config.json` (or any supported config path):
+
+```json
+{
+  "promptGenerator": { "defaultModel": "gemini-1.5-flash" },
+  "contextTemplates": {
+    "scratch": "Paste into scratch buffer for teammates",
+    "obsidian": "# Prompt Vault\n\n{{prompt}}"
+  }
+}
+```
+
+When a template is active the CLI still emits the raw `prompt`, but also records the rendered text plus template name in both `--json` output and `history.jsonl`. Combine this with `--quiet` + `--stream jsonl` to keep editor buffers tidy while still tracking progress.
 
 ## JSON payload example
 
@@ -95,6 +117,8 @@ Additional behaviors:
   "timestamp": "2025-11-30T22:10:07.123Z"
 }
 ```
+
+When `--context-template` is active the payload also includes `contextTemplate` and `renderedPrompt` fields, allowing editor clients to consume the wrapped output while still preserving the base prompt.
 
 When `DEBUG` is set the CLI also logs:
 

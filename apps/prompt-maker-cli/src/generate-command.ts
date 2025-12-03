@@ -48,8 +48,18 @@ const VALUE_FLAGS = new Set([
   '--url',
   '--context-file',
   '--context-format',
+  '--context-template',
   '--smart-context-root',
 ])
+
+const CONTEXT_TEMPLATE_PLACEHOLDER = '{{prompt}}'
+const BUILT_IN_CONTEXT_TEMPLATES: Record<string, string> = {
+  nvim: [
+    '## NeoVim Prompt Buffer',
+    'Paste this block into a scratch buffer (e.g., :enew) so you can keep prompts beside your work.',
+    CONTEXT_TEMPLATE_PLACEHOLDER,
+  ].join('\n\n'),
+}
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
 
@@ -67,6 +77,7 @@ type GenerateArgs = {
   progress: boolean
   stream: StreamMode
   showContext: boolean
+  contextTemplate?: string
   contextFile?: string
   contextFormat: 'text' | 'json'
   help: boolean
@@ -102,6 +113,8 @@ type GenerateJsonPayload = {
   timestamp: string
   polishedPrompt?: string
   polishModel?: string
+  contextTemplate?: string
+  renderedPrompt?: string
 }
 
 type StreamMode = 'none' | 'jsonl'
@@ -225,6 +238,15 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const interactive = args.interactive && input.isTTY && output.isTTY
   const streamDispatcher = createStreamDispatcher(args.stream)
   const uiSuppressed = args.quiet || streamDispatcher.mode !== 'none'
+  const contextTemplateName = args.contextTemplate?.trim()
+
+  if (args.contextTemplate && !contextTemplateName) {
+    throw new Error('--context-template requires a non-empty template name.')
+  }
+
+  const contextTemplateDefinition = contextTemplateName
+    ? await resolveContextTemplate(contextTemplateName)
+    : null
 
   if (args.interactive && !interactive) {
     console.warn('Interactive mode requested but no TTY detected; continuing non-interactive run.')
@@ -320,9 +342,13 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   const artifact = polishedPrompt ?? generatedPrompt
+  const renderedPrompt = contextTemplateDefinition
+    ? renderContextTemplate(contextTemplateDefinition, artifact)
+    : undefined
+  const finalArtifact = renderedPrompt ?? artifact
 
-  await maybeCopyToClipboard(args.copy, artifact)
-  await maybeOpenChatGpt(args.openChatGpt, artifact)
+  await maybeCopyToClipboard(args.copy, finalArtifact)
+  await maybeOpenChatGpt(args.openChatGpt, finalArtifact)
 
   const payload: GenerateJsonPayload = {
     intent,
@@ -339,6 +365,11 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     payload.polishModel = polishModel
   }
 
+  if (contextTemplateName && renderedPrompt) {
+    payload.contextTemplate = contextTemplateName
+    payload.renderedPrompt = renderedPrompt
+  }
+
   streamDispatcher.emit({ event: 'generation.final', result: payload })
 
   if (args.json) {
@@ -347,7 +378,9 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     return
   }
 
-  if (polishedPrompt && shouldDisplay) {
+  if (renderedPrompt && shouldDisplay && contextTemplateName) {
+    displayContextTemplatePrompt(renderedPrompt, contextTemplateName)
+  } else if (polishedPrompt && shouldDisplay) {
     displayPolishedPrompt(polishedPrompt, polishModel)
   }
 
@@ -414,6 +447,10 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       choices: ['none', 'jsonl'] as const,
       default: 'none',
       describe: 'Emit structured events via stdout',
+    })
+    .option('context-template', {
+      type: 'string',
+      describe: 'Wrap the final prompt using a named template',
     })
     .option('show-context', {
       type: 'boolean',
@@ -495,6 +532,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     smartContext: boolean
     smartContextRoot?: string
     showContext: boolean
+    contextTemplate?: string
     stream?: StreamMode
     _?: (string | number)[]
   }>
@@ -528,6 +566,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     images: normalizeListArg(parsed.image),
     video: normalizeListArg(parsed.video),
     smartContext: parsed.smartContext ?? false,
+    ...(parsed.contextTemplate ? { contextTemplate: parsed.contextTemplate } : {}),
     ...(parsed.contextFile ? { contextFile: parsed.contextFile } : {}),
     ...(parsed.smartContextRoot ? { smartContextRoot: parsed.smartContextRoot } : {}),
   }
@@ -865,6 +904,19 @@ const displayPolishedPrompt = (prompt: string, model: string): void => {
   console.log(`\n${boxed}`)
 }
 
+const displayContextTemplatePrompt = (prompt: string, templateName: string): void => {
+  const title = chalk.bold.blue(`Context Template · ${templateName}`)
+  const boxed = boxen(prompt, {
+    padding: { left: 1, right: 1, top: 0, bottom: 0 },
+    borderColor: 'blue',
+    borderStyle: 'round',
+    title,
+    titleAlignment: 'left',
+  })
+
+  console.log(`\n${boxed}`)
+}
+
 const askShouldRefine = async (): Promise<boolean> => {
   try {
     const response = await prompt<{ refine: boolean }>({
@@ -1060,6 +1112,39 @@ const createUploadStateTracker = (
       stream.emit({ event: 'upload.state', state, detail })
     }
   }
+}
+
+const renderContextTemplate = (template: string, prompt: string): string => {
+  if (template.includes(CONTEXT_TEMPLATE_PLACEHOLDER)) {
+    return template.split(CONTEXT_TEMPLATE_PLACEHOLDER).join(prompt)
+  }
+
+  const trimmedTemplate = template.trimEnd()
+  if (!trimmedTemplate) {
+    return prompt
+  }
+  return `${trimmedTemplate}\n\n${prompt}`
+}
+
+const resolveContextTemplate = async (name: string): Promise<string> => {
+  const builtIn = BUILT_IN_CONTEXT_TEMPLATES[name]
+  if (builtIn) {
+    return builtIn
+  }
+
+  const config = await loadCliConfig()
+  const fromConfig = config?.contextTemplates?.[name]
+  if (fromConfig) {
+    return fromConfig
+  }
+
+  const available = [
+    ...Object.keys(BUILT_IN_CONTEXT_TEMPLATES),
+    ...(config?.contextTemplates ? Object.keys(config.contextTemplates) : []),
+  ]
+  const availableList = available.length > 0 ? available.join(', ') : 'none'
+
+  throw new Error(`Unknown context template "${name}". Available templates: ${availableList}.`)
 }
 
 const displayContextFiles = (
