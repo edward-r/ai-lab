@@ -68,6 +68,10 @@ Key flags and behaviors:
 | `-i, --interactive`                         | Enable the refine loop (TTY only). Each new note becomes a stateful edit of the previous prompt.                  |
 | `--polish`, `--polish-model <name>`         | Run the finishing pass and optionally choose a different model for it.                                            |
 | `--json`                                    | Emit machine-readable JSON (non-interactive). Includes `prompt`, optional `polishedPrompt`, iteration count, etc. |
+| `--quiet`                                   | Suppress UI banners/spinners while still emitting JSON/stream events (ideal for editor integrations).             |
+| `--stream none\|jsonl`                      | Emit newline-delimited JSON events describing context, uploads, iterations, and interactive states.               |
+| `--context-template <name>`                 | Wrap the final prompt using a named template (supports built-ins like `nvim` or custom config entries).           |
+| `--interactive-transport <path>`            | Listen on a Unix socket/Windows named pipe for refine/finish commands while streaming events to the client.       |
 | `--copy`, `--open-chatgpt`                  | Copy/open the final (possibly polished) artifact for quick sharing.                                               |
 | `--no-progress`                             | Disable the stderr spinner (useful when `--json` is scripted).                                                    |
 | `--help`                                    | Show the auto-generated Yargs help text.                                                                          |
@@ -80,6 +84,33 @@ Additional behaviors:
 - Each completed run is saved to `~/.config/prompt-maker-cli/history.jsonl` with a timestamp, so you can reconstruct past prompts or feed them into analytics.
 - `--show-context` dumps the resolved `<file …>` blocks to stdout (or stderr when `--json`) so you can copy the exact context into another assistant, while `--context-file` + `--context-format` capture the same payload for tooling; add `--smart-context-root <path>` when your embeddings should start from a different directory.
 - Styled telemetry banners, progress spinners, and Enquirer-powered refinement prompts make interactive mode easier to scan and drive.
+- `--quiet` suppresses purely cosmetic output (boxes, success ticks, clipboard/browser confirmations) while still surfacing warnings, errors, JSON payloads, and streaming events—perfect for editor integrations.
+
+## Context templates
+
+Use `--context-template <name>` to wrap the final prompt with editor-specific guidance. Templates can include the placeholder `{{prompt}}`; if it’s missing, the CLI appends the generated prompt after the template body with a blank line. Built-ins currently include:
+
+- `nvim` – prepends a scratch-buffer header so you can paste straight back into a NeoVim split.
+
+Add your own templates under `contextTemplates` in `~/.config/prompt-maker-cli/config.json` (or any supported config path):
+
+```json
+{
+  "promptGenerator": { "defaultModel": "gemini-1.5-flash" },
+  "contextTemplates": {
+    "scratch": "Paste into scratch buffer for teammates",
+    "obsidian": "# Prompt Vault\n\n{{prompt}}"
+  }
+}
+```
+
+When a template is active the CLI still emits the raw `prompt`, but also records the rendered text plus template name in both `--json` output and `history.jsonl`. Combine this with `--quiet` + `--stream jsonl` to keep editor buffers tidy while still tracking progress.
+
+## Structured streaming & transports
+
+- `--stream jsonl` writes newline-delimited JSON events to stdout covering context telemetry, URL/smart-context progress, upload state changes, iteration boundaries, interactive states, and the final summary payload.
+- `--interactive-transport /tmp/pmc.sock` (or a Windows named pipe) turns the CLI into a socket server: the client sends `{"type":"refine","instruction":"..."}` or `{"type":"finish"}` messages and receives the same JSONL event stream over the connection. Transport lifecycle events (`transport.listening`, `transport.client.connected`, `transport.client.disconnected`) mirror socket activity.
+- Pairing the two lets editors follow progress in a scratch buffer while driving refinements without hijacking stdin/stdout.
 
 ## JSON payload example
 
@@ -95,6 +126,8 @@ Additional behaviors:
   "timestamp": "2025-11-30T22:10:07.123Z"
 }
 ```
+
+When `--context-template` is active the payload also includes `contextTemplate` and `renderedPrompt` fields, allowing editor clients to consume the wrapped output while still preserving the base prompt.
 
 When `DEBUG` is set the CLI also logs:
 
@@ -165,19 +198,30 @@ Env vars (`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_BASE_UR
 
 ## Automation recipes
 
-| Pattern                                                             | Command                                                                       |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
-| Stdin → JSON artifact                                               | `cat drafts/intent.md \                                                       |
-| prompt-maker-cli --model gpt-4o-mini --json > runs/intent-001.json` |
-| Clipboard-only                                                      | `prompt-maker-cli "Draft H1 spec" --copy > /dev/null`                         |
-| Globals with images                                                 | `prompt-maker-cli --intent-file briefs/app.md --image assets/wire.png --json` |
-| Silence spinner                                                     | `prompt-maker-cli ... --json --no-progress`                                   |
-| Analyze history                                                     | `tail -n 20 ~/.config/prompt-maker-cli/history.jsonl                          | jq .intent` |
+| Pattern               | Command                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| Stdin → JSON artifact | <code>cat drafts/intent.md \<br>prompt-maker-cli --model gpt-4o-mini --json > runs/intent-001.json</code> |
+| Clipboard-only        | `prompt-maker-cli "Draft H1 spec" --copy > /dev/null`                                                     |
+| Globals with images   | `prompt-maker-cli --intent-file briefs/app.md --image assets/wire.png --json`                             |
+| Silence spinner       | `prompt-maker-cli ... --json --no-progress`                                                               |
+| Analyze history       | `tail -n 20 ~/.config/prompt-maker-cli/history.jsonl \| jq .intent`                                       |
 
 ## NeoVim / editor integrations
 
 - Prefer `--json` + `jq -r '.polishedPrompt // .prompt'` when populating buffers.
 - Launch `--interactive` inside terminal splits to drive refinements; only the final artifact is copied/opened.
 - Keep `history.jsonl` synced (e.g., `tail -f`) to provide “recent prompts” pickers.
+- For a command-only transport channel (zero extra stdout noise), run the CLI via:
+
+  ```bash
+  prompt-maker-cli "Draft README polish" \
+    --quiet \
+    --stream jsonl \
+    --context-template nvim \
+    --context-file /tmp/pmc-context.json \
+    --interactive-transport /tmp/pmc.sock
+  ```
+
+  The plugin can tail the JSONL stream (or socket) for progress while reading the rendered prompt from `/tmp/pmc-context.json` or the final JSON payload.
 
 With context ingestion, image support, token telemetry, and JSON reasoning, `prompt-maker-cli` is ready for both terminal workflows and editor integrations. Build + install from repo root, run via `prompt-maker-cli` (or your alias), and enjoy reliable prompt contracts with full audit trails.

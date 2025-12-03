@@ -3,7 +3,7 @@ import clipboard from 'clipboardy'
 import open from 'open'
 
 import { callLLM } from '@prompt-maker/core'
-import { runGenerateCommand } from '../generate-command'
+import { runGenerateCommand, InteractiveTransport } from '../generate-command'
 import { appendToHistory } from '../history-logger'
 import { readFromStdin } from '../io'
 import { resolveFileContext } from '../file-context'
@@ -32,6 +32,9 @@ jest.mock('../config', () => ({
     promptGenerator: { defaultGeminiModel: 'gemini-1.5-pro' },
   }),
 }))
+
+const mockLoadCliConfig = (jest.requireMock('../config') as { loadCliConfig: jest.Mock })
+  .loadCliConfig
 
 jest.mock('clipboardy', () => ({ write: jest.fn() }))
 jest.mock('open', () => jest.fn())
@@ -99,11 +102,56 @@ afterAll(() => {
   Object.defineProperty(process.stdout, 'isTTY', { value: originalStdoutIsTTY })
 })
 
+type TestInteractiveCommand = { type: 'refine'; instruction: string } | { type: 'finish' }
+
+type LifecycleEmitter = Parameters<InteractiveTransport['setEventEmitter']>[0]
+
+const setupTransportMock = (commands: TestInteractiveCommand[], events: string[]): (() => void) => {
+  const commandQueue = [...commands]
+  let lifecycleEmitter: LifecycleEmitter | null = null
+
+  const startSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'start')
+    .mockImplementation(async () => {
+      lifecycleEmitter?.({ event: 'transport.listening', path: '/tmp/pmc.sock' })
+      lifecycleEmitter?.({ event: 'transport.client.connected', status: 'connected' })
+    })
+  const stopSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'stop')
+    .mockImplementation(async () => {
+      lifecycleEmitter?.({ event: 'transport.client.disconnected', status: 'disconnected' })
+    })
+  const writerSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'getEventWriter')
+    .mockReturnValue((chunk: string) => {
+      events.push(chunk.trim())
+    })
+  const setEmitterSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'setEventEmitter')
+    .mockImplementation(function (this: InteractiveTransport, emitter: LifecycleEmitter) {
+      lifecycleEmitter = emitter
+    })
+  const nextCommandSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'nextCommand')
+    .mockImplementation(async () => commandQueue.shift() ?? null)
+
+  return () => {
+    startSpy.mockRestore()
+    stopSpy.mockRestore()
+    writerSpy.mockRestore()
+    setEmitterSpy.mockRestore()
+    nextCommandSpy.mockRestore()
+  }
+}
+
 describe('runGenerateCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockCreatePromptService.mockResolvedValue(promptService)
     mockResolveDefaultModel.mockResolvedValue('gpt-4o-mini')
+    mockLoadCliConfig.mockResolvedValue({
+      promptGenerator: { defaultGeminiModel: 'gemini-1.5-pro' },
+    })
     promptService.generatePrompt.mockResolvedValue('prompt v1')
     setTtyState(false, false)
     fs.readFile.mockReset()
@@ -282,9 +330,281 @@ describe('runGenerateCommand', () => {
     jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'))
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--json'])
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
+    expect(log).toHaveBeenCalled()
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected console.log to be called with JSON output')
+    }
+    const payload = JSON.parse(firstCall[0] as string) as {
+      intent: string
+      contextPaths: Array<{ path: string; source: string }>
+    }
+    expect(payload.intent).toBe('intent text')
+    expect(payload.contextPaths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'intent', path: 'inline-intent' }),
+        expect.objectContaining({ source: 'file', path: 'ctx.md' }),
+      ]),
+    )
+    expect(payload).not.toHaveProperty('outputPath')
     expect(appendToHistory).toHaveBeenCalledTimes(1)
     jest.useRealTimers()
+    log.mockRestore()
+  })
+
+  it('streams jsonl events when enabled', async () => {
+    const chunks: string[] = []
+    const writeSpy = jest.spyOn(process.stdout, 'write').mockImplementation(((
+      chunk: string | Uint8Array,
+      encoding?: BufferEncoding,
+      cb?: (err?: Error) => void,
+    ) => {
+      if (typeof chunk === 'string') {
+        chunks.push(chunk)
+      }
+      if (typeof cb === 'function') {
+        cb()
+      }
+      return true
+    }) as unknown as typeof process.stdout.write)
+
+    await runGenerateCommand(['intent text', '--stream', 'jsonl', '--progress=false'])
+
+    writeSpy.mockRestore()
+
+    const events = chunks
+      .map((chunk) => chunk.trim())
+      .filter((chunk) => chunk.startsWith('{') && chunk.endsWith('}'))
+      .map((chunk) => JSON.parse(chunk) as { event: string } & Record<string, unknown>)
+
+    const eventTypes = events.map((event) => event.event)
+
+    expect(eventTypes).toContain('context.telemetry')
+    expect(eventTypes).toContain('generation.iteration.start')
+    expect(eventTypes).toContain('generation.iteration.complete')
+    expect(eventTypes).toContain('generation.final')
+
+    const generateStart = events.find((event) => {
+      if (event.event !== 'progress.update') {
+        return false
+      }
+      return (event as { label?: string }).label === 'Generating prompt'
+    }) as { state?: string; scope?: string } | undefined
+    expect(generateStart?.state).toBe('start')
+    expect(generateStart?.scope).toBe('generate')
+
+    const iterationStart = events.find((event) => event.event === 'generation.iteration.start') as
+      | { inputTokens?: number }
+      | undefined
+    expect(iterationStart?.inputTokens).toBeGreaterThan(0)
+
+    const finalEvent = events.find((event) => event.event === 'generation.final') as
+      | { result?: { contextPaths?: Array<{ source: string }> } }
+      | undefined
+    expect(finalEvent?.result?.contextPaths).toEqual(
+      expect.arrayContaining([expect.objectContaining({ source: 'intent' })]),
+    )
+  })
+
+  it('emits only jsonl lines when quiet streaming is requested', async () => {
+    const chunks: string[] = []
+    const writeSpy = jest.spyOn(process.stdout, 'write').mockImplementation(((
+      chunk: string | Uint8Array,
+      encoding?: BufferEncoding,
+      cb?: (err?: Error) => void,
+    ) => {
+      if (typeof chunk === 'string') {
+        chunks.push(chunk)
+      }
+      if (typeof cb === 'function') {
+        cb()
+      }
+      return true
+    }) as unknown as typeof process.stdout.write)
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+
+    await runGenerateCommand(['intent text', '--quiet', '--stream', 'jsonl', '--progress=false'])
+
+    writeSpy.mockRestore()
+    expect(logSpy).not.toHaveBeenCalled()
+    logSpy.mockRestore()
+
+    const jsonLines = chunks.map((chunk) => chunk.trim()).filter(Boolean)
+    expect(jsonLines.length).toBeGreaterThan(0)
+    jsonLines.forEach((line) => {
+      expect(() => JSON.parse(line)).not.toThrow()
+    })
+  })
+
+  it('suppresses UI banners when --quiet is provided', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet'])
+    expect(log).not.toHaveBeenCalled()
+    log.mockRestore()
+  })
+
+  it('still prints JSON payload when --quiet and --json are combined', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'))
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet', '--json'])
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
+    jest.useRealTimers()
+    log.mockRestore()
+  })
+
+  it('includes url and smart context metadata in json output', async () => {
+    mockResolveUrlContext.mockResolvedValueOnce([
+      { path: 'url:https://example.com', content: '# url' },
+    ])
+    mockResolveSmartContext.mockResolvedValueOnce([{ path: 'smart.md', content: '# smart' }])
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand([
+      'intent text',
+      '--json',
+      '--url',
+      'https://example.com',
+      '--smart-context',
+    ])
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output to be logged')
+    }
+    const payload = JSON.parse(firstCall[0] as string) as {
+      contextPaths: Array<{ path: string; source: string }>
+    }
+    expect(payload.contextPaths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'url', path: 'url:https://example.com' }),
+        expect.objectContaining({ source: 'smart', path: 'smart.md' }),
+      ]),
+    )
+    log.mockRestore()
+  })
+
+  it('records outputPath when writing context file in json mode', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--json', '--context-file', '/tmp/out.json'])
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output to be logged')
+    }
+    const payload = JSON.parse(firstCall[0] as string) as { outputPath?: string }
+    expect(payload.outputPath).toBe('/tmp/out.json')
+    log.mockRestore()
+  })
+
+  it('copies to clipboard without emitting cosmetic logs when quiet', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet', '--copy'])
+    expect(clipboard.write).toHaveBeenCalledWith('prompt v1')
+    const copiedMessages = log.mock.calls
+      .map((args) => args[0])
+      .filter((arg) => typeof arg === 'string' && arg.includes('Copied prompt'))
+    expect(copiedMessages).toHaveLength(0)
+    log.mockRestore()
+  })
+
+  it('opens ChatGPT silently when quiet mode suppresses success ticks', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet', '--open-chatgpt'])
+    expect(open).toHaveBeenCalled()
+    const openMessages = log.mock.calls
+      .map((args) => args[0])
+      .filter((arg) => typeof arg === 'string' && arg.includes('Opened ChatGPT'))
+    expect(openMessages).toHaveLength(0)
+    log.mockRestore()
+  })
+
+  it('drives interactive refinements via transport commands without TTY', async () => {
+    promptService.generatePrompt
+      .mockResolvedValueOnce('first prompt')
+      .mockResolvedValueOnce('second prompt')
+    const transportEvents: string[] = []
+    const restoreTransport = setupTransportMock(
+      [{ type: 'refine', instruction: 'Tighten tone' }, { type: 'finish' }],
+      transportEvents,
+    )
+
+    try {
+      await runGenerateCommand(['intent text', '--interactive-transport', '/tmp/pmc.sock'])
+    } finally {
+      restoreTransport()
+    }
+
+    const parsedEvents = transportEvents
+      .map((event) => event.trim())
+      .filter((event) => event.startsWith('{') && event.endsWith('}'))
+      .map((event) => JSON.parse(event) as { event: string })
+
+    expect(promptMock).not.toHaveBeenCalled()
+    expect(promptService.generatePrompt).toHaveBeenCalledTimes(2)
+    expect(parsedEvents.some((event) => event.event === 'transport.listening')).toBe(true)
+    expect(parsedEvents.some((event) => event.event === 'interactive.awaiting')).toBe(true)
+    expect(parsedEvents.some((event) => event.event === 'interactive.state')).toBe(true)
+  })
+
+  it('ends interactive transport sessions when finish command arrives first', async () => {
+    const transportEvents: string[] = []
+    const restoreTransport = setupTransportMock([{ type: 'finish' }], transportEvents)
+
+    try {
+      await runGenerateCommand(['intent text', '--interactive-transport', '/tmp/pmc.sock'])
+    } finally {
+      restoreTransport()
+    }
+
+    const parsedEvents = transportEvents
+      .map((event) => event.trim())
+      .filter((event) => event.startsWith('{') && event.endsWith('}'))
+      .map((event) => JSON.parse(event) as { event: string })
+
+    expect(promptService.generatePrompt).toHaveBeenCalledTimes(1)
+    expect(promptMock).not.toHaveBeenCalled()
+    expect(parsedEvents.some((event) => event.event === 'transport.listening')).toBe(true)
+  })
+
+  it('throws when an unknown context template is provided', async () => {
+    await expect(
+      runGenerateCommand(['intent text', '--context-template', 'missing']),
+    ).rejects.toThrow('Unknown context template')
+  })
+
+  it('applies the built-in nvim context template and surfaces metadata', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--json', '--context-template', 'nvim'])
+    expect(log).toHaveBeenCalled()
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('console.log was not called')
+    }
+    const [jsonOutput] = firstCall as [string]
+    const payload = JSON.parse(jsonOutput) as {
+      contextTemplate?: string
+      renderedPrompt?: string
+    }
+    expect(payload.contextTemplate).toBe('nvim')
+    expect(payload.renderedPrompt).toContain('NeoVim Prompt Buffer')
+    expect(payload.renderedPrompt).toContain('prompt v1')
+    log.mockRestore()
+  })
+
+  it('uses user-defined templates from config and appends prompt when placeholder is missing', async () => {
+    mockLoadCliConfig.mockResolvedValue({
+      promptGenerator: { defaultGeminiModel: 'gemini-1.5-pro' },
+      contextTemplates: { scratch: 'Paste into scratch buffer for review' },
+    })
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--json', '--context-template', 'scratch'])
+    expect(log).toHaveBeenCalled()
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('console.log was not called')
+    }
+    const [jsonOutput] = firstCall as [string]
+    const payload = JSON.parse(jsonOutput) as { renderedPrompt?: string }
+    expect(payload.renderedPrompt).toContain('Paste into scratch buffer for review')
+    expect(payload.renderedPrompt?.trim().endsWith('prompt v1')).toBe(true)
     log.mockRestore()
   })
 

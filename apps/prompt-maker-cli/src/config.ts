@@ -13,6 +13,7 @@ export type PromptMakerCliConfig = {
   geminiApiKey?: string
   geminiBaseUrl?: string
   promptGenerator?: PromptGeneratorConfig
+  contextTemplates?: Record<string, string>
 }
 
 let cachedConfig: PromptMakerCliConfig | null | undefined
@@ -160,6 +161,17 @@ const parseConfig = (raw: unknown): PromptMakerCliConfig => {
       )
     }
     config.promptGenerator = promptGenerator
+  }
+
+  if (raw.contextTemplates !== undefined) {
+    if (!isRecord(raw.contextTemplates)) {
+      throw new Error('"contextTemplates" must be an object if provided.')
+    }
+    const templates: Record<string, string> = {}
+    for (const [key, value] of Object.entries(raw.contextTemplates)) {
+      templates[key] = expectString(value, `contextTemplates.${key}`)
+    }
+    config.contextTemplates = templates
   }
 
   return config
