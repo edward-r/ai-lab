@@ -63,6 +63,7 @@ type GenerateArgs = {
   polish: boolean
   polishModel?: string
   json: boolean
+  quiet: boolean
   progress: boolean
   stream: StreamMode
   showContext: boolean
@@ -223,17 +224,24 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const refinements: string[] = []
   const interactive = args.interactive && input.isTTY && output.isTTY
   const streamDispatcher = createStreamDispatcher(args.stream)
+  const uiSuppressed = args.quiet || streamDispatcher.mode !== 'none'
 
   if (args.interactive && !interactive) {
     console.warn('Interactive mode requested but no TTY detected; continuing non-interactive run.')
   }
 
-  const shouldDisplay = !args.json
-  const showProgress = args.progress && !interactive
+  const shouldDisplay = !args.json && !args.quiet
+  const progressReportingEnabled = args.progress && !interactive
+  const startProgressIfEnabled = (label: string): ProgressHandle | null => {
+    if (!progressReportingEnabled) {
+      return null
+    }
+    return startProgress(label, { showSpinner: !uiSuppressed, stream: streamDispatcher })
+  }
 
   if (args.urls.length > 0) {
-    const urlProgress = showProgress ? startProgress('Fetching URL context') : null
-    const urlOptions: ResolveUrlContextOptions | undefined = showProgress
+    const urlProgress = startProgressIfEnabled('Fetching URL context')
+    const urlOptions: ResolveUrlContextOptions | undefined = progressReportingEnabled
       ? {
           onProgress: (message: string) => {
             urlProgress?.setLabel(message)
@@ -252,12 +260,12 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   if (args.smartContext) {
-    const smartContextProgress = showProgress ? startProgress('Preparing smart context') : null
+    const smartContextProgress = startProgressIfEnabled('Preparing smart context')
     try {
       const smartFiles = await resolveSmartContextFiles(
         intent,
         fileContext,
-        showProgress ? (message) => smartContextProgress?.setLabel(message) : undefined,
+        progressReportingEnabled ? (message) => smartContextProgress?.setLabel(message) : undefined,
         args.smartContextRoot,
       )
       if (smartFiles.length > 0) {
@@ -283,7 +291,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     await writeContextFile(args.contextFile, args.contextFormat, fileContext)
   }
 
-  const generationProgress = showProgress ? startProgress('Generating prompt') : null
+  const generationProgress = startProgressIfEnabled('Generating prompt')
   const handleUploadStateChange =
     generationProgress || streamDispatcher.mode !== 'none'
       ? createUploadStateTracker(generationProgress, 'Generating prompt', streamDispatcher)
@@ -303,7 +311,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   let polishedPrompt: string | undefined
 
   if (args.polish) {
-    const polishProgress = showProgress ? startProgress('Polishing prompt') : null
+    const polishProgress = startProgressIfEnabled('Polishing prompt')
     try {
       polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
     } finally {
@@ -339,7 +347,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     return
   }
 
-  if (polishedPrompt) {
+  if (polishedPrompt && shouldDisplay) {
     displayPolishedPrompt(polishedPrompt, polishModel)
   }
 
@@ -390,6 +398,11 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       type: 'boolean',
       default: false,
       describe: 'Emit machine-readable JSON (non-interactive only)',
+    })
+    .option('quiet', {
+      type: 'boolean',
+      default: false,
+      describe: 'Suppress interactive UI output (telemetry, banners)',
     })
     .option('progress', {
       type: 'boolean',
@@ -470,6 +483,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     openChatgpt: boolean
     polish: boolean
     json: boolean
+    quiet: boolean
     progress: boolean
     help?: boolean
     context: string | string[]
@@ -503,6 +517,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     openChatGpt: parsed.openChatgpt ?? false,
     polish: parsed.polish ?? false,
     json: parsed.json ?? false,
+    quiet: parsed.quiet ?? false,
     progress: parsed.progress ?? true,
     stream: parsed.stream ?? 'none',
     showContext: parsed.showContext ?? false,
@@ -977,31 +992,44 @@ type ProgressHandle = {
   setLabel: (label: string) => void
 }
 
-const startProgress = (label: string): ProgressHandle => {
-  const spinner = ora({
-    text: chalk.dim(label),
-    color: 'cyan',
-    spinner: 'dots',
-  }).start()
+const startProgress = (
+  label: string,
+  options: { showSpinner: boolean; stream: StreamDispatcher },
+): ProgressHandle => {
+  const spinner = options.showSpinner
+    ? ora({
+        text: chalk.dim(label),
+        color: 'cyan',
+        spinner: 'dots',
+      }).start()
+    : null
   let stopped = false
+
+  options.stream.emit({ event: 'progress.update', label, state: 'start' })
 
   const stop = (finalMessage?: string): void => {
     if (stopped) {
       return
     }
     stopped = true
-    if (finalMessage) {
-      spinner.succeed(finalMessage)
-      return
+    if (spinner) {
+      if (finalMessage) {
+        spinner.succeed(finalMessage)
+      } else {
+        spinner.succeed(chalk.green(`${label} ✓`))
+      }
     }
-    spinner.succeed(chalk.green(`${label} ✓`))
+    options.stream.emit({ event: 'progress.update', label: finalMessage ?? label, state: 'stop' })
   }
 
   const setLabel = (nextLabel: string): void => {
     if (stopped) {
       return
     }
-    spinner.text = chalk.dim(nextLabel)
+    if (spinner) {
+      spinner.text = chalk.dim(nextLabel)
+    }
+    options.stream.emit({ event: 'progress.update', label: nextLabel, state: 'update' })
   }
 
   return { stop, setLabel }

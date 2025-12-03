@@ -320,6 +320,23 @@ describe('runGenerateCommand', () => {
     expect(eventTypes).toContain('generation.final')
   })
 
+  it('suppresses UI banners when --quiet is provided', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet'])
+    expect(log).not.toHaveBeenCalled()
+    log.mockRestore()
+  })
+
+  it('still prints JSON payload when --quiet and --json are combined', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'))
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet', '--json'])
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
+    jest.useRealTimers()
+    log.mockRestore()
+  })
+
   it('throws when --json and --interactive are combined', async () => {
     await expect(runGenerateCommand(['intent text', '--json', '--interactive'])).rejects.toThrow(
       '--json cannot be combined with --interactive.',
