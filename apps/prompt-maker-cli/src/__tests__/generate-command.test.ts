@@ -3,7 +3,7 @@ import clipboard from 'clipboardy'
 import open from 'open'
 
 import { callLLM } from '@prompt-maker/core'
-import { runGenerateCommand } from '../generate-command'
+import { runGenerateCommand, InteractiveTransport } from '../generate-command'
 import { appendToHistory } from '../history-logger'
 import { readFromStdin } from '../io'
 import { resolveFileContext } from '../file-context'
@@ -101,6 +101,29 @@ afterAll(() => {
   Object.defineProperty(process.stdin, 'isTTY', { value: originalStdinIsTTY })
   Object.defineProperty(process.stdout, 'isTTY', { value: originalStdoutIsTTY })
 })
+
+type TestInteractiveCommand = { type: 'refine'; instruction: string } | { type: 'finish' }
+
+const setupTransportMock = (commands: TestInteractiveCommand[], events: string[]): (() => void) => {
+  const commandQueue = [...commands]
+  const startSpy = jest.spyOn(InteractiveTransport.prototype, 'start').mockResolvedValue(undefined)
+  const stopSpy = jest.spyOn(InteractiveTransport.prototype, 'stop').mockResolvedValue(undefined)
+  const writerSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'getEventWriter')
+    .mockReturnValue((chunk: string) => {
+      events.push(chunk.trim())
+    })
+  const nextCommandSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'nextCommand')
+    .mockImplementation(async () => commandQueue.shift() ?? null)
+
+  return () => {
+    startSpy.mockRestore()
+    stopSpy.mockRestore()
+    writerSpy.mockRestore()
+    nextCommandSpy.mockRestore()
+  }
+}
 
 describe('runGenerateCommand', () => {
   beforeEach(() => {
@@ -341,6 +364,41 @@ describe('runGenerateCommand', () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
     jest.useRealTimers()
     log.mockRestore()
+  })
+
+  it('drives interactive refinements via transport commands without TTY', async () => {
+    promptService.generatePrompt
+      .mockResolvedValueOnce('first prompt')
+      .mockResolvedValueOnce('second prompt')
+    const transportEvents: string[] = []
+    const restoreTransport = setupTransportMock(
+      [{ type: 'refine', instruction: 'Tighten tone' }, { type: 'finish' }],
+      transportEvents,
+    )
+
+    try {
+      await runGenerateCommand(['intent text', '--interactive-transport', '/tmp/pmc.sock'])
+    } finally {
+      restoreTransport()
+    }
+
+    expect(promptMock).not.toHaveBeenCalled()
+    expect(promptService.generatePrompt).toHaveBeenCalledTimes(2)
+    expect(transportEvents.some((event) => event.includes('interactive.state'))).toBe(true)
+  })
+
+  it('ends interactive transport sessions when finish command arrives first', async () => {
+    const transportEvents: string[] = []
+    const restoreTransport = setupTransportMock([{ type: 'finish' }], transportEvents)
+
+    try {
+      await runGenerateCommand(['intent text', '--interactive-transport', '/tmp/pmc.sock'])
+    } finally {
+      restoreTransport()
+    }
+
+    expect(promptService.generatePrompt).toHaveBeenCalledTimes(1)
+    expect(promptMock).not.toHaveBeenCalled()
   })
 
   it('throws when an unknown context template is provided', async () => {

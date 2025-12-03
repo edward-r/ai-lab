@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import net from 'node:net'
 import { stdin as input, stdout as output } from 'node:process'
 
 import boxen from 'boxen'
@@ -79,6 +80,7 @@ type GenerateArgs = {
   showContext: boolean
   contextTemplate?: string
   contextFile?: string
+  interactiveTransport?: string
   contextFormat: 'text' | 'json'
   help: boolean
   context: string[]
@@ -123,6 +125,8 @@ type StreamEventBase<EventName extends string, Payload extends object> = {
   event: EventName
   timestamp: string
 } & Payload
+
+type InteractiveMode = 'transport' | 'tty' | 'none'
 
 type ContextTelemetryStreamEvent = StreamEventBase<
   'context.telemetry',
@@ -190,21 +194,49 @@ type StreamDispatcher = {
   emit: (event: StreamEventInput) => void
 }
 
+type StreamDispatcherOptions = {
+  writer?: StreamWriter
+  taps?: StreamWriter[]
+}
+
 const createStreamDispatcher = (
   mode: StreamMode,
-  writer: StreamWriter = (chunk) => {
-    output.write(chunk)
-  },
+  options: StreamDispatcherOptions = {},
 ): StreamDispatcher => {
+  const writer =
+    options.writer ??
+    ((chunk: string): void => {
+      output.write(chunk)
+    })
+  const taps = options.taps ?? []
+
+  const emitToTaps = (serialized: string): void => {
+    taps.forEach((tap) => {
+      tap(serialized)
+    })
+  }
+
   if (mode !== 'jsonl') {
-    return { mode, emit: () => {} }
+    return {
+      mode,
+      emit: (event) => {
+        if (taps.length === 0) {
+          return
+        }
+        const payload = { ...event, timestamp: new Date().toISOString() }
+        const serialized = `${JSON.stringify(payload)}\n`
+        emitToTaps(serialized)
+      },
+    }
   }
 
   return {
     mode,
     emit: (event) => {
       const payload = { ...event, timestamp: new Date().toISOString() }
-      writer(`${JSON.stringify(payload)}\n`)
+      const serialized = `${JSON.stringify(payload)}\n`
+      writer(serialized)
+      emitToTaps(serialized)
     },
   }
 }
@@ -220,171 +252,218 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     return
   }
 
-  if (args.json && args.interactive) {
+  const interactiveTransportPath = args.interactiveTransport?.trim()
+
+  if (args.interactiveTransport && !interactiveTransportPath) {
+    throw new Error('--interactive-transport requires a non-empty path.')
+  }
+
+  const wantsInteractiveSession = args.interactive || Boolean(interactiveTransportPath)
+
+  if (args.json && wantsInteractiveSession) {
     throw new Error('--json cannot be combined with --interactive.')
   }
 
-  const intent = await resolveIntent(args)
-  let fileContext = await resolveFileContext(args.context)
-  const service = await createPromptGeneratorService()
-  let model = args.model ?? (await resolveDefaultGenerateModel())
-
-  if (args.video.length > 0 && !isGemini(model)) {
-    model = await resolveGeminiVideoModel()
-    console.warn('Switching to Gemini 1.5 Pro to support video input.')
-  }
-
-  const refinements: string[] = []
-  const interactive = args.interactive && input.isTTY && output.isTTY
-  const streamDispatcher = createStreamDispatcher(args.stream)
-  const uiSuppressed = args.quiet || streamDispatcher.mode !== 'none'
   const contextTemplateName = args.contextTemplate?.trim()
 
   if (args.contextTemplate && !contextTemplateName) {
     throw new Error('--context-template requires a non-empty template name.')
   }
 
-  const contextTemplateDefinition = contextTemplateName
-    ? await resolveContextTemplate(contextTemplateName)
+  const interactiveTransport = interactiveTransportPath
+    ? new InteractiveTransport(interactiveTransportPath)
     : null
+  const transportCleanupHandlers: Array<{ event: NodeJS.Signals | 'exit'; handler: () => void }> =
+    []
 
-  if (args.interactive && !interactive) {
-    console.warn('Interactive mode requested but no TTY detected; continuing non-interactive run.')
-  }
-
-  const shouldDisplay = !args.json && !args.quiet
-  const progressReportingEnabled = args.progress && !interactive
-  const startProgressIfEnabled = (label: string): ProgressHandle | null => {
-    if (!progressReportingEnabled) {
-      return null
-    }
-    return startProgress(label, { showSpinner: !uiSuppressed, stream: streamDispatcher })
-  }
-
-  if (args.urls.length > 0) {
-    const urlProgress = startProgressIfEnabled('Fetching URL context')
-    const urlOptions: ResolveUrlContextOptions | undefined = progressReportingEnabled
-      ? {
-          onProgress: (message: string) => {
-            urlProgress?.setLabel(message)
-          },
+  try {
+    if (interactiveTransport) {
+      await interactiveTransport.start()
+      const events: Array<NodeJS.Signals | 'exit'> = ['SIGINT', 'SIGTERM', 'exit']
+      events.forEach((event) => {
+        const handler = (): void => {
+          void interactiveTransport.stop()
         }
-      : undefined
-
-    try {
-      const urlFiles = await resolveUrlContext(args.urls, urlOptions)
-      if (urlFiles.length > 0) {
-        fileContext = [...fileContext, ...urlFiles]
-      }
-    } finally {
-      urlProgress?.stop('URL context ready')
+        process.once(event, handler)
+        transportCleanupHandlers.push({ event, handler })
+      })
     }
-  }
 
-  if (args.smartContext) {
-    const smartContextProgress = startProgressIfEnabled('Preparing smart context')
-    try {
-      const smartFiles = await resolveSmartContextFiles(
-        intent,
-        fileContext,
-        progressReportingEnabled ? (message) => smartContextProgress?.setLabel(message) : undefined,
-        args.smartContextRoot,
+    const intent = await resolveIntent(args)
+    let fileContext = await resolveFileContext(args.context)
+    const service = await createPromptGeneratorService()
+    let model = args.model ?? (await resolveDefaultGenerateModel())
+
+    if (args.video.length > 0 && !isGemini(model)) {
+      model = await resolveGeminiVideoModel()
+      console.warn('Switching to Gemini 1.5 Pro to support video input.')
+    }
+
+    const contextTemplateDefinition = contextTemplateName
+      ? await resolveContextTemplate(contextTemplateName)
+      : null
+
+    const refinements: string[] = []
+    const transportTaps = interactiveTransport ? [interactiveTransport.getEventWriter()] : undefined
+    const streamDispatcher = createStreamDispatcher(args.stream, {
+      ...(transportTaps ? { taps: transportTaps } : {}),
+    })
+    const uiSuppressed = args.quiet || streamDispatcher.mode !== 'none'
+
+    const interactiveMode: InteractiveMode = interactiveTransport
+      ? 'transport'
+      : args.interactive && input.isTTY && output.isTTY
+        ? 'tty'
+        : 'none'
+
+    if (args.interactive && interactiveMode !== 'tty' && !interactiveTransport) {
+      console.warn(
+        'Interactive mode requested but no TTY detected; continuing non-interactive run.',
       )
-      if (smartFiles.length > 0) {
-        fileContext = [...fileContext, ...smartFiles]
+    }
+
+    const shouldDisplay = !args.json && !args.quiet
+    const progressReportingEnabled = args.progress && interactiveMode === 'none'
+    const startProgressIfEnabled = (label: string): ProgressHandle | null => {
+      if (!progressReportingEnabled) {
+        return null
       }
-    } finally {
-      smartContextProgress?.stop()
+      return startProgress(label, { showSpinner: !uiSuppressed, stream: streamDispatcher })
     }
-  }
 
-  if (args.showContext) {
-    const writeLine = args.json
-      ? (value: string): void => {
-          console.error(value)
+    if (args.urls.length > 0) {
+      const urlProgress = startProgressIfEnabled('Fetching URL context')
+      const urlOptions: ResolveUrlContextOptions | undefined = progressReportingEnabled
+        ? {
+            onProgress: (message: string) => {
+              urlProgress?.setLabel(message)
+            },
+          }
+        : undefined
+
+      try {
+        const urlFiles = await resolveUrlContext(args.urls, urlOptions)
+        if (urlFiles.length > 0) {
+          fileContext = [...fileContext, ...urlFiles]
         }
-      : (value: string): void => {
-          console.log(value)
+      } finally {
+        urlProgress?.stop('URL context ready')
+      }
+    }
+
+    if (args.smartContext) {
+      const smartContextProgress = startProgressIfEnabled('Preparing smart context')
+      try {
+        const smartFiles = await resolveSmartContextFiles(
+          intent,
+          fileContext,
+          progressReportingEnabled
+            ? (message) => smartContextProgress?.setLabel(message)
+            : undefined,
+          args.smartContextRoot,
+        )
+        if (smartFiles.length > 0) {
+          fileContext = [...fileContext, ...smartFiles]
         }
-    displayContextFiles(fileContext, args.contextFormat, writeLine)
-  }
+      } finally {
+        smartContextProgress?.stop()
+      }
+    }
 
-  if (args.contextFile) {
-    await writeContextFile(args.contextFile, args.contextFormat, fileContext)
-  }
+    if (args.showContext) {
+      const writeLine = args.json
+        ? (value: string): void => {
+            console.error(value)
+          }
+        : (value: string): void => {
+            console.log(value)
+          }
+      displayContextFiles(fileContext, args.contextFormat, writeLine)
+    }
 
-  const generationProgress = startProgressIfEnabled('Generating prompt')
-  const handleUploadStateChange =
-    generationProgress || streamDispatcher.mode !== 'none'
-      ? createUploadStateTracker(generationProgress, 'Generating prompt', streamDispatcher)
+    if (args.contextFile) {
+      await writeContextFile(args.contextFile, args.contextFormat, fileContext)
+    }
+
+    const generationProgress = startProgressIfEnabled('Generating prompt')
+    const handleUploadStateChange =
+      generationProgress || streamDispatcher.mode !== 'none'
+        ? createUploadStateTracker(generationProgress, 'Generating prompt', streamDispatcher)
+        : undefined
+
+    const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
+      service,
+      context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
+      interactiveMode,
+      interactiveTransport,
+      display: shouldDisplay,
+      stream: streamDispatcher,
+      ...(handleUploadStateChange ? { onUploadStateChange: handleUploadStateChange } : {}),
+    })
+    generationProgress?.stop('Generated prompt ✓')
+
+    const polishModel = args.polishModel ?? process.env.PROMPT_MAKER_POLISH_MODEL ?? model
+    let polishedPrompt: string | undefined
+
+    if (args.polish) {
+      const polishProgress = startProgressIfEnabled('Polishing prompt')
+      try {
+        polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
+      } finally {
+        polishProgress?.stop('Polished prompt ✓')
+      }
+    }
+
+    const artifact = polishedPrompt ?? generatedPrompt
+    const renderedPrompt = contextTemplateDefinition
+      ? renderContextTemplate(contextTemplateDefinition, artifact)
       : undefined
+    const finalArtifact = renderedPrompt ?? artifact
 
-  const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
-    service,
-    context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
-    interactive,
-    display: shouldDisplay,
-    stream: streamDispatcher,
-    ...(handleUploadStateChange ? { onUploadStateChange: handleUploadStateChange } : {}),
-  })
-  generationProgress?.stop('Generated prompt ✓')
+    await maybeCopyToClipboard(args.copy, finalArtifact)
+    await maybeOpenChatGpt(args.openChatGpt, finalArtifact)
 
-  const polishModel = args.polishModel ?? process.env.PROMPT_MAKER_POLISH_MODEL ?? model
-  let polishedPrompt: string | undefined
-
-  if (args.polish) {
-    const polishProgress = startProgressIfEnabled('Polishing prompt')
-    try {
-      polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
-    } finally {
-      polishProgress?.stop('Polished prompt ✓')
+    const payload: GenerateJsonPayload = {
+      intent,
+      model,
+      prompt: generatedPrompt,
+      refinements: [...refinements],
+      iterations,
+      interactive: interactiveMode !== 'none',
+      timestamp: new Date().toISOString(),
     }
-  }
 
-  const artifact = polishedPrompt ?? generatedPrompt
-  const renderedPrompt = contextTemplateDefinition
-    ? renderContextTemplate(contextTemplateDefinition, artifact)
-    : undefined
-  const finalArtifact = renderedPrompt ?? artifact
+    if (polishedPrompt) {
+      payload.polishedPrompt = polishedPrompt
+      payload.polishModel = polishModel
+    }
 
-  await maybeCopyToClipboard(args.copy, finalArtifact)
-  await maybeOpenChatGpt(args.openChatGpt, finalArtifact)
+    if (contextTemplateName && renderedPrompt) {
+      payload.contextTemplate = contextTemplateName
+      payload.renderedPrompt = renderedPrompt
+    }
 
-  const payload: GenerateJsonPayload = {
-    intent,
-    model,
-    prompt: generatedPrompt,
-    refinements: [...refinements],
-    iterations,
-    interactive,
-    timestamp: new Date().toISOString(),
-  }
+    streamDispatcher.emit({ event: 'generation.final', result: payload })
 
-  if (polishedPrompt) {
-    payload.polishedPrompt = polishedPrompt
-    payload.polishModel = polishModel
-  }
+    if (args.json) {
+      console.log(JSON.stringify(payload, null, 2))
+      await appendToHistory(payload)
+      return
+    }
 
-  if (contextTemplateName && renderedPrompt) {
-    payload.contextTemplate = contextTemplateName
-    payload.renderedPrompt = renderedPrompt
-  }
+    if (renderedPrompt && shouldDisplay && contextTemplateName) {
+      displayContextTemplatePrompt(renderedPrompt, contextTemplateName)
+    } else if (polishedPrompt && shouldDisplay) {
+      displayPolishedPrompt(polishedPrompt, polishModel)
+    }
 
-  streamDispatcher.emit({ event: 'generation.final', result: payload })
-
-  if (args.json) {
-    console.log(JSON.stringify(payload, null, 2))
     await appendToHistory(payload)
-    return
+  } finally {
+    transportCleanupHandlers.forEach(({ event, handler }) => {
+      process.off(event, handler)
+    })
+    await interactiveTransport?.stop()
   }
-
-  if (renderedPrompt && shouldDisplay && contextTemplateName) {
-    displayContextTemplatePrompt(renderedPrompt, contextTemplateName)
-  } else if (polishedPrompt && shouldDisplay) {
-    displayPolishedPrompt(polishedPrompt, polishModel)
-  }
-
-  await appendToHistory(payload)
 }
 
 const parseGenerateArgs = (argv: string[]): ParsedArgs => {
@@ -451,6 +530,10 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     .option('context-template', {
       type: 'string',
       describe: 'Wrap the final prompt using a named template',
+    })
+    .option('interactive-transport', {
+      type: 'string',
+      describe: 'Listen on a local socket/pipe for interactive commands',
     })
     .option('show-context', {
       type: 'boolean',
@@ -533,6 +616,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     smartContextRoot?: string
     showContext: boolean
     contextTemplate?: string
+    interactiveTransport?: string
     stream?: StreamMode
     _?: (string | number)[]
   }>
@@ -567,6 +651,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     video: normalizeListArg(parsed.video),
     smartContext: parsed.smartContext ?? false,
     ...(parsed.contextTemplate ? { contextTemplate: parsed.contextTemplate } : {}),
+    ...(parsed.interactiveTransport ? { interactiveTransport: parsed.interactiveTransport } : {}),
     ...(parsed.contextFile ? { contextFile: parsed.contextFile } : {}),
     ...(parsed.smartContextRoot ? { smartContextRoot: parsed.smartContextRoot } : {}),
   }
@@ -645,14 +730,16 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
 const runGenerationWorkflow = async ({
   service,
   context,
-  interactive,
+  interactiveMode,
+  interactiveTransport,
   display,
   stream,
   onUploadStateChange,
 }: {
   service: PromptGenerator
   context: LoopContext
-  interactive: boolean
+  interactiveMode: InteractiveMode
+  interactiveTransport?: InteractiveTransport | null
   display: boolean
   stream: StreamDispatcher
   onUploadStateChange?: UploadStateChange
@@ -686,40 +773,78 @@ const runGenerationWorkflow = async ({
     { ...context, iteration },
     display,
     stream,
-    interactive,
+    interactiveMode !== 'none',
     onUploadStateChange,
   )
 
-  if (interactive) {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const wantsRefine = await askShouldRefine()
-      if (!wantsRefine) {
-        break
-      }
+  if (interactiveMode !== 'none') {
+    stream.emit({ event: 'interactive.state', phase: 'start', iteration })
+    stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
 
-      const refinement = await collectRefinementInstruction()
-      if (!refinement) {
-        console.log(chalk.dim('No refinement provided. Ending interactive session.'))
-        break
+    if (interactiveMode === 'transport' && interactiveTransport) {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
+        const command = await interactiveTransport.nextCommand()
+        if (!command || command.type === 'finish') {
+          break
+        }
+        const instruction = command.instruction.trim()
+        if (!instruction) {
+          continue
+        }
+        context.refinements.push(instruction)
+        iteration += 1
+        currentPrompt = await generateAndMaybeDisplay(
+          service,
+          {
+            ...context,
+            iteration,
+            previousPrompt: currentPrompt,
+            latestRefinement: instruction,
+          },
+          display,
+          stream,
+          true,
+          onUploadStateChange,
+        )
+        stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
       }
+    } else {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const wantsRefine = await askShouldRefine()
+        if (!wantsRefine) {
+          break
+        }
 
-      context.refinements.push(refinement)
-      iteration += 1
-      currentPrompt = await generateAndMaybeDisplay(
-        service,
-        {
-          ...context,
-          iteration,
-          previousPrompt: currentPrompt,
-          latestRefinement: refinement,
-        },
-        display,
-        stream,
-        interactive,
-        onUploadStateChange,
-      )
+        stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
+        const refinement = await collectRefinementInstruction()
+        if (!refinement) {
+          console.log(chalk.dim('No refinement provided. Ending interactive session.'))
+          break
+        }
+
+        context.refinements.push(refinement)
+        iteration += 1
+        currentPrompt = await generateAndMaybeDisplay(
+          service,
+          {
+            ...context,
+            iteration,
+            previousPrompt: currentPrompt,
+            latestRefinement: refinement,
+          },
+          display,
+          stream,
+          true,
+          onUploadStateChange,
+        )
+        stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
+      }
     }
+
+    stream.emit({ event: 'interactive.state', phase: 'complete', iteration })
   }
 
   return { prompt: currentPrompt, iterations: iteration }
@@ -1145,6 +1270,193 @@ const resolveContextTemplate = async (name: string): Promise<string> => {
   const availableList = available.length > 0 ? available.join(', ') : 'none'
 
   throw new Error(`Unknown context template "${name}". Available templates: ${availableList}.`)
+}
+
+type InteractiveCommand = { type: 'refine'; instruction: string } | { type: 'finish' }
+
+const isWindowsNamedPipePath = (target: string): boolean => target.startsWith('\\\\.\\pipe\\')
+
+const isFsNotFoundError = (error: unknown): boolean =>
+  Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      typeof (error as { code?: unknown }).code === 'string' &&
+      (error as { code: string }).code === 'ENOENT',
+  )
+
+export class InteractiveTransport {
+  private server: net.Server | null = null
+  private client: net.Socket | null = null
+  private buffer = ''
+  private commandQueue: InteractiveCommand[] = []
+  private pendingResolvers: Array<(command: InteractiveCommand | null) => void> = []
+  private stopped = false
+
+  constructor(private readonly socketPath: string) {}
+
+  async start(): Promise<void> {
+    if (!isWindowsNamedPipePath(this.socketPath)) {
+      try {
+        await fs.unlink(this.socketPath)
+      } catch (error) {
+        if (!isFsNotFoundError(error)) {
+          throw error
+        }
+      }
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const server = net.createServer((socket) => this.handleConnection(socket))
+      const onError = (error: Error): void => {
+        server.close()
+        reject(error)
+      }
+      server.once('error', onError)
+      server.listen(this.socketPath, () => {
+        server.off('error', onError)
+        this.server = server
+        resolve()
+      })
+    })
+  }
+
+  async stop(): Promise<void> {
+    if (this.stopped) {
+      return
+    }
+    this.stopped = true
+
+    if (this.client) {
+      this.client.removeAllListeners()
+      this.client.destroy()
+      this.client = null
+    }
+
+    if (this.server) {
+      await new Promise<void>((resolve) => {
+        this.server?.close(() => resolve())
+      })
+      this.server = null
+    }
+
+    if (!isWindowsNamedPipePath(this.socketPath)) {
+      try {
+        await fs.unlink(this.socketPath)
+      } catch (error) {
+        if (!isFsNotFoundError(error)) {
+          throw error
+        }
+      }
+    }
+
+    this.flushPending()
+  }
+
+  getEventWriter(): StreamWriter {
+    return (chunk) => {
+      if (this.client && !this.client.destroyed) {
+        this.client.write(chunk)
+      }
+    }
+  }
+
+  async nextCommand(): Promise<InteractiveCommand | null> {
+    if (this.commandQueue.length > 0) {
+      return this.commandQueue.shift() ?? null
+    }
+
+    if (this.stopped) {
+      return null
+    }
+
+    return await new Promise<InteractiveCommand | null>((resolve) => {
+      this.pendingResolvers.push(resolve)
+    })
+  }
+
+  private handleConnection(socket: net.Socket): void {
+    if (this.client && !this.client.destroyed) {
+      this.client.destroy()
+    }
+    this.client = socket
+    this.buffer = ''
+    socket.setEncoding('utf8')
+    socket.on('data', (data: string) => {
+      this.handleData(data)
+    })
+    socket.on('close', () => {
+      if (this.client === socket) {
+        this.client = null
+      }
+      this.flushPending()
+    })
+    socket.on('error', () => {
+      if (this.client === socket) {
+        this.client = null
+      }
+    })
+  }
+
+  private handleData(data: string): void {
+    this.buffer += data
+    let newlineIndex = this.buffer.indexOf('\n')
+    while (newlineIndex >= 0) {
+      const raw = this.buffer.slice(0, newlineIndex).trim()
+      this.buffer = this.buffer.slice(newlineIndex + 1)
+      if (raw) {
+        this.processRawCommand(raw)
+      }
+      newlineIndex = this.buffer.indexOf('\n')
+    }
+  }
+
+  private processRawCommand(raw: string): void {
+    try {
+      const parsed = JSON.parse(raw) as { type?: string; instruction?: unknown }
+      if (parsed.type === 'refine' && typeof parsed.instruction === 'string') {
+        const instruction = parsed.instruction.trim()
+        if (!instruction) {
+          this.sendTransportError('Refinement instruction must be non-empty.')
+          return
+        }
+        this.enqueueCommand({ type: 'refine', instruction })
+        return
+      }
+
+      if (parsed.type === 'finish') {
+        this.enqueueCommand({ type: 'finish' })
+        return
+      }
+
+      this.sendTransportError('Unknown interactive command.')
+    } catch (error) {
+      this.sendTransportError('Invalid command payload; expected JSON.')
+    }
+  }
+
+  private enqueueCommand(command: InteractiveCommand): void {
+    if (this.pendingResolvers.length > 0) {
+      const resolve = this.pendingResolvers.shift()
+      resolve?.(command)
+      return
+    }
+    this.commandQueue.push(command)
+  }
+
+  private flushPending(): void {
+    while (this.pendingResolvers.length > 0) {
+      const resolve = this.pendingResolvers.shift()
+      resolve?.(null)
+    }
+    this.commandQueue = []
+  }
+
+  private sendTransportError(message: string): void {
+    if (this.client && !this.client.destroyed) {
+      this.client.write(`${JSON.stringify({ event: 'transport.error', message })}\n`)
+    }
+  }
 }
 
 const displayContextFiles = (
