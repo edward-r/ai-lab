@@ -388,6 +388,36 @@ describe('runGenerateCommand', () => {
     expect(iterationStart?.inputTokens).toBeGreaterThan(0)
   })
 
+  it('emits only jsonl lines when quiet streaming is requested', async () => {
+    const chunks: string[] = []
+    const writeSpy = jest.spyOn(process.stdout, 'write').mockImplementation(((
+      chunk: string | Uint8Array,
+      encoding?: BufferEncoding,
+      cb?: (err?: Error) => void,
+    ) => {
+      if (typeof chunk === 'string') {
+        chunks.push(chunk)
+      }
+      if (typeof cb === 'function') {
+        cb()
+      }
+      return true
+    }) as unknown as typeof process.stdout.write)
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+
+    await runGenerateCommand(['intent text', '--quiet', '--stream', 'jsonl', '--progress=false'])
+
+    writeSpy.mockRestore()
+    expect(logSpy).not.toHaveBeenCalled()
+    logSpy.mockRestore()
+
+    const jsonLines = chunks.map((chunk) => chunk.trim()).filter(Boolean)
+    expect(jsonLines.length).toBeGreaterThan(0)
+    jsonLines.forEach((line) => {
+      expect(() => JSON.parse(line)).not.toThrow()
+    })
+  })
+
   it('suppresses UI banners when --quiet is provided', async () => {
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--quiet'])

@@ -29,108 +29,108 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": "nx.json",
-        "hash": "10895747293426653132"
-      },
-      {
         "file": "jest.config.ts",
         "hash": "13088596769722367150"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
-      },
-      {
-        "file": "prompt-tests.yaml",
-        "hash": "5292543420146125941"
-      },
-      {
-        "file": "tsconfig.jest.json",
-        "hash": "1993338485262061146"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "10518738433177536737"
-      },
-      {
-        "file": "tests/mocks/yargs.ts",
-        "hash": "11738161071880740242"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "11436792623039980707"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "16667827072884385791"
-      },
-      {
-        "file": "package.json",
-        "hash": "14312176215329381090"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "5926859589672140026"
-      },
-      {
-        "file": "tests/mocks/boxen.ts",
-        "hash": "11996218918763836320"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
       },
       {
         "file": "tests/mocks/chalk.ts",
         "hash": "10609113037865940526"
       },
       {
-        "file": "scripts/run-cli-release.sh",
-        "hash": "1100940351036862444"
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
       },
       {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
+        "file": "AGENTS.md",
+        "hash": "5926859589672140026"
       },
       {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
+        "file": "tests/mocks/yargs.ts",
+        "hash": "11738161071880740242"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "11436792623039980707"
+      },
+      {
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "10518738433177536737"
       },
       {
         "file": ".prettierrc",
         "hash": "4872122421842301431"
       },
       {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": "nx.json",
+        "hash": "10895747293426653132"
+      },
+      {
+        "file": "prompt-tests.yaml",
+        "hash": "5292543420146125941"
+      },
+      {
         "file": "tsconfig.base.json",
         "hash": "13780919962843055140"
       },
       {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": "tests/mocks/ora.ts",
-        "hash": "14310063900782643358"
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
       },
       {
         "file": "eslint.config.mjs",
         "hash": "7102272948128927942"
       },
       {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
+        "file": "tsconfig.jest.json",
+        "hash": "1993338485262061146"
+      },
+      {
+        "file": "tests/mocks/ora.ts",
+        "hash": "14310063900782643358"
+      },
+      {
+        "file": "README.md",
+        "hash": "2139653527659314484"
+      },
+      {
+        "file": "tests/mocks/boxen.ts",
+        "hash": "11996218918763836320"
+      },
+      {
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "package.json",
+        "hash": "14312176215329381090"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "16667827072884385791"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": "scripts/run-cli-release.sh",
+        "hash": "1100940351036862444"
       }
     ],
     "projectFileMap": {
@@ -327,7 +327,7 @@
       "prompt-maker-cli": [
         {
           "file": "apps/prompt-maker-cli/README.md",
-          "hash": "613221944016122917"
+          "hash": "3374860144565538903"
         },
         {
           "file": "apps/prompt-maker-cli/docs/Hey-Presto-Screenshots.pdf",
@@ -404,7 +404,7 @@
         },
         {
           "file": "apps/prompt-maker-cli/src/__tests__/generate-command.test.ts",
-          "hash": "3705339995604335707",
+          "hash": "3348050914701331664",
           "deps": [
             "npm:clipboardy",
             "npm:open",
@@ -474,7 +474,7 @@
         },
         {
           "file": "apps/prompt-maker-cli/src/generate-command.ts",
-          "hash": "15485779369454263538",
+          "hash": "6215517274764315518",
           "deps": [
             "npm:boxen",
             "npm:chalk",

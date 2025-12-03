@@ -461,8 +461,8 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       : undefined
     const finalArtifact = renderedPrompt ?? artifact
 
-    await maybeCopyToClipboard(args.copy, finalArtifact)
-    await maybeOpenChatGpt(args.openChatGpt, finalArtifact)
+    await maybeCopyToClipboard(args.copy, finalArtifact, shouldDisplay)
+    await maybeOpenChatGpt(args.openChatGpt, finalArtifact, shouldDisplay)
 
     const payload: GenerateJsonPayload = {
       intent,
@@ -1147,21 +1147,31 @@ const isPromptCancellation = (error: unknown): boolean => {
   return false
 }
 
-const maybeCopyToClipboard = async (shouldCopy: boolean, prompt: string): Promise<void> => {
+const maybeCopyToClipboard = async (
+  shouldCopy: boolean,
+  prompt: string,
+  showFeedback: boolean,
+): Promise<void> => {
   if (!shouldCopy) {
     return
   }
 
   try {
     await clipboard.write(prompt)
-    console.log(chalk.green('✓ Copied prompt to clipboard.'))
+    if (showFeedback) {
+      console.log(chalk.green('✓ Copied prompt to clipboard.'))
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown clipboard error.'
     console.warn(chalk.yellow(`Failed to copy prompt to clipboard: ${message}`))
   }
 }
 
-const maybeOpenChatGpt = async (shouldOpen: boolean, prompt: string): Promise<void> => {
+const maybeOpenChatGpt = async (
+  shouldOpen: boolean,
+  prompt: string,
+  showFeedback: boolean,
+): Promise<void> => {
   if (!shouldOpen) {
     return
   }
@@ -1170,7 +1180,9 @@ const maybeOpenChatGpt = async (shouldOpen: boolean, prompt: string): Promise<vo
 
   try {
     await open(url)
-    console.log(chalk.green('✓ Opened ChatGPT with the generated prompt.'))
+    if (showFeedback) {
+      console.log(chalk.green('✓ Opened ChatGPT with the generated prompt.'))
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown browser error.'
     console.warn(chalk.yellow(`Failed to open ChatGPT: ${message}`))

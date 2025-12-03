@@ -82,6 +82,7 @@ Additional behaviors:
 - Each completed run is saved to `~/.config/prompt-maker-cli/history.jsonl` with a timestamp, so you can reconstruct past prompts or feed them into analytics.
 - `--show-context` dumps the resolved `<file …>` blocks to stdout (or stderr when `--json`) so you can copy the exact context into another assistant, while `--context-file` + `--context-format` capture the same payload for tooling; add `--smart-context-root <path>` when your embeddings should start from a different directory.
 - Styled telemetry banners, progress spinners, and Enquirer-powered refinement prompts make interactive mode easier to scan and drive.
+- `--quiet` suppresses purely cosmetic output (boxes, success ticks, clipboard/browser confirmations) while still surfacing warnings, errors, JSON payloads, and streaming events—perfect for editor integrations.
 
 ## Context templates
 
@@ -203,5 +204,17 @@ Env vars (`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_BASE_UR
 - Prefer `--json` + `jq -r '.polishedPrompt // .prompt'` when populating buffers.
 - Launch `--interactive` inside terminal splits to drive refinements; only the final artifact is copied/opened.
 - Keep `history.jsonl` synced (e.g., `tail -f`) to provide “recent prompts” pickers.
+- For a command-only transport channel (zero extra stdout noise), run the CLI via:
+
+  ```bash
+  prompt-maker-cli "Draft README polish" \
+    --quiet \
+    --stream jsonl \
+    --context-template nvim \
+    --context-file /tmp/pmc-context.json \
+    --interactive-transport /tmp/pmc.sock
+  ```
+
+  The plugin can tail the JSONL stream (or socket) for progress while reading the rendered prompt from `/tmp/pmc-context.json` or the final JSON payload.
 
 With context ingestion, image support, token telemetry, and JSON reasoning, `prompt-maker-cli` is ready for both terminal workflows and editor integrations. Build + install from repo root, run via `prompt-maker-cli` (or your alias), and enjoy reliable prompt contracts with full audit trails.
