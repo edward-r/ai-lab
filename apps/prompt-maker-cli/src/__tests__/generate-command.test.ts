@@ -191,6 +191,21 @@ describe('runGenerateCommand', () => {
     )
   })
 
+  it('treats inline intent after -i as a file path when it exists', async () => {
+    fs.stat.mockResolvedValue({ size: 256 })
+    fs.readFile.mockResolvedValue(Buffer.from('interactive file intent'))
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await runGenerateCommand(['-i', 'intent.md'])
+
+    expect(promptService.generatePrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: 'interactive file intent' }),
+    )
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('--intent-file'))
+
+    warn.mockRestore()
+  })
+
   it('falls back to stdin when no inline intent is provided', async () => {
     mockReadFromStdin.mockResolvedValue('stdin intent')
     await runGenerateCommand([])
