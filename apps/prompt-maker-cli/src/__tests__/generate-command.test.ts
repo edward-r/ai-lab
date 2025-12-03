@@ -288,6 +288,38 @@ describe('runGenerateCommand', () => {
     log.mockRestore()
   })
 
+  it('streams jsonl events when enabled', async () => {
+    const chunks: string[] = []
+    const writeSpy = jest.spyOn(process.stdout, 'write').mockImplementation(((
+      chunk: string | Uint8Array,
+      encoding?: BufferEncoding,
+      cb?: (err?: Error) => void,
+    ) => {
+      if (typeof chunk === 'string') {
+        chunks.push(chunk)
+      }
+      if (typeof cb === 'function') {
+        cb()
+      }
+      return true
+    }) as unknown as typeof process.stdout.write)
+
+    await runGenerateCommand(['intent text', '--stream', 'jsonl', '--progress=false'])
+
+    writeSpy.mockRestore()
+
+    const events = chunks
+      .map((chunk) => chunk.trim())
+      .filter((chunk) => chunk.startsWith('{') && chunk.endsWith('}'))
+      .map((chunk) => JSON.parse(chunk) as { event: string })
+    const eventTypes = events.map((event) => event.event)
+
+    expect(eventTypes).toContain('context.telemetry')
+    expect(eventTypes).toContain('generation.iteration.start')
+    expect(eventTypes).toContain('generation.iteration.complete')
+    expect(eventTypes).toContain('generation.final')
+  })
+
   it('throws when --json and --interactive are combined', async () => {
     await expect(runGenerateCommand(['intent text', '--json', '--interactive'])).rejects.toThrow(
       '--json cannot be combined with --interactive.',

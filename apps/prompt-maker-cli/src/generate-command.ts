@@ -27,6 +27,8 @@ import {
   isGemini,
   resolveDefaultGenerateModel,
   type PromptGenerationRequest,
+  type UploadDetail,
+  type UploadState,
   type UploadStateChange,
 } from './prompt-generator-service'
 
@@ -62,6 +64,7 @@ type GenerateArgs = {
   polishModel?: string
   json: boolean
   progress: boolean
+  stream: StreamMode
   showContext: boolean
   contextFile?: string
   contextFormat: 'text' | 'json'
@@ -100,6 +103,98 @@ type GenerateJsonPayload = {
   polishModel?: string
 }
 
+type StreamMode = 'none' | 'jsonl'
+
+type StreamEventBase<EventName extends string, Payload extends object> = {
+  event: EventName
+  timestamp: string
+} & Payload
+
+type ContextTelemetryStreamEvent = StreamEventBase<
+  'context.telemetry',
+  { telemetry: TokenTelemetry }
+>
+type ProgressStreamEvent = StreamEventBase<
+  'progress.update',
+  {
+    label: string
+    state: 'start' | 'update' | 'stop'
+  }
+>
+type UploadStreamEvent = StreamEventBase<
+  'upload.state',
+  { state: UploadState; detail: UploadDetail }
+>
+type GenerationIterationStartEvent = StreamEventBase<
+  'generation.iteration.start',
+  {
+    iteration: number
+    intent: string
+    model: string
+    interactive: boolean
+    refinements: string[]
+    latestRefinement?: string
+  }
+>
+type GenerationIterationCompleteEvent = StreamEventBase<
+  'generation.iteration.complete',
+  {
+    iteration: number
+    prompt: string
+    tokens: number
+  }
+>
+type InteractiveMilestoneStreamEvent = StreamEventBase<
+  'interactive.state',
+  {
+    phase: 'start' | 'prompt' | 'refine' | 'complete'
+    iteration: number
+  }
+>
+type GenerationFinalStreamEvent = StreamEventBase<
+  'generation.final',
+  { result: GenerateJsonPayload }
+>
+
+type StreamEvent =
+  | ContextTelemetryStreamEvent
+  | ProgressStreamEvent
+  | UploadStreamEvent
+  | GenerationIterationStartEvent
+  | GenerationIterationCompleteEvent
+  | InteractiveMilestoneStreamEvent
+  | GenerationFinalStreamEvent
+
+type StreamEventInput = {
+  [EventName in StreamEvent['event']]: Omit<Extract<StreamEvent, { event: EventName }>, 'timestamp'>
+}[StreamEvent['event']]
+
+type StreamWriter = (chunk: string) => void
+
+type StreamDispatcher = {
+  mode: StreamMode
+  emit: (event: StreamEventInput) => void
+}
+
+const createStreamDispatcher = (
+  mode: StreamMode,
+  writer: StreamWriter = (chunk) => {
+    output.write(chunk)
+  },
+): StreamDispatcher => {
+  if (mode !== 'jsonl') {
+    return { mode, emit: () => {} }
+  }
+
+  return {
+    mode,
+    emit: (event) => {
+      const payload = { ...event, timestamp: new Date().toISOString() }
+      writer(`${JSON.stringify(payload)}\n`)
+    },
+  }
+}
+
 const POLISH_SYSTEM_PROMPT =
   'You refine prompt contracts for language models. Preserve headings, bullet ordering, and constraints. Only tighten wording and fix inconsistencies.'
 
@@ -127,6 +222,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 
   const refinements: string[] = []
   const interactive = args.interactive && input.isTTY && output.isTTY
+  const streamDispatcher = createStreamDispatcher(args.stream)
 
   if (args.interactive && !interactive) {
     console.warn('Interactive mode requested but no TTY detected; continuing non-interactive run.')
@@ -188,15 +284,17 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   }
 
   const generationProgress = showProgress ? startProgress('Generating prompt') : null
-  const handleUploadStateChange = generationProgress
-    ? createUploadStateTracker(generationProgress, 'Generating prompt')
-    : undefined
+  const handleUploadStateChange =
+    generationProgress || streamDispatcher.mode !== 'none'
+      ? createUploadStateTracker(generationProgress, 'Generating prompt', streamDispatcher)
+      : undefined
 
   const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
     service,
     context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
     interactive,
     display: shouldDisplay,
+    stream: streamDispatcher,
     ...(handleUploadStateChange ? { onUploadStateChange: handleUploadStateChange } : {}),
   })
   generationProgress?.stop('Generated prompt ✓')
@@ -232,6 +330,8 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     payload.polishedPrompt = polishedPrompt
     payload.polishModel = polishModel
   }
+
+  streamDispatcher.emit({ event: 'generation.final', result: payload })
 
   if (args.json) {
     console.log(JSON.stringify(payload, null, 2))
@@ -295,6 +395,12 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
       type: 'boolean',
       default: true,
       describe: 'Show progress indicator',
+    })
+    .option('stream', {
+      type: 'string',
+      choices: ['none', 'jsonl'] as const,
+      default: 'none',
+      describe: 'Emit structured events via stdout',
     })
     .option('show-context', {
       type: 'boolean',
@@ -375,6 +481,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     smartContext: boolean
     smartContextRoot?: string
     showContext: boolean
+    stream?: StreamMode
     _?: (string | number)[]
   }>
 
@@ -397,6 +504,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     polish: parsed.polish ?? false,
     json: parsed.json ?? false,
     progress: parsed.progress ?? true,
+    stream: parsed.stream ?? 'none',
     showContext: parsed.showContext ?? false,
     contextFormat: parsed.contextFormat ?? 'text',
     help: Boolean(parsed.help),
@@ -485,12 +593,14 @@ const runGenerationWorkflow = async ({
   context,
   interactive,
   display,
+  stream,
   onUploadStateChange,
 }: {
   service: PromptGenerator
   context: LoopContext
   interactive: boolean
   display: boolean
+  stream: StreamDispatcher
   onUploadStateChange?: UploadStateChange
 }): Promise<{ prompt: string; iterations: number }> => {
   let iteration = 0
@@ -503,14 +613,17 @@ const runGenerationWorkflow = async ({
   const fileTokens = fileSummaries.reduce((acc, file) => acc + file.tokens, 0)
   const intentTokens = countTokens(context.intent)
   const totalInputTokens = fileTokens + intentTokens
+  const telemetry: TokenTelemetry = {
+    files: fileSummaries,
+    intentTokens,
+    fileTokens,
+    totalTokens: totalInputTokens,
+  }
+
+  stream.emit({ event: 'context.telemetry', telemetry })
 
   if (display) {
-    displayTokenSummary({
-      files: fileSummaries,
-      intentTokens,
-      fileTokens,
-      totalTokens: totalInputTokens,
-    })
+    displayTokenSummary(telemetry)
   }
 
   iteration += 1
@@ -518,6 +631,8 @@ const runGenerationWorkflow = async ({
     service,
     { ...context, iteration },
     display,
+    stream,
+    interactive,
     onUploadStateChange,
   )
 
@@ -546,6 +661,8 @@ const runGenerationWorkflow = async ({
           latestRefinement: refinement,
         },
         display,
+        stream,
+        interactive,
         onUploadStateChange,
       )
     }
@@ -562,6 +679,8 @@ const generateAndMaybeDisplay = async (
     latestRefinement?: string
   },
   display: boolean,
+  stream: StreamDispatcher,
+  interactive: boolean,
   onUploadStateChange?: UploadStateChange,
 ): Promise<string> => {
   const request: PromptGenerationRequest = {
@@ -581,10 +700,27 @@ const generateAndMaybeDisplay = async (
     request.refinementInstruction = context.latestRefinement
   }
 
+  stream.emit({
+    event: 'generation.iteration.start',
+    iteration: context.iteration,
+    intent: context.intent,
+    model: context.model,
+    interactive,
+    refinements: [...context.refinements],
+    ...(context.latestRefinement ? { latestRefinement: context.latestRefinement } : {}),
+  })
+
   const prompt = await service.generatePrompt(request)
+  const outputTokens = countTokens(prompt)
+
+  stream.emit({
+    event: 'generation.iteration.complete',
+    iteration: context.iteration,
+    prompt,
+    tokens: outputTokens,
+  })
 
   if (display) {
-    const outputTokens = countTokens(prompt)
     displayPrompt(prompt, context.iteration, outputTokens)
   }
 
@@ -872,24 +1008,28 @@ const startProgress = (label: string): ProgressHandle => {
 }
 
 const createUploadStateTracker = (
-  progress: ProgressHandle,
+  progress: ProgressHandle | null,
   defaultLabel: string,
+  stream?: StreamDispatcher,
 ): UploadStateChange => {
   let uploadsInFlight = 0
   const uploadLabel = 'Uploading...'
 
-  return (state, _detail) => {
+  return (state, detail) => {
     if (state === 'start') {
       uploadsInFlight += 1
       if (uploadsInFlight === 1) {
-        progress.setLabel(uploadLabel)
+        progress?.setLabel(uploadLabel)
       }
-      return
+    } else {
+      uploadsInFlight = Math.max(0, uploadsInFlight - 1)
+      if (uploadsInFlight === 0) {
+        progress?.setLabel(defaultLabel)
+      }
     }
 
-    uploadsInFlight = Math.max(0, uploadsInFlight - 1)
-    if (uploadsInFlight === 0) {
-      progress.setLabel(defaultLabel)
+    if (stream) {
+      stream.emit({ event: 'upload.state', state, detail })
     }
   }
 }
