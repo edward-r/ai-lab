@@ -89,6 +89,7 @@ type GenerateArgs = {
   video: string[]
   smartContext: boolean
   smartContextRoot?: string
+  inlineIntentAfterInteractive?: boolean
 }
 
 type ParsedArgs = {
@@ -557,7 +558,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 }
 
 const parseGenerateArgs = (argv: string[]): ParsedArgs => {
-  const { optionArgs, positionalIntent } = extractIntentArg(argv)
+  const { optionArgs, positionalIntent, positionalIntentAfterInteractive } = extractIntentArg(argv)
 
   const parser = yargs(optionArgs)
     .scriptName('prompt-maker-cli')
@@ -748,6 +749,9 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
 
   if (intent) {
     args.intent = intent
+    if (positionalIntentAfterInteractive) {
+      args.inlineIntentAfterInteractive = true
+    }
   }
 
   if (parsed.intentFile) {
@@ -783,24 +787,12 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
   }
 
   if (args.intentFile) {
-    const stats = await fs.stat(args.intentFile)
-    if (stats.size > MAX_INTENT_FILE_BYTES) {
-      const sizeKb = (stats.size / 1024).toFixed(1)
-      throw new Error(`Intent file ${args.intentFile} is too large (${sizeKb} KB).`)
-    }
+    return await readIntentFile(args.intentFile)
+  }
 
-    const buffer = await fs.readFile(args.intentFile)
-    if (buffer.includes(0)) {
-      throw new Error(
-        `Intent file ${args.intentFile} appears to be binary. Provide a UTF-8 text file.`,
-      )
-    }
-
-    const trimmed = buffer.toString('utf8').trim()
-    if (!trimmed) {
-      throw new Error(`Intent file ${args.intentFile} is empty.`)
-    }
-    return trimmed
+  const inlineIntentFromInteractiveFlag = await maybeResolveInlineIntentFile(args)
+  if (inlineIntentFromInteractiveFlag) {
+    return inlineIntentFromInteractiveFlag
   }
 
   if (args.intent?.trim()) {
@@ -815,6 +807,55 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
   throw new Error(
     'Intent text is required. Provide a quoted argument, use --intent-file, or pipe text via stdin.',
   )
+}
+
+const maybeResolveInlineIntentFile = async (args: GenerateArgs): Promise<string | null> => {
+  if (!args.inlineIntentAfterInteractive || !args.intent) {
+    return null
+  }
+
+  const candidatePath = args.intent.trim()
+  if (!candidatePath) {
+    return null
+  }
+
+  try {
+    const content = await readIntentFile(candidatePath)
+    console.warn(
+      chalk.yellow(
+        [
+          `Detected "${candidatePath}" immediately after -i/--interactive.`,
+          'Treating it as an intent file. Use -f/--intent-file (optionally alongside --interactive) for clearer commands and restored progress feedback.',
+        ].join(' '),
+      ),
+    )
+    return content
+  } catch (error) {
+    if (isFsNotFoundError(error)) {
+      return null
+    }
+    throw error
+  }
+}
+
+const readIntentFile = async (filePath: string): Promise<string> => {
+  const stats = await fs.stat(filePath)
+  if (stats.size > MAX_INTENT_FILE_BYTES) {
+    const sizeKb = (stats.size / 1024).toFixed(1)
+    throw new Error(`Intent file ${filePath} is too large (${sizeKb} KB).`)
+  }
+
+  const buffer = await fs.readFile(filePath)
+  if (buffer.includes(0)) {
+    throw new Error(`Intent file ${filePath} appears to be binary. Provide a UTF-8 text file.`)
+  }
+
+  const trimmed = buffer.toString('utf8').trim()
+  if (!trimmed) {
+    throw new Error(`Intent file ${filePath} is empty.`)
+  }
+
+  return trimmed
 }
 
 const runGenerationWorkflow = async ({
@@ -1238,9 +1279,17 @@ const maybeOpenChatGpt = async (
   }
 }
 
-const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalIntent?: string } => {
+const extractIntentArg = (
+  argv: string[],
+): {
+  optionArgs: string[]
+  positionalIntent?: string
+  positionalIntentAfterInteractive?: boolean
+} => {
   const optionArgs: string[] = []
   let positionalIntent: string | undefined
+  let positionalIntentAfterInteractive = false
+  let awaitingInteractiveIntent = false
 
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i]
@@ -1255,6 +1304,7 @@ const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalInt
 
     if (token.startsWith('-')) {
       optionArgs.push(token)
+      awaitingInteractiveIntent = token === '-i' || token === '--interactive'
 
       if (VALUE_FLAGS.has(token)) {
         const next = argv[i + 1]
@@ -1262,6 +1312,7 @@ const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalInt
           optionArgs.push(next)
           i += 1
         }
+        awaitingInteractiveIntent = false
       }
 
       continue
@@ -1269,13 +1320,18 @@ const extractIntentArg = (argv: string[]): { optionArgs: string[]; positionalInt
 
     if (!positionalIntent) {
       positionalIntent = token
+      positionalIntentAfterInteractive = awaitingInteractiveIntent
+      awaitingInteractiveIntent = false
       continue
     }
 
+    awaitingInteractiveIntent = false
     optionArgs.push(token)
   }
 
-  return positionalIntent ? { optionArgs, positionalIntent } : { optionArgs }
+  return positionalIntent
+    ? { optionArgs, positionalIntent, positionalIntentAfterInteractive }
+    : { optionArgs }
 }
 
 type ProgressHandle = {
