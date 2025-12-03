@@ -3,7 +3,11 @@ import clipboard from 'clipboardy'
 import open from 'open'
 
 import { callLLM } from '@prompt-maker/core'
-import { runGenerateCommand, InteractiveTransport } from '../generate-command'
+import {
+  runGenerateCommand,
+  InteractiveTransport,
+  type StreamEventInput,
+} from '../generate-command'
 import { appendToHistory } from '../history-logger'
 import { readFromStdin } from '../io'
 import { resolveFileContext } from '../file-context'
@@ -106,12 +110,31 @@ type TestInteractiveCommand = { type: 'refine'; instruction: string } | { type: 
 
 const setupTransportMock = (commands: TestInteractiveCommand[], events: string[]): (() => void) => {
   const commandQueue = [...commands]
-  const startSpy = jest.spyOn(InteractiveTransport.prototype, 'start').mockResolvedValue(undefined)
-  const stopSpy = jest.spyOn(InteractiveTransport.prototype, 'stop').mockResolvedValue(undefined)
+  let lifecycleEmitter: ((event: StreamEventInput) => void) | null = null
+
+  const startSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'start')
+    .mockImplementation(async () => {
+      lifecycleEmitter?.({ event: 'transport.listening', path: '/tmp/pmc.sock' })
+      lifecycleEmitter?.({ event: 'transport.client.connected' })
+    })
+  const stopSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'stop')
+    .mockImplementation(async () => {
+      lifecycleEmitter?.({ event: 'transport.client.disconnected' })
+    })
   const writerSpy = jest
     .spyOn(InteractiveTransport.prototype, 'getEventWriter')
     .mockReturnValue((chunk: string) => {
       events.push(chunk.trim())
+    })
+  const setEmitterSpy = jest
+    .spyOn(InteractiveTransport.prototype, 'setEventEmitter')
+    .mockImplementation(function (
+      this: InteractiveTransport,
+      emitter: (event: StreamEventInput) => void,
+    ) {
+      lifecycleEmitter = emitter
     })
   const nextCommandSpy = jest
     .spyOn(InteractiveTransport.prototype, 'nextCommand')
@@ -121,6 +144,7 @@ const setupTransportMock = (commands: TestInteractiveCommand[], events: string[]
     startSpy.mockRestore()
     stopSpy.mockRestore()
     writerSpy.mockRestore()
+    setEmitterSpy.mockRestore()
     nextCommandSpy.mockRestore()
   }
 }
@@ -340,13 +364,28 @@ describe('runGenerateCommand', () => {
     const events = chunks
       .map((chunk) => chunk.trim())
       .filter((chunk) => chunk.startsWith('{') && chunk.endsWith('}'))
-      .map((chunk) => JSON.parse(chunk) as { event: string })
+      .map((chunk) => JSON.parse(chunk) as { event: string } & Record<string, unknown>)
+
     const eventTypes = events.map((event) => event.event)
 
     expect(eventTypes).toContain('context.telemetry')
     expect(eventTypes).toContain('generation.iteration.start')
     expect(eventTypes).toContain('generation.iteration.complete')
     expect(eventTypes).toContain('generation.final')
+
+    const generateStart = events.find((event) => {
+      if (event.event !== 'progress.update') {
+        return false
+      }
+      return (event as { label?: string }).label === 'Generating prompt'
+    }) as { state?: string; scope?: string } | undefined
+    expect(generateStart?.state).toBe('start')
+    expect(generateStart?.scope).toBe('generate')
+
+    const iterationStart = events.find((event) => event.event === 'generation.iteration.start') as
+      | { inputTokens?: number }
+      | undefined
+    expect(iterationStart?.inputTokens).toBeGreaterThan(0)
   })
 
   it('suppresses UI banners when --quiet is provided', async () => {
@@ -382,9 +421,16 @@ describe('runGenerateCommand', () => {
       restoreTransport()
     }
 
+    const parsedEvents = transportEvents
+      .map((event) => event.trim())
+      .filter((event) => event.startsWith('{') && event.endsWith('}'))
+      .map((event) => JSON.parse(event) as { event: string })
+
     expect(promptMock).not.toHaveBeenCalled()
     expect(promptService.generatePrompt).toHaveBeenCalledTimes(2)
-    expect(transportEvents.some((event) => event.includes('interactive.state'))).toBe(true)
+    expect(parsedEvents.some((event) => event.event === 'transport.listening')).toBe(true)
+    expect(parsedEvents.some((event) => event.event === 'interactive.awaiting')).toBe(true)
+    expect(parsedEvents.some((event) => event.event === 'interactive.state')).toBe(true)
   })
 
   it('ends interactive transport sessions when finish command arrives first', async () => {
@@ -397,8 +443,14 @@ describe('runGenerateCommand', () => {
       restoreTransport()
     }
 
+    const parsedEvents = transportEvents
+      .map((event) => event.trim())
+      .filter((event) => event.startsWith('{') && event.endsWith('}'))
+      .map((event) => JSON.parse(event) as { event: string })
+
     expect(promptService.generatePrompt).toHaveBeenCalledTimes(1)
     expect(promptMock).not.toHaveBeenCalled()
+    expect(parsedEvents.some((event) => event.event === 'transport.listening')).toBe(true)
   })
 
   it('throws when an unknown context template is provided', async () => {

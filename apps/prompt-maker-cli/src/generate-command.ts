@@ -127,6 +127,7 @@ type StreamEventBase<EventName extends string, Payload extends object> = {
 } & Payload
 
 type InteractiveMode = 'transport' | 'tty' | 'none'
+type ProgressScope = 'url' | 'smart' | 'generate' | 'polish' | 'generic'
 
 type ContextTelemetryStreamEvent = StreamEventBase<
   'context.telemetry',
@@ -137,6 +138,7 @@ type ProgressStreamEvent = StreamEventBase<
   {
     label: string
     state: 'start' | 'update' | 'stop'
+    scope?: ProgressScope
   }
 >
 type UploadStreamEvent = StreamEventBase<
@@ -150,6 +152,7 @@ type GenerationIterationStartEvent = StreamEventBase<
     intent: string
     model: string
     interactive: boolean
+    inputTokens: number
     refinements: string[]
     latestRefinement?: string
   }
@@ -169,6 +172,15 @@ type InteractiveMilestoneStreamEvent = StreamEventBase<
     iteration: number
   }
 >
+type InteractiveAwaitingStreamEvent = StreamEventBase<
+  'interactive.awaiting',
+  { mode: InteractiveMode }
+>
+type TransportEvent =
+  | StreamEventBase<'transport.listening', { path: string }>
+  | StreamEventBase<'transport.client.connected', {}>
+  | StreamEventBase<'transport.client.disconnected', {}>
+
 type GenerationFinalStreamEvent = StreamEventBase<
   'generation.final',
   { result: GenerateJsonPayload }
@@ -181,9 +193,11 @@ type StreamEvent =
   | GenerationIterationStartEvent
   | GenerationIterationCompleteEvent
   | InteractiveMilestoneStreamEvent
+  | InteractiveAwaitingStreamEvent
+  | TransportEvent
   | GenerationFinalStreamEvent
 
-type StreamEventInput = {
+export type StreamEventInput = {
   [EventName in StreamEvent['event']]: Omit<Extract<StreamEvent, { event: EventName }>, 'timestamp'>
 }[StreamEvent['event']]
 
@@ -270,25 +284,13 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     throw new Error('--context-template requires a non-empty template name.')
   }
 
+  const transportCleanupHandlers: Array<{ event: NodeJS.Signals | 'exit'; handler: () => void }> =
+    []
   const interactiveTransport = interactiveTransportPath
     ? new InteractiveTransport(interactiveTransportPath)
     : null
-  const transportCleanupHandlers: Array<{ event: NodeJS.Signals | 'exit'; handler: () => void }> =
-    []
 
   try {
-    if (interactiveTransport) {
-      await interactiveTransport.start()
-      const events: Array<NodeJS.Signals | 'exit'> = ['SIGINT', 'SIGTERM', 'exit']
-      events.forEach((event) => {
-        const handler = (): void => {
-          void interactiveTransport.stop()
-        }
-        process.once(event, handler)
-        transportCleanupHandlers.push({ event, handler })
-      })
-    }
-
     const intent = await resolveIntent(args)
     let fileContext = await resolveFileContext(args.context)
     const service = await createPromptGeneratorService()
@@ -304,11 +306,24 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       : null
 
     const refinements: string[] = []
-    const transportTaps = interactiveTransport ? [interactiveTransport.getEventWriter()] : undefined
     const streamDispatcher = createStreamDispatcher(args.stream, {
-      ...(transportTaps ? { taps: transportTaps } : {}),
+      ...(interactiveTransport ? { taps: [interactiveTransport.getEventWriter()] } : {}),
     })
-    const uiSuppressed = args.quiet || streamDispatcher.mode !== 'none'
+    interactiveTransport?.setEventEmitter((event) => {
+      streamDispatcher.emit(event)
+    })
+
+    if (interactiveTransport) {
+      await interactiveTransport.start()
+      const signals: Array<NodeJS.Signals | 'exit'> = ['SIGINT', 'SIGTERM', 'exit']
+      signals.forEach((signal) => {
+        const handler = (): void => {
+          void interactiveTransport.stop()
+        }
+        process.once(signal, handler)
+        transportCleanupHandlers.push({ event: signal, handler })
+      })
+    }
 
     const interactiveMode: InteractiveMode = interactiveTransport
       ? 'transport'
@@ -316,30 +331,38 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
         ? 'tty'
         : 'none'
 
-    if (args.interactive && interactiveMode !== 'tty' && !interactiveTransport) {
+    if (args.interactive && interactiveMode === 'none') {
       console.warn(
         'Interactive mode requested but no TTY detected; continuing non-interactive run.',
       )
     }
 
+    const uiSuppressed = args.quiet || streamDispatcher.mode !== 'none'
     const shouldDisplay = !args.json && !args.quiet
-    const progressReportingEnabled = args.progress && interactiveMode === 'none'
-    const startProgressIfEnabled = (label: string): ProgressHandle | null => {
-      if (!progressReportingEnabled) {
-        return null
-      }
-      return startProgress(label, { showSpinner: !uiSuppressed, stream: streamDispatcher })
+    const progressSpinnersEnabled = args.progress && interactiveMode === 'none'
+    const startSpinner = (label: string): ProgressHandle | null =>
+      progressSpinnersEnabled ? startProgress(label, { showSpinner: !uiSuppressed }) : null
+
+    const emitProgress = (
+      label: string,
+      state: 'start' | 'update' | 'stop',
+      scope: ProgressScope = 'generic',
+    ): void => {
+      streamDispatcher.emit({ event: 'progress.update', label, state, scope })
     }
 
+    emitProgress('Resolving context', 'start', 'generic')
+
     if (args.urls.length > 0) {
-      const urlProgress = startProgressIfEnabled('Fetching URL context')
-      const urlOptions: ResolveUrlContextOptions | undefined = progressReportingEnabled
-        ? {
-            onProgress: (message: string) => {
-              urlProgress?.setLabel(message)
-            },
-          }
-        : undefined
+      const label = 'Fetching URL context'
+      emitProgress(label, 'start', 'url')
+      const urlSpinner = startSpinner(label)
+      const urlOptions: ResolveUrlContextOptions = {
+        onProgress: (message: string) => {
+          urlSpinner?.setLabel(message)
+          emitProgress(message, 'update', 'url')
+        },
+      }
 
       try {
         const urlFiles = await resolveUrlContext(args.urls, urlOptions)
@@ -347,26 +370,32 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
           fileContext = [...fileContext, ...urlFiles]
         }
       } finally {
-        urlProgress?.stop('URL context ready')
+        urlSpinner?.stop('URL context ready')
+        emitProgress(label, 'stop', 'url')
       }
     }
 
     if (args.smartContext) {
-      const smartContextProgress = startProgressIfEnabled('Preparing smart context')
+      const label = 'Preparing smart context'
+      emitProgress(label, 'start', 'smart')
+      const smartSpinner = startSpinner(label)
       try {
         const smartFiles = await resolveSmartContextFiles(
           intent,
           fileContext,
-          progressReportingEnabled
-            ? (message) => smartContextProgress?.setLabel(message)
-            : undefined,
+          (message) => {
+            smartSpinner?.setLabel(message)
+            emitProgress(message, 'update', 'smart')
+          },
           args.smartContextRoot,
         )
+
         if (smartFiles.length > 0) {
           fileContext = [...fileContext, ...smartFiles]
         }
       } finally {
-        smartContextProgress?.stop()
+        smartSpinner?.stop('Smart context ready')
+        emitProgress(label, 'stop', 'smart')
       }
     }
 
@@ -385,32 +414,44 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       await writeContextFile(args.contextFile, args.contextFormat, fileContext)
     }
 
-    const generationProgress = startProgressIfEnabled('Generating prompt')
-    const handleUploadStateChange =
-      generationProgress || streamDispatcher.mode !== 'none'
-        ? createUploadStateTracker(generationProgress, 'Generating prompt', streamDispatcher)
-        : undefined
+    emitProgress('Resolving context', 'stop', 'generic')
+
+    const telemetry = buildTokenTelemetry(intent, fileContext)
+    streamDispatcher.emit({ event: 'context.telemetry', telemetry })
+
+    emitProgress('Generating prompt', 'start', 'generate')
+    const generationSpinner = startSpinner('Generating prompt')
+    const handleUploadStateChange = createUploadStateTracker(
+      generationSpinner,
+      'Generating prompt',
+      streamDispatcher,
+    )
 
     const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
       service,
       context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
+      telemetry,
       interactiveMode,
       interactiveTransport,
       display: shouldDisplay,
       stream: streamDispatcher,
-      ...(handleUploadStateChange ? { onUploadStateChange: handleUploadStateChange } : {}),
+      onUploadStateChange: handleUploadStateChange,
     })
-    generationProgress?.stop('Generated prompt ✓')
+    generationSpinner?.stop('Generated prompt ✓')
+    emitProgress('Generating prompt', 'stop', 'generate')
 
     const polishModel = args.polishModel ?? process.env.PROMPT_MAKER_POLISH_MODEL ?? model
     let polishedPrompt: string | undefined
 
     if (args.polish) {
-      const polishProgress = startProgressIfEnabled('Polishing prompt')
+      const label = 'Polishing prompt'
+      emitProgress(label, 'start', 'polish')
+      const polishSpinner = startSpinner(label)
       try {
         polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
       } finally {
-        polishProgress?.stop('Polished prompt ✓')
+        polishSpinner?.stop('Polished prompt ✓')
+        emitProgress(label, 'stop', 'polish')
       }
     }
 
@@ -730,6 +771,7 @@ const resolveIntent = async (args: GenerateArgs): Promise<string> => {
 const runGenerationWorkflow = async ({
   service,
   context,
+  telemetry,
   interactiveMode,
   interactiveTransport,
   display,
@@ -738,6 +780,7 @@ const runGenerationWorkflow = async ({
 }: {
   service: PromptGenerator
   context: LoopContext
+  telemetry: TokenTelemetry
   interactiveMode: InteractiveMode
   interactiveTransport?: InteractiveTransport | null
   display: boolean
@@ -747,25 +790,11 @@ const runGenerationWorkflow = async ({
   let iteration = 0
   let currentPrompt = ''
 
-  const fileSummaries = context.fileContext.map((file) => ({
-    path: file.path,
-    tokens: countTokens(file.content),
-  }))
-  const fileTokens = fileSummaries.reduce((acc, file) => acc + file.tokens, 0)
-  const intentTokens = countTokens(context.intent)
-  const totalInputTokens = fileTokens + intentTokens
-  const telemetry: TokenTelemetry = {
-    files: fileSummaries,
-    intentTokens,
-    fileTokens,
-    totalTokens: totalInputTokens,
-  }
-
-  stream.emit({ event: 'context.telemetry', telemetry })
-
   if (display) {
     displayTokenSummary(telemetry)
   }
+
+  const inputTokens = telemetry.totalTokens
 
   iteration += 1
   currentPrompt = await generateAndMaybeDisplay(
@@ -773,6 +802,7 @@ const runGenerationWorkflow = async ({
     { ...context, iteration },
     display,
     stream,
+    inputTokens,
     interactiveMode !== 'none',
     onUploadStateChange,
   )
@@ -784,7 +814,7 @@ const runGenerationWorkflow = async ({
     if (interactiveMode === 'transport' && interactiveTransport) {
       // eslint-disable-next-line no-constant-condition
       while (true) {
-        stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
+        stream.emit({ event: 'interactive.awaiting', mode: interactiveMode })
         const command = await interactiveTransport.nextCommand()
         if (!command || command.type === 'finish') {
           break
@@ -793,6 +823,7 @@ const runGenerationWorkflow = async ({
         if (!instruction) {
           continue
         }
+        stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
         context.refinements.push(instruction)
         iteration += 1
         currentPrompt = await generateAndMaybeDisplay(
@@ -805,14 +836,17 @@ const runGenerationWorkflow = async ({
           },
           display,
           stream,
+          inputTokens,
           true,
           onUploadStateChange,
         )
+
         stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
       }
     } else {
       // eslint-disable-next-line no-constant-condition
       while (true) {
+        stream.emit({ event: 'interactive.awaiting', mode: interactiveMode })
         const wantsRefine = await askShouldRefine()
         if (!wantsRefine) {
           break
@@ -837,9 +871,11 @@ const runGenerationWorkflow = async ({
           },
           display,
           stream,
+          inputTokens,
           true,
           onUploadStateChange,
         )
+
         stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
       }
     }
@@ -859,6 +895,7 @@ const generateAndMaybeDisplay = async (
   },
   display: boolean,
   stream: StreamDispatcher,
+  inputTokens: number,
   interactive: boolean,
   onUploadStateChange?: UploadStateChange,
 ): Promise<string> => {
@@ -885,6 +922,7 @@ const generateAndMaybeDisplay = async (
     intent: context.intent,
     model: context.model,
     interactive,
+    inputTokens,
     refinements: [...context.refinements],
     ...(context.latestRefinement ? { latestRefinement: context.latestRefinement } : {}),
   })
@@ -943,6 +981,21 @@ type TokenTelemetry = {
   intentTokens: number
   fileTokens: number
   totalTokens: number
+}
+
+const buildTokenTelemetry = (intentText: string, files: FileContext[]): TokenTelemetry => {
+  const fileSummaries = files.map((file) => ({
+    path: file.path,
+    tokens: countTokens(file.content),
+  }))
+  const fileTokens = fileSummaries.reduce((acc, file) => acc + file.tokens, 0)
+  const intentTokens = countTokens(intentText)
+  return {
+    files: fileSummaries,
+    intentTokens,
+    fileTokens,
+    totalTokens: intentTokens + fileTokens,
+  }
 }
 
 const displayTokenSummary = ({
@@ -1169,10 +1222,7 @@ type ProgressHandle = {
   setLabel: (label: string) => void
 }
 
-const startProgress = (
-  label: string,
-  options: { showSpinner: boolean; stream: StreamDispatcher },
-): ProgressHandle => {
+const startProgress = (label: string, options: { showSpinner: boolean }): ProgressHandle => {
   const spinner = options.showSpinner
     ? ora({
         text: chalk.dim(label),
@@ -1181,8 +1231,6 @@ const startProgress = (
       }).start()
     : null
   let stopped = false
-
-  options.stream.emit({ event: 'progress.update', label, state: 'start' })
 
   const stop = (finalMessage?: string): void => {
     if (stopped) {
@@ -1196,7 +1244,6 @@ const startProgress = (
         spinner.succeed(chalk.green(`${label} ✓`))
       }
     }
-    options.stream.emit({ event: 'progress.update', label: finalMessage ?? label, state: 'stop' })
   }
 
   const setLabel = (nextLabel: string): void => {
@@ -1206,7 +1253,6 @@ const startProgress = (
     if (spinner) {
       spinner.text = chalk.dim(nextLabel)
     }
-    options.stream.emit({ event: 'progress.update', label: nextLabel, state: 'update' })
   }
 
   return { stop, setLabel }
@@ -1292,8 +1338,13 @@ export class InteractiveTransport {
   private commandQueue: InteractiveCommand[] = []
   private pendingResolvers: Array<(command: InteractiveCommand | null) => void> = []
   private stopped = false
+  private lifecycleEmitter?: (event: StreamEventInput) => void
 
   constructor(private readonly socketPath: string) {}
+
+  setEventEmitter(callback: (event: StreamEventInput) => void): void {
+    this.lifecycleEmitter = callback
+  }
 
   async start(): Promise<void> {
     if (!isWindowsNamedPipePath(this.socketPath)) {
@@ -1316,6 +1367,7 @@ export class InteractiveTransport {
       server.listen(this.socketPath, () => {
         server.off('error', onError)
         this.server = server
+        this.emitLifecycle({ event: 'transport.listening', path: this.socketPath })
         resolve()
       })
     })
@@ -1381,6 +1433,7 @@ export class InteractiveTransport {
     }
     this.client = socket
     this.buffer = ''
+    this.emitLifecycle({ event: 'transport.client.connected' })
     socket.setEncoding('utf8')
     socket.on('data', (data: string) => {
       this.handleData(data)
@@ -1389,11 +1442,13 @@ export class InteractiveTransport {
       if (this.client === socket) {
         this.client = null
       }
+      this.emitLifecycle({ event: 'transport.client.disconnected' })
       this.flushPending()
     })
     socket.on('error', () => {
       if (this.client === socket) {
         this.client = null
+        this.emitLifecycle({ event: 'transport.client.disconnected' })
       }
     })
   }
@@ -1456,6 +1511,10 @@ export class InteractiveTransport {
     if (this.client && !this.client.destroyed) {
       this.client.write(`${JSON.stringify({ event: 'transport.error', message })}\n`)
     }
+  }
+
+  private emitLifecycle(event: StreamEventInput): void {
+    this.lifecycleEmitter?.(event)
   }
 }
 
