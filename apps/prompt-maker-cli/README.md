@@ -69,7 +69,9 @@ Key flags and behaviors:
 | `--polish`, `--polish-model <name>`         | Run the finishing pass and optionally choose a different model for it.                                            |
 | `--json`                                    | Emit machine-readable JSON (non-interactive). Includes `prompt`, optional `polishedPrompt`, iteration count, etc. |
 | `--quiet`                                   | Suppress UI banners/spinners while still emitting JSON/stream events (ideal for editor integrations).             |
+| `--stream none\|jsonl`                      | Emit newline-delimited JSON events describing context, uploads, iterations, and interactive states.               |
 | `--context-template <name>`                 | Wrap the final prompt using a named template (supports built-ins like `nvim` or custom config entries).           |
+| `--interactive-transport <path>`            | Listen on a Unix socket/Windows named pipe for refine/finish commands while streaming events to the client.       |
 | `--copy`, `--open-chatgpt`                  | Copy/open the final (possibly polished) artifact for quick sharing.                                               |
 | `--no-progress`                             | Disable the stderr spinner (useful when `--json` is scripted).                                                    |
 | `--help`                                    | Show the auto-generated Yargs help text.                                                                          |
@@ -103,6 +105,12 @@ Add your own templates under `contextTemplates` in `~/.config/prompt-maker-cli/c
 ```
 
 When a template is active the CLI still emits the raw `prompt`, but also records the rendered text plus template name in both `--json` output and `history.jsonl`. Combine this with `--quiet` + `--stream jsonl` to keep editor buffers tidy while still tracking progress.
+
+## Structured streaming & transports
+
+- `--stream jsonl` writes newline-delimited JSON events to stdout covering context telemetry, URL/smart-context progress, upload state changes, iteration boundaries, interactive states, and the final summary payload.
+- `--interactive-transport /tmp/pmc.sock` (or a Windows named pipe) turns the CLI into a socket server: the client sends `{"type":"refine","instruction":"..."}` or `{"type":"finish"}` messages and receives the same JSONL event stream over the connection. Transport lifecycle events (`transport.listening`, `transport.client.connected`, `transport.client.disconnected`) mirror socket activity.
+- Pairing the two lets editors follow progress in a scratch buffer while driving refinements without hijacking stdin/stdout.
 
 ## JSON payload example
 

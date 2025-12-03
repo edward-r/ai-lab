@@ -176,10 +176,19 @@ type InteractiveAwaitingStreamEvent = StreamEventBase<
   'interactive.awaiting',
   { mode: InteractiveMode }
 >
+type TransportListeningEvent = StreamEventBase<'transport.listening', { path: string }>
+type TransportClientConnectedEvent = StreamEventBase<
+  'transport.client.connected',
+  { status: 'connected' }
+>
+type TransportClientDisconnectedEvent = StreamEventBase<
+  'transport.client.disconnected',
+  { status: 'disconnected' }
+>
 type TransportEvent =
-  | StreamEventBase<'transport.listening', { path: string }>
-  | StreamEventBase<'transport.client.connected', {}>
-  | StreamEventBase<'transport.client.disconnected', {}>
+  | TransportListeningEvent
+  | TransportClientConnectedEvent
+  | TransportClientDisconnectedEvent
 
 type GenerationFinalStreamEvent = StreamEventBase<
   'generation.final',
@@ -200,6 +209,13 @@ type StreamEvent =
 export type StreamEventInput = {
   [EventName in StreamEvent['event']]: Omit<Extract<StreamEvent, { event: EventName }>, 'timestamp'>
 }[StreamEvent['event']]
+
+type TransportLifecycleEventInput = Extract<
+  StreamEventInput,
+  {
+    event: 'transport.listening' | 'transport.client.connected' | 'transport.client.disconnected'
+  }
+>
 
 type StreamWriter = (chunk: string) => void
 
@@ -1350,11 +1366,11 @@ export class InteractiveTransport {
   private commandQueue: InteractiveCommand[] = []
   private pendingResolvers: Array<(command: InteractiveCommand | null) => void> = []
   private stopped = false
-  private lifecycleEmitter?: (event: StreamEventInput) => void
+  private lifecycleEmitter?: (event: TransportLifecycleEventInput) => void
 
   constructor(private readonly socketPath: string) {}
 
-  setEventEmitter(callback: (event: StreamEventInput) => void): void {
+  setEventEmitter(callback: (event: TransportLifecycleEventInput) => void): void {
     this.lifecycleEmitter = callback
   }
 
@@ -1445,7 +1461,7 @@ export class InteractiveTransport {
     }
     this.client = socket
     this.buffer = ''
-    this.emitLifecycle({ event: 'transport.client.connected' })
+    this.emitLifecycle({ event: 'transport.client.connected', status: 'connected' })
     socket.setEncoding('utf8')
     socket.on('data', (data: string) => {
       this.handleData(data)
@@ -1454,13 +1470,13 @@ export class InteractiveTransport {
       if (this.client === socket) {
         this.client = null
       }
-      this.emitLifecycle({ event: 'transport.client.disconnected' })
+      this.emitLifecycle({ event: 'transport.client.disconnected', status: 'disconnected' })
       this.flushPending()
     })
     socket.on('error', () => {
       if (this.client === socket) {
         this.client = null
-        this.emitLifecycle({ event: 'transport.client.disconnected' })
+        this.emitLifecycle({ event: 'transport.client.disconnected', status: 'disconnected' })
       }
     })
   }
@@ -1525,7 +1541,7 @@ export class InteractiveTransport {
     }
   }
 
-  private emitLifecycle(event: StreamEventInput): void {
+  private emitLifecycle(event: TransportLifecycleEventInput): void {
     this.lifecycleEmitter?.(event)
   }
 }

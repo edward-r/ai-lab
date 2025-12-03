@@ -3,11 +3,7 @@ import clipboard from 'clipboardy'
 import open from 'open'
 
 import { callLLM } from '@prompt-maker/core'
-import {
-  runGenerateCommand,
-  InteractiveTransport,
-  type StreamEventInput,
-} from '../generate-command'
+import { runGenerateCommand, InteractiveTransport } from '../generate-command'
 import { appendToHistory } from '../history-logger'
 import { readFromStdin } from '../io'
 import { resolveFileContext } from '../file-context'
@@ -108,20 +104,22 @@ afterAll(() => {
 
 type TestInteractiveCommand = { type: 'refine'; instruction: string } | { type: 'finish' }
 
+type LifecycleEmitter = Parameters<InteractiveTransport['setEventEmitter']>[0]
+
 const setupTransportMock = (commands: TestInteractiveCommand[], events: string[]): (() => void) => {
   const commandQueue = [...commands]
-  let lifecycleEmitter: ((event: StreamEventInput) => void) | null = null
+  let lifecycleEmitter: LifecycleEmitter | null = null
 
   const startSpy = jest
     .spyOn(InteractiveTransport.prototype, 'start')
     .mockImplementation(async () => {
       lifecycleEmitter?.({ event: 'transport.listening', path: '/tmp/pmc.sock' })
-      lifecycleEmitter?.({ event: 'transport.client.connected' })
+      lifecycleEmitter?.({ event: 'transport.client.connected', status: 'connected' })
     })
   const stopSpy = jest
     .spyOn(InteractiveTransport.prototype, 'stop')
     .mockImplementation(async () => {
-      lifecycleEmitter?.({ event: 'transport.client.disconnected' })
+      lifecycleEmitter?.({ event: 'transport.client.disconnected', status: 'disconnected' })
     })
   const writerSpy = jest
     .spyOn(InteractiveTransport.prototype, 'getEventWriter')
@@ -130,10 +128,7 @@ const setupTransportMock = (commands: TestInteractiveCommand[], events: string[]
     })
   const setEmitterSpy = jest
     .spyOn(InteractiveTransport.prototype, 'setEventEmitter')
-    .mockImplementation(function (
-      this: InteractiveTransport,
-      emitter: (event: StreamEventInput) => void,
-    ) {
+    .mockImplementation(function (this: InteractiveTransport, emitter: LifecycleEmitter) {
       lifecycleEmitter = emitter
     })
   const nextCommandSpy = jest
@@ -432,6 +427,28 @@ describe('runGenerateCommand', () => {
     expect(log).toHaveBeenCalledTimes(1)
     expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
     jest.useRealTimers()
+    log.mockRestore()
+  })
+
+  it('copies to clipboard without emitting cosmetic logs when quiet', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet', '--copy'])
+    expect(clipboard.write).toHaveBeenCalledWith('prompt v1')
+    const copiedMessages = log.mock.calls
+      .map((args) => args[0])
+      .filter((arg) => typeof arg === 'string' && arg.includes('Copied prompt'))
+    expect(copiedMessages).toHaveLength(0)
+    log.mockRestore()
+  })
+
+  it('opens ChatGPT silently when quiet mode suppresses success ticks', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--quiet', '--open-chatgpt'])
+    expect(open).toHaveBeenCalled()
+    const openMessages = log.mock.calls
+      .map((args) => args[0])
+      .filter((arg) => typeof arg === 'string' && arg.includes('Opened ChatGPT'))
+    expect(openMessages).toHaveLength(0)
     log.mockRestore()
   })
 
