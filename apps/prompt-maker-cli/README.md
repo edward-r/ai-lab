@@ -198,14 +198,13 @@ Env vars (`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GEMINI_BASE_UR
 
 ## Automation recipes
 
-| Pattern                                                             | Command                                                                       |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- |
-| Stdin → JSON artifact                                               | `cat drafts/intent.md \                                                       |
-| prompt-maker-cli --model gpt-4o-mini --json > runs/intent-001.json` |
-| Clipboard-only                                                      | `prompt-maker-cli "Draft H1 spec" --copy > /dev/null`                         |
-| Globals with images                                                 | `prompt-maker-cli --intent-file briefs/app.md --image assets/wire.png --json` |
-| Silence spinner                                                     | `prompt-maker-cli ... --json --no-progress`                                   |
-| Analyze history                                                     | `tail -n 20 ~/.config/prompt-maker-cli/history.jsonl                          | jq .intent` |
+| Pattern               | Command                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| Stdin → JSON artifact | <code>cat drafts/intent.md \<br>prompt-maker-cli --model gpt-4o-mini --json > runs/intent-001.json</code> |
+| Clipboard-only        | `prompt-maker-cli "Draft H1 spec" --copy > /dev/null`                                                     |
+| Globals with images   | `prompt-maker-cli --intent-file briefs/app.md --image assets/wire.png --json`                             |
+| Silence spinner       | `prompt-maker-cli ... --json --no-progress`                                                               |
+| Analyze history       | `tail -n 20 ~/.config/prompt-maker-cli/history.jsonl \| jq .intent`                                       |
 
 ## NeoVim / editor integrations
 
