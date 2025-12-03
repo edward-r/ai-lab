@@ -330,7 +330,23 @@ describe('runGenerateCommand', () => {
     jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'))
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--json'])
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
+    expect(log).toHaveBeenCalled()
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected console.log to be called with JSON output')
+    }
+    const payload = JSON.parse(firstCall[0] as string) as {
+      intent: string
+      contextPaths: Array<{ path: string; source: string }>
+    }
+    expect(payload.intent).toBe('intent text')
+    expect(payload.contextPaths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'intent', path: 'inline-intent' }),
+        expect.objectContaining({ source: 'file', path: 'ctx.md' }),
+      ]),
+    )
+    expect(payload).not.toHaveProperty('outputPath')
     expect(appendToHistory).toHaveBeenCalledTimes(1)
     jest.useRealTimers()
     log.mockRestore()
@@ -381,6 +397,13 @@ describe('runGenerateCommand', () => {
       | { inputTokens?: number }
       | undefined
     expect(iterationStart?.inputTokens).toBeGreaterThan(0)
+
+    const finalEvent = events.find((event) => event.event === 'generation.final') as
+      | { result?: { contextPaths?: Array<{ source: string }> } }
+      | undefined
+    expect(finalEvent?.result?.contextPaths).toEqual(
+      expect.arrayContaining([expect.objectContaining({ source: 'intent' })]),
+    )
   })
 
   it('emits only jsonl lines when quiet streaming is requested', async () => {
@@ -427,6 +450,47 @@ describe('runGenerateCommand', () => {
     expect(log).toHaveBeenCalledTimes(1)
     expect(log).toHaveBeenCalledWith(expect.stringContaining('"intent": "intent text"'))
     jest.useRealTimers()
+    log.mockRestore()
+  })
+
+  it('includes url and smart context metadata in json output', async () => {
+    mockResolveUrlContext.mockResolvedValueOnce([
+      { path: 'url:https://example.com', content: '# url' },
+    ])
+    mockResolveSmartContext.mockResolvedValueOnce([{ path: 'smart.md', content: '# smart' }])
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand([
+      'intent text',
+      '--json',
+      '--url',
+      'https://example.com',
+      '--smart-context',
+    ])
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output to be logged')
+    }
+    const payload = JSON.parse(firstCall[0] as string) as {
+      contextPaths: Array<{ path: string; source: string }>
+    }
+    expect(payload.contextPaths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'url', path: 'url:https://example.com' }),
+        expect.objectContaining({ source: 'smart', path: 'smart.md' }),
+      ]),
+    )
+    log.mockRestore()
+  })
+
+  it('records outputPath when writing context file in json mode', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    await runGenerateCommand(['intent text', '--json', '--context-file', '/tmp/out.json'])
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output to be logged')
+    }
+    const payload = JSON.parse(firstCall[0] as string) as { outputPath?: string }
+    expect(payload.outputPath).toBe('/tmp/out.json')
     log.mockRestore()
   })
 

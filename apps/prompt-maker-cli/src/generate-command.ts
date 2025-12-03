@@ -105,6 +105,13 @@ type LoopContext = {
   videos: string[]
 }
 
+type ContextPathSource = 'intent' | 'file' | 'url' | 'smart'
+
+type ContextPathMetadata = {
+  path: string
+  source: ContextPathSource
+}
+
 type GenerateJsonPayload = {
   intent: string
   model: string
@@ -113,6 +120,8 @@ type GenerateJsonPayload = {
   iterations: number
   interactive: boolean
   timestamp: string
+  contextPaths: ContextPathMetadata[]
+  outputPath?: string
   polishedPrompt?: string
   polishModel?: string
   contextTemplate?: string
@@ -308,7 +317,24 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 
   try {
     const intent = await resolveIntent(args)
+
+    const contextPaths: ContextPathMetadata[] = []
+    const recordContextPaths = (entries: FileContext[], source: ContextPathSource): void => {
+      entries.forEach((entry) => {
+        contextPaths.push({ path: entry.path, source })
+      })
+    }
+
+    const intentMetadataPath = args.intentFile
+      ? args.intentFile
+      : args.intent?.trim()
+        ? 'inline-intent'
+        : 'stdin-intent'
+    contextPaths.push({ path: intentMetadataPath, source: 'intent' })
+
     let fileContext = await resolveFileContext(args.context)
+    recordContextPaths(fileContext, 'file')
+
     const service = await createPromptGeneratorService()
     let model = args.model ?? (await resolveDefaultGenerateModel())
 
@@ -384,6 +410,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
         const urlFiles = await resolveUrlContext(args.urls, urlOptions)
         if (urlFiles.length > 0) {
           fileContext = [...fileContext, ...urlFiles]
+          recordContextPaths(urlFiles, 'url')
         }
       } finally {
         urlSpinner?.stop('URL context ready')
@@ -408,6 +435,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 
         if (smartFiles.length > 0) {
           fileContext = [...fileContext, ...smartFiles]
+          recordContextPaths(smartFiles, 'smart')
         }
       } finally {
         smartSpinner?.stop('Smart context ready')
@@ -426,8 +454,11 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       displayContextFiles(fileContext, args.contextFormat, writeLine)
     }
 
+    let outputPath: string | undefined
+
     if (args.contextFile) {
       await writeContextFile(args.contextFile, args.contextFormat, fileContext)
+      outputPath = args.contextFile
     }
 
     emitProgress('Resolving context', 'stop', 'generic')
@@ -488,6 +519,8 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       iterations,
       interactive: interactiveMode !== 'none',
       timestamp: new Date().toISOString(),
+      contextPaths,
+      ...(outputPath ? { outputPath } : {}),
     }
 
     if (polishedPrompt) {
