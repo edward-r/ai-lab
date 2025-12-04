@@ -53,6 +53,8 @@ const VALUE_FLAGS = new Set([
   '--smart-context-root',
 ])
 
+const HELP_FLAGS = new Set(['--help', '-h'])
+
 const CONTEXT_TEMPLATE_PLACEHOLDER = '{{prompt}}'
 const BUILT_IN_CONTEXT_TEMPLATES: Record<string, string> = {
   nvim: [
@@ -558,7 +560,13 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 }
 
 const parseGenerateArgs = (argv: string[]): ParsedArgs => {
-  const { optionArgs, positionalIntent, positionalIntentAfterInteractive } = extractIntentArg(argv)
+  const {
+    optionArgs: rawOptionArgs,
+    positionalIntent,
+    positionalIntentAfterInteractive,
+  } = extractIntentArg(argv)
+
+  const { optionArgs, helpRequested } = stripHelpFlags(rawOptionArgs)
 
   const parser = yargs(optionArgs)
     .scriptName('prompt-maker-cli')
@@ -735,7 +743,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     stream: parsed.stream ?? 'none',
     showContext: parsed.showContext ?? false,
     contextFormat: parsed.contextFormat ?? 'text',
-    help: Boolean(parsed.help),
+    help: helpRequested || Boolean(parsed.help),
     context: normalizeListArg(parsed.context),
     urls: normalizeListArg(parsed.url),
     images: normalizeListArg(parsed.image),
@@ -1332,6 +1340,38 @@ const extractIntentArg = (
   return positionalIntent
     ? { optionArgs, positionalIntent, positionalIntentAfterInteractive }
     : { optionArgs }
+}
+
+const stripHelpFlags = (tokens: string[]): { optionArgs: string[]; helpRequested: boolean } => {
+  if (tokens.length === 0) {
+    return { optionArgs: tokens, helpRequested: false }
+  }
+
+  const sanitized: string[] = []
+  let helpRequested = false
+  let passthrough = false
+
+  tokens.forEach((token) => {
+    if (passthrough) {
+      sanitized.push(token)
+      return
+    }
+
+    if (token === '--') {
+      sanitized.push(token)
+      passthrough = true
+      return
+    }
+
+    if (HELP_FLAGS.has(token)) {
+      helpRequested = true
+      return
+    }
+
+    sanitized.push(token)
+  })
+
+  return { optionArgs: sanitized, helpRequested }
 }
 
 type ProgressHandle = {

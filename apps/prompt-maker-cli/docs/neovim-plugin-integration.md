@@ -2,6 +2,19 @@
 
 _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-maker-cli runs, context capture, iterative refinements, and artifact delivery inside the editor._
 
+## Quick Checklist
+
+- Ensure `prompt-maker-cli` binary is built/installed and discoverable in `$PATH`.
+- Confirm `OPENAI_API_KEY`/`GEMINI_API_KEY` (plus optional `GITHUB_TOKEN`) are set or present in `~/.config/prompt-maker-cli/config.json`.
+- Capture intent via inline text, temp files, or buffer exports—never launch without validated intent input.
+- Attach context through `--context`, `--url`, `--image`/`--video`, and `--smart-context-root` as needed; guard against oversized or duplicate files.
+- Prefer `--json --quiet --stream jsonl` for editor integrations; parse `generation.final` and telemetry events to drive UI.
+- Use `--interactive-transport <socket>` for refinement loops; send `{"type":"refine"}` / `{"type":"finish"}` messages and mirror streamed events.
+- Apply `--context-template nvim` (or user template) before writing to buffers; fall back to `polishedPrompt`/`prompt` if `renderedPrompt` absent.
+- Surface warnings/errors from stderr immediately (credentials, context fetch failures, upload issues) and offer corrective prompts.
+- Append runs to history or expose pickers by tailing `~/.config/prompt-maker-cli/history.jsonl`.
+- Clean up sockets/temp files when jobs end; cancel outstanding refinements on disconnect.
+
 ## 1. Purpose & Audience
 
 - **Audience**: developers of a NeoVim plugin (Lua or TypeScript via `deno-nvim`/`node-host`) and accompanying coding agents collaborating on that plugin.
