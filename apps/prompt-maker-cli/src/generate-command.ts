@@ -78,7 +78,7 @@ const shouldTraceCopy = (): boolean =>
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
 
-type GenerateArgs = {
+export type GenerateArgs = {
   intent?: string
   intentFile?: string
   model?: string
@@ -122,12 +122,12 @@ type LoopContext = {
 
 type ContextPathSource = 'intent' | 'file' | 'url' | 'smart'
 
-type ContextPathMetadata = {
+export type ContextPathMetadata = {
   path: string
   source: ContextPathSource
 }
 
-type GenerateJsonPayload = {
+export type GenerateJsonPayload = {
   intent: string
   model: string
   prompt: string
@@ -143,7 +143,18 @@ type GenerateJsonPayload = {
   renderedPrompt?: string
 }
 
-type StreamMode = 'none' | 'jsonl'
+export type GeneratePipelineResult = {
+  payload: GenerateJsonPayload
+  telemetry: TokenTelemetry
+  generatedPrompt: string
+  polishedPrompt?: string
+  finalPrompt: string
+  iterations: number
+  model: string
+  contextPaths: ContextPathMetadata[]
+}
+
+export type StreamMode = 'none' | 'jsonl'
 
 type StreamEventBase<EventName extends string, Payload extends object> = {
   event: EventName
@@ -320,14 +331,7 @@ const logFlagSnapshot = (args: GenerateArgs): void => {
   console.error(chalk.dim('[pmc:flags]'), JSON.stringify(snapshot, null, 2))
 }
 
-export const runGenerateCommand = async (argv: string[]): Promise<void> => {
-  const { args, showHelp } = parseGenerateArgs(argv)
-
-  if (args.help) {
-    showHelp()
-    return
-  }
-
+export const runGeneratePipeline = async (args: GenerateArgs): Promise<GeneratePipelineResult> => {
   logFlagSnapshot(args)
 
   const interactiveTransportPath = args.interactiveTransport?.trim()
@@ -574,10 +578,21 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
 
     streamDispatcher.emit({ event: 'generation.final', result: payload })
 
+    const pipelineResult: GeneratePipelineResult = {
+      payload,
+      telemetry,
+      generatedPrompt,
+      finalPrompt: finalArtifact,
+      iterations,
+      model,
+      contextPaths,
+      ...(polishedPrompt ? { polishedPrompt } : {}),
+    }
+
     if (args.json) {
       console.log(JSON.stringify(payload, null, 2))
       await appendToHistory(payload)
-      return
+      return pipelineResult
     }
 
     if (renderedPrompt && shouldDisplay && contextTemplateName) {
@@ -587,12 +602,24 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     }
 
     await appendToHistory(payload)
+    return pipelineResult
   } finally {
     transportCleanupHandlers.forEach(({ event, handler }) => {
       process.off(event, handler)
     })
     await interactiveTransport?.stop()
   }
+}
+
+export const runGenerateCommand = async (argv: string[]): Promise<void> => {
+  const { args, showHelp } = parseGenerateArgs(argv)
+
+  if (args.help) {
+    showHelp()
+    return
+  }
+
+  await runGeneratePipeline(args)
 }
 
 const parseGenerateArgs = (argv: string[]): ParsedArgs => {
@@ -1110,7 +1137,7 @@ type FileTokenSummary = {
   tokens: number
 }
 
-type TokenTelemetry = {
+export type TokenTelemetry = {
   files: FileTokenSummary[]
   intentTokens: number
   fileTokens: number
@@ -1281,7 +1308,7 @@ const isPromptCancellation = (error: unknown): boolean => {
   return false
 }
 
-const maybeCopyToClipboard = async (
+export const maybeCopyToClipboard = async (
   shouldCopy: boolean,
   prompt: string,
   showFeedback: boolean,
@@ -1314,7 +1341,7 @@ const maybeCopyToClipboard = async (
   }
 }
 
-const maybeOpenChatGpt = async (
+export const maybeOpenChatGpt = async (
   shouldOpen: boolean,
   prompt: string,
   showFeedback: boolean,
