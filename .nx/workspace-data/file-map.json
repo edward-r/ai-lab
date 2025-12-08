@@ -29,36 +29,12 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "jest.config.ts",
-        "hash": "13088596769722367150"
+        "file": ".github/workflows/pages.yml",
+        "hash": "1716301107585681006"
       },
       {
-        "file": "tsconfig.base.json",
-        "hash": "13780919962843055140"
-      },
-      {
-        "file": "eslint.config.mjs",
-        "hash": "7102272948128927942"
-      },
-      {
-        "file": "tailwind.config.ts",
-        "hash": "3771228352708915812"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "15256470195678966833"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": "tsconfig.jest.json",
-        "hash": "1993338485262061146"
-      },
-      {
-        "file": "nx.json",
-        "hash": "10895747293426653132"
+        "file": "tmp/prompty.nvim/Makefile",
+        "hash": "6405989474088945629"
       },
       {
         "file": "scripts/run-cli-release.sh",
@@ -69,71 +45,507 @@
         "hash": "11738161071880740242"
       },
       {
-        "file": "package.json",
-        "hash": "14312176215329381090"
+        "file": "tmp/prompty.nvim/README.md",
+        "hash": "15902868754413376697"
       },
       {
-        "file": "README.md",
-        "hash": "2139653527659314484"
-      },
-      {
-        "file": "AGENTS.md",
-        "hash": "5926859589672140026"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
-      },
-      {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": ".github/workflows/pages.yml",
-        "hash": "1716301107585681006"
-      },
-      {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
+        "file": "tmp/prompty.nvim/docs/instructions.md",
+        "hash": "13257633258046021119"
       },
       {
         "file": ".eslintrc.cjs",
         "hash": "1696669636883572046"
       },
       {
-        "file": "package-lock.json",
-        "hash": "10518738433177536737"
+        "file": "tmp/prompty.nvim/.nvmrc",
+        "hash": "16951876268857922555"
       },
       {
-        "file": ".gitignore",
-        "hash": "11436792623039980707"
+        "file": "tmp/prompty.nvim/tests/prompty_spec.lua",
+        "hash": "13116529021731886826"
+      },
+      {
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "7102272948128927942"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
+      },
+      {
+        "file": "tmp/prompty.nvim/lua/prompty/config.lua",
+        "hash": "6629742537089466180"
       },
       {
         "file": "tests/mocks/boxen.ts",
         "hash": "11996218918763836320"
       },
       {
+        "file": "tsconfig.base.json",
+        "hash": "13780919962843055140"
+      },
+      {
+        "file": "jest.config.ts",
+        "hash": "13088596769722367150"
+      },
+      {
         "file": "tests/mocks/ora.ts",
         "hash": "14310063900782643358"
       },
       {
-        "file": "tests/mocks/chalk.ts",
-        "hash": "10609113037865940526"
+        "file": "tmp/prompty.nvim/lua/prompty/init.lua",
+        "hash": "3261536538491776788"
       },
       {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
+        "file": "tsconfig.jest.json",
+        "hash": "1993338485262061146"
+      },
+      {
+        "file": "package.json",
+        "hash": "14312176215329381090"
+      },
+      {
+        "file": "tmp/prompty.nvim/lua/prompty/client.lua",
+        "hash": "3354169673431962666"
       },
       {
         "file": "tsconfig.json",
         "hash": "16667827072884385791"
       },
       {
+        "file": "README.md",
+        "hash": "2139653527659314484"
+      },
+      {
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
+      },
+      {
+        "file": "tmp/prompty.nvim/.luacheckrc",
+        "hash": "4159746809355638772"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "15256470195678966833"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "5926859589672140026"
+      },
+      {
+        "file": "tmp/prompty.nvim/LICENSE",
+        "hash": "2077474660348224152"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "tailwind.config.ts",
+        "hash": "3771228352708915812"
+      },
+      {
+        "file": "nx.json",
+        "hash": "10895747293426653132"
+      },
+      {
         "file": "prompt-tests.yaml",
         "hash": "5292543420146125941"
+      },
+      {
+        "file": "tmp/prompty.nvim/plugin/prompty.lua",
+        "hash": "9512467506170728422"
+      },
+      {
+        "file": "tmp/prompty.nvim/.gitignore",
+        "hash": "16960008699711103039"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "11436792623039980707"
+      },
+      {
+        "file": "docs/cookbook.md",
+        "hash": "11138547257754447067"
+      },
+      {
+        "file": "tmp/prompty.nvim/tests/minimal_init.lua",
+        "hash": "7755413276954629424"
+      },
+      {
+        "file": "tmp/prompty.nvim/.github/workflows/test.yml",
+        "hash": "11405184456326769463"
+      },
+      {
+        "file": "tmp/prompty.nvim/.stylua.toml",
+        "hash": "1955492974478413365"
+      },
+      {
+        "file": "tmp/prompty.nvim/tutoral.md",
+        "hash": "8798290021675490907"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "10518738433177536737"
+      },
+      {
+        "file": "tmp/prompty.nvim/lua/prompty/ui.lua",
+        "hash": "3589176954003417463"
+      },
+      {
+        "file": "tests/mocks/chalk.ts",
+        "hash": "10609113037865940526"
+      },
+      {
+        "file": "tmp/prompty.nvim/doc/prompty.txt",
+        "hash": "14091269399324882332"
       }
     ],
     "projectFileMap": {
+      "perceptron-core": [
+        {
+          "file": "libs/perceptron-core/AGENTS.md",
+          "hash": "6178470852539095894"
+        },
+        {
+          "file": "libs/perceptron-core/project.json",
+          "hash": "15571648856739924981"
+        },
+        {
+          "file": "libs/perceptron-core/src/index.ts",
+          "hash": "8240860054729818693"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.test.ts",
+          "hash": "2763675980340157823",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.ts",
+          "hash": "10493328169959022042"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
+          "hash": "14897755387999689691",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.ts",
+          "hash": "801047537965533375"
+        },
+        {
+          "file": "libs/perceptron-core/tsconfig.json",
+          "hash": "16535889485124124979"
+        },
+        {
+          "file": "libs/perceptron-core/vitest.config.ts",
+          "hash": "9903363322179040656",
+          "deps": [
+            "npm:vitest"
+          ]
+        }
+      ],
+      "prompt-maker-cli": [
+        {
+          "file": "apps/prompt-maker-cli/README.md",
+          "hash": "10455648601854300397"
+        },
+        {
+          "file": "apps/prompt-maker-cli/docs/Hey-Presto-Screenshots.pdf",
+          "hash": "18336767885602545164"
+        },
+        {
+          "file": "apps/prompt-maker-cli/docs/neovim-plugin-integration.md",
+          "hash": "11177587312477678497"
+        },
+        {
+          "file": "apps/prompt-maker-cli/docs/tutorial.md",
+          "hash": "8576675251915628011"
+        },
+        {
+          "file": "apps/prompt-maker-cli/drafts/neovim-plugin.md",
+          "hash": "9650992224874386204"
+        },
+        {
+          "file": "apps/prompt-maker-cli/drafts/onboarding-bot.md",
+          "hash": "10640741470808797187"
+        },
+        {
+          "file": "apps/prompt-maker-cli/drafts/travel-app-notes.md",
+          "hash": "2246203401102282884"
+        },
+        {
+          "file": "apps/prompt-maker-cli/generated/neovim-prompt-1.md",
+          "hash": "9322196359646247944"
+        },
+        {
+          "file": "apps/prompt-maker-cli/generated/neovim-prompt-gemini.md",
+          "hash": "7019985131611276317"
+        },
+        {
+          "file": "apps/prompt-maker-cli/generated/neovim-prompt.md",
+          "hash": "5550464096569431788"
+        },
+        {
+          "file": "apps/prompt-maker-cli/generated/travel-app-prompt.md",
+          "hash": "10025872516413018522"
+        },
+        {
+          "file": "apps/prompt-maker-cli/intents/travel-app-notes.md",
+          "hash": "6074628430788315643"
+        },
+        {
+          "file": "apps/prompt-maker-cli/package.json",
+          "hash": "6226285508916591637",
+          "deps": [
+            "npm:@types/html-to-text",
+            "npm:@types/js-yaml",
+            "npm:chalk",
+            "npm:enquirer",
+            "npm:html-to-text",
+            "npm:js-yaml",
+            "npm:ora",
+            "npm:zod"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/project.json",
+          "hash": "712048127669049477"
+        },
+        {
+          "file": "apps/prompt-maker-cli/prompts/onboarding-spec.md",
+          "hash": "5925840482516935940"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/config.test.ts",
+          "hash": "9545224739253923320"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/file-context.test.ts",
+          "hash": "2130327810898444167",
+          "deps": [
+            "npm:fast-glob"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/generate-command.test.ts",
+          "hash": "6476786939171723372",
+          "deps": [
+            "npm:clipboardy",
+            "npm:open",
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/github-context.test.ts",
+          "hash": "3626353762654545928"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/history-logger.test.ts",
+          "hash": "875714827986182901"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/image-loader.test.ts",
+          "hash": "10183489838733185811"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/index.test.ts",
+          "hash": "3035611362414414912"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/io.test.ts",
+          "hash": "3412038008590291424"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/media-loader.test.ts",
+          "hash": "10020868464967923554"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/prompt-generator-service.test.ts",
+          "hash": "9000498822719501218",
+          "deps": [
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/smart-context-service.test.ts",
+          "hash": "11963443837213936626",
+          "deps": [
+            "npm:fast-glob"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/test-command.test.ts",
+          "hash": "15772769905965800839"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/token-counter.test.ts",
+          "hash": "507842012956210267"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/__tests__/url-context.test.ts",
+          "hash": "275980945923671544"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/config.ts",
+          "hash": "8879161859632545701"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/file-context.ts",
+          "hash": "1311256462301526311",
+          "deps": [
+            "npm:fast-glob"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/generate-command.ts",
+          "hash": "15034083148933744034",
+          "deps": [
+            "npm:boxen",
+            "npm:chalk",
+            "npm:cli-table3",
+            "npm:clipboardy",
+            "npm:enquirer",
+            "npm:open",
+            "npm:ora",
+            "npm:yargs",
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/github-context.ts",
+          "hash": "9043173848246785563"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/history-logger.ts",
+          "hash": "18310572057312805208"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/image-loader.ts",
+          "hash": "12235788956678424218",
+          "deps": [
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/index.ts",
+          "hash": "5199127883456960132"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/io.ts",
+          "hash": "18210006287816534588"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/media-loader.ts",
+          "hash": "1115849515119899868",
+          "deps": [
+            "npm:@google/generative-ai"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/prompt-generator-service.ts",
+          "hash": "1684790325017165560",
+          "deps": [
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/rag/vector-store.ts",
+          "hash": "8513214413206720303",
+          "deps": [
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/smart-context-service.ts",
+          "hash": "14720796990088347601",
+          "deps": [
+            "npm:fast-glob"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/test-command.ts",
+          "hash": "6954445588148446693",
+          "deps": [
+            "npm:js-yaml",
+            "npm:yargs"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/test-utils/setup.ts",
+          "hash": "377076796914542951"
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/testing/evaluator.ts",
+          "hash": "17906101421466123550",
+          "deps": [
+            "prompt-maker-core"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/testing/test-schema.ts",
+          "hash": "4577078640796122681",
+          "deps": [
+            "npm:zod"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/token-counter.ts",
+          "hash": "17171029272486585453",
+          "deps": [
+            "npm:js-tiktoken"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/src/url-context.ts",
+          "hash": "4681699411713661134",
+          "deps": [
+            "npm:html-to-text"
+          ]
+        },
+        {
+          "file": "apps/prompt-maker-cli/tsconfig.json",
+          "hash": "13852689990186427467"
+        },
+        {
+          "file": "apps/prompt-maker-cli/tutorial.md",
+          "hash": "6043696785927670248"
+        }
+      ],
+      "prompt-maker-core": [
+        {
+          "file": "libs/prompt-maker-core/project.json",
+          "hash": "15901221963602980650"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/__tests__/llm.test.ts",
+          "hash": "13581843778157414368"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/index.ts",
+          "hash": "13571134529102657059"
+        },
+        {
+          "file": "libs/prompt-maker-core/src/lib/llm.ts",
+          "hash": "15242169778234709959"
+        },
+        {
+          "file": "libs/prompt-maker-core/tsconfig.json",
+          "hash": "9936056993985653040"
+        }
+      ],
       "perceptron-sim": [
         {
           "file": "apps/perceptron-sim/AGENTS.md",
@@ -395,342 +807,6 @@
           "deps": [
             "npm:vitest"
           ]
-        }
-      ],
-      "prompt-maker-core": [
-        {
-          "file": "libs/prompt-maker-core/project.json",
-          "hash": "15901221963602980650"
-        },
-        {
-          "file": "libs/prompt-maker-core/src/__tests__/llm.test.ts",
-          "hash": "13581843778157414368"
-        },
-        {
-          "file": "libs/prompt-maker-core/src/index.ts",
-          "hash": "13571134529102657059"
-        },
-        {
-          "file": "libs/prompt-maker-core/src/lib/llm.ts",
-          "hash": "15242169778234709959"
-        },
-        {
-          "file": "libs/prompt-maker-core/tsconfig.json",
-          "hash": "9936056993985653040"
-        }
-      ],
-      "perceptron-core": [
-        {
-          "file": "libs/perceptron-core/AGENTS.md",
-          "hash": "6178470852539095894"
-        },
-        {
-          "file": "libs/perceptron-core/project.json",
-          "hash": "15571648856739924981"
-        },
-        {
-          "file": "libs/perceptron-core/src/index.ts",
-          "hash": "8240860054729818693"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.test.ts",
-          "hash": "2763675980340157823",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.ts",
-          "hash": "10493328169959022042"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
-          "hash": "14897755387999689691",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.ts",
-          "hash": "801047537965533375"
-        },
-        {
-          "file": "libs/perceptron-core/tsconfig.json",
-          "hash": "16535889485124124979"
-        },
-        {
-          "file": "libs/perceptron-core/vitest.config.ts",
-          "hash": "9903363322179040656",
-          "deps": [
-            "npm:vitest"
-          ]
-        }
-      ],
-      "prompt-maker-cli": [
-        {
-          "file": "apps/prompt-maker-cli/README.md",
-          "hash": "10455648601854300397"
-        },
-        {
-          "file": "apps/prompt-maker-cli/docs/Hey-Presto-Screenshots.pdf",
-          "hash": "18336767885602545164"
-        },
-        {
-          "file": "apps/prompt-maker-cli/docs/neovim-plugin-integration.md",
-          "hash": "11177587312477678497"
-        },
-        {
-          "file": "apps/prompt-maker-cli/docs/tutorial.md",
-          "hash": "8576675251915628011"
-        },
-        {
-          "file": "apps/prompt-maker-cli/drafts/neovim-plugin.md",
-          "hash": "9650992224874386204"
-        },
-        {
-          "file": "apps/prompt-maker-cli/drafts/onboarding-bot.md",
-          "hash": "10640741470808797187"
-        },
-        {
-          "file": "apps/prompt-maker-cli/drafts/travel-app-notes.md",
-          "hash": "2246203401102282884"
-        },
-        {
-          "file": "apps/prompt-maker-cli/generated/neovim-prompt-1.md",
-          "hash": "9322196359646247944"
-        },
-        {
-          "file": "apps/prompt-maker-cli/generated/neovim-prompt-gemini.md",
-          "hash": "7019985131611276317"
-        },
-        {
-          "file": "apps/prompt-maker-cli/generated/neovim-prompt.md",
-          "hash": "5550464096569431788"
-        },
-        {
-          "file": "apps/prompt-maker-cli/generated/travel-app-prompt.md",
-          "hash": "10025872516413018522"
-        },
-        {
-          "file": "apps/prompt-maker-cli/intents/travel-app-notes.md",
-          "hash": "6074628430788315643"
-        },
-        {
-          "file": "apps/prompt-maker-cli/package.json",
-          "hash": "6226285508916591637",
-          "deps": [
-            "npm:@types/html-to-text",
-            "npm:@types/js-yaml",
-            "npm:chalk",
-            "npm:enquirer",
-            "npm:html-to-text",
-            "npm:js-yaml",
-            "npm:ora",
-            "npm:zod"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/project.json",
-          "hash": "712048127669049477"
-        },
-        {
-          "file": "apps/prompt-maker-cli/prompts/onboarding-spec.md",
-          "hash": "5925840482516935940"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/config.test.ts",
-          "hash": "9545224739253923320"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/file-context.test.ts",
-          "hash": "2130327810898444167",
-          "deps": [
-            "npm:fast-glob"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/generate-command.test.ts",
-          "hash": "6476786939171723372",
-          "deps": [
-            "npm:clipboardy",
-            "npm:open",
-            "prompt-maker-core"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/github-context.test.ts",
-          "hash": "3626353762654545928"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/history-logger.test.ts",
-          "hash": "875714827986182901"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/image-loader.test.ts",
-          "hash": "10183489838733185811"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/index.test.ts",
-          "hash": "3035611362414414912"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/io.test.ts",
-          "hash": "3412038008590291424"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/media-loader.test.ts",
-          "hash": "10020868464967923554"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/prompt-generator-service.test.ts",
-          "hash": "9000498822719501218",
-          "deps": [
-            "prompt-maker-core"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/smart-context-service.test.ts",
-          "hash": "11963443837213936626",
-          "deps": [
-            "npm:fast-glob"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/test-command.test.ts",
-          "hash": "15772769905965800839"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/token-counter.test.ts",
-          "hash": "507842012956210267"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/__tests__/url-context.test.ts",
-          "hash": "275980945923671544"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/config.ts",
-          "hash": "8879161859632545701"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/file-context.ts",
-          "hash": "1311256462301526311",
-          "deps": [
-            "npm:fast-glob"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/generate-command.ts",
-          "hash": "3358427026377748058",
-          "deps": [
-            "npm:boxen",
-            "npm:chalk",
-            "npm:cli-table3",
-            "npm:clipboardy",
-            "npm:enquirer",
-            "npm:open",
-            "npm:ora",
-            "npm:yargs",
-            "prompt-maker-core"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/github-context.ts",
-          "hash": "9043173848246785563"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/history-logger.ts",
-          "hash": "18310572057312805208"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/image-loader.ts",
-          "hash": "12235788956678424218",
-          "deps": [
-            "prompt-maker-core"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/index.ts",
-          "hash": "5199127883456960132"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/io.ts",
-          "hash": "18210006287816534588"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/media-loader.ts",
-          "hash": "1115849515119899868",
-          "deps": [
-            "npm:@google/generative-ai"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/prompt-generator-service.ts",
-          "hash": "1684790325017165560",
-          "deps": [
-            "prompt-maker-core"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/rag/vector-store.ts",
-          "hash": "8513214413206720303",
-          "deps": [
-            "prompt-maker-core"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/smart-context-service.ts",
-          "hash": "14720796990088347601",
-          "deps": [
-            "npm:fast-glob"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/test-command.ts",
-          "hash": "6954445588148446693",
-          "deps": [
-            "npm:js-yaml",
-            "npm:yargs"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/test-utils/setup.ts",
-          "hash": "377076796914542951"
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/testing/evaluator.ts",
-          "hash": "17906101421466123550",
-          "deps": [
-            "prompt-maker-core"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/testing/test-schema.ts",
-          "hash": "4577078640796122681",
-          "deps": [
-            "npm:zod"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/token-counter.ts",
-          "hash": "17171029272486585453",
-          "deps": [
-            "npm:js-tiktoken"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/src/url-context.ts",
-          "hash": "4681699411713661134",
-          "deps": [
-            "npm:html-to-text"
-          ]
-        },
-        {
-          "file": "apps/prompt-maker-cli/tsconfig.json",
-          "hash": "13852689990186427467"
-        },
-        {
-          "file": "apps/prompt-maker-cli/tutorial.md",
-          "hash": "6043696785927670248"
         }
       ],
       "perceptron-visuals": [

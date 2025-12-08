@@ -72,6 +72,7 @@
 - **Stream Everything**: `--stream jsonl` mirrors `progress.update`, `generation.iteration.*`, and `upload.state` events to stdout. Pipe this into `jq` or a log shipper to correlate prompt iterations with downstream LLM responses.
 - **Replay with History Artifacts**: `--json` writes the final payload (intent, context paths, iterations, polish metadata) and `appendToHistory()` stores it locally. Diff these blobs to understand how refinements changed the contract over time.
 - **Interactive Diagnostics**: In TTY mode, each refinement is boxed via `displayPrompt()`. When headless, use `--interactive-transport /tmp/prompt.sock` and send JSON commands from another process; hook into the emitted `transport.*` events to orchestrate automated QA.
+- **Clipboard & Flag Tracing**: Set `PROMPT_MAKER_DEBUG_FLAGS=1` to log a JSON snapshot of parsed flags (copy, polish, quiet, json, etc.) right after argument parsing. Add `PROMPT_MAKER_COPY_TRACE=1` (or rely on the debug flag) to emit `[pmc:copy …]` diagnostics showing when clipboard writes are attempted, skipped, or fail. Example: `PROMPT_MAKER_DEBUG_FLAGS=1 PROMPT_MAKER_COPY_TRACE=1 prompt-maker-cli --polish --copy …` instantly proves whether the CLI saw `--copy` and what happened inside `clipboardy`.
 - **Media Upload Issues**: Stuck video uploads surface as repeated `upload.state` events. If they never flip from `start` to `stop`, confirm `GEMINI_API_KEY` and MIME support in `media-loader.ts` (e.g., `.mp4`, `.webm`).
 - **Spinner Hygiene**: Disable spinners with `--progress=false` when your logs run in CI/CD; combine with `--quiet` to keep transcripts clean while still consuming JSONL telemetry.
 
@@ -367,7 +368,7 @@ Initial context sketches the architecture, while `--interactive` lets you add re
 
 ### Recipe: Dependency Upgrade Risk Brief
 
-**Problem**  
+**Problem**
 Before upgrading `nx` and `vite`, you want a prompt that enumerates risks, test plans, and rollback steps using release notes and local config.
 
 **Solution**
@@ -381,14 +382,14 @@ prompt-maker-cli "Assess upgrading Nx and Vite to the next minor release, listin
   --copy
 ```
 
-**Discussion**  
+**Discussion**
 Pointing to config files plus curated release notes equips the model with both current state and vendor guidance. Overriding the polish model keeps consistency with other platform reviews, and `--copy` macros the result straight into your change request doc.
 
 ## Self-Directed Learning Recipes
 
 ### Recipe: Technical Textbook Navigator
 
-**Problem**  
+**Problem**
 You’re working through a dense systems textbook and want a prompt to summarize each chapter, surface prerequisites, and suggest practice problems.
 
 **Solution**
@@ -401,12 +402,12 @@ prompt-maker-cli "Break down Chapter 6 of 'Distributed Systems' into prerequisit
   --polish
 ```
 
-**Discussion**  
+**Discussion**
 Attach your reading notes plus exported chapter snippets (converted to markdown/pdf text). The template outputs a structured study card, while polishing keeps terminology precise. Repeat per chapter to build a learning map.
 
 ### Recipe: Deep Research Dossier
 
-**Problem**  
+**Problem**
 You need a self-study prompt that orchestrates multi-source research (papers, blogs, RFCs) and proposes a reading/experiment plan.
 
 **Solution**
@@ -421,12 +422,12 @@ prompt-maker-cli "Assemble a deep-research plan for vector databases (questions,
   --context-file research/vector-db/dossier.md
 ```
 
-**Discussion**  
+**Discussion**
 Combining curated sources with smart-context ensures the prompt generator sees both high-signal references and ambient notes. JSON output lets you sync the research plan to Notion or Obsidian while the markdown dossier becomes your running log.
 
 ### Recipe: Language Learning Companion
 
-**Problem**  
+**Problem**
 You’re teaching yourself Japanese and want prompts that adapt grammar drills to your mistakes and native material.
 
 **Solution**
@@ -439,12 +440,12 @@ prompt-maker-cli "Design a Japanese study session focusing on keigo and business
   --context-template nvim
 ```
 
-**Discussion**  
+**Discussion**
 Feed the CLI your mistake log plus authentic examples; interactive mode lets you refine instructions after each session (“add listening exercises”, “increase kanji coverage”). The template keeps sections organized (Warm-up, Drills, Reflection) for spaced repetition apps.
 
 ### Recipe: Software Engineering Mastery Sprint
 
-**Problem**  
+**Problem**
 You want a weekly mastery plan that targets architectural topics, code katas, and review prompts tailored to your repo.
 
 **Solution**
@@ -459,12 +460,12 @@ prompt-maker-cli "Plan a weekly mastery sprint covering event-driven architectur
   --context-file learning/eda-week.md
 ```
 
-**Discussion**  
+**Discussion**
 Mixing real code with architecture docs ensures the prompt references live examples. Smart context narrows the scope to relevant files, while the polish pass produces a schedule you can commit to version control and revisit in retros.
 
 ### Recipe: Spaced-Repetition Exporter
 
-**Problem**  
+**Problem**
 You want to convert textbook notes into spaced-repetition cards (Front/Back/Extra) compatible with tools like Anki or Mochi.
 
 **Solution**
@@ -478,12 +479,12 @@ prompt-maker-cli "Turn these chapter notes into spaced repetition cards with clo
   --context-file learning/ch06-cards.md
 ```
 
-**Discussion**  
+**Discussion**
 Feed the CLI your notes and glossary; the template organizes each card, while polishing enforces concise wording. The saved markdown can be imported or transformed into CSV for your spaced-repetition app.
 
 ### Recipe: Socratic Tutor Flow
 
-**Problem**  
+**Problem**
 You want prompts that guide you via questions instead of answers, forcing active recall for each concept.
 
 **Solution**
@@ -496,12 +497,12 @@ prompt-maker-cli "Act as a Socratic tutor for Chapter 3 of 'Programming Language
   --stream jsonl
 ```
 
-**Discussion**  
+**Discussion**
 Context from notes plus exercises lets the model pose targeted questions. Interactive mode means you can answer, refine, or request hints between iterations; JSONL streaming logs each tutor exchange for later review.
 
 ### Recipe: Feynman Method Worksheet
 
-**Problem**  
+**Problem**
 You want to explain a dense topic in simple language, identify gaps, then loop back with targeted readings.
 
 **Solution**
@@ -515,7 +516,7 @@ prompt-maker-cli "Apply the Feynman technique to Raft consensus (explain like I'
   --context-template nvim
 ```
 
-**Discussion**  
+**Discussion**
 Combining conceptual notes, actual code, and open questions yields a worksheet with four sections: Teach, Identify Gaps, Review, Simplify. Re-run after each study session to track how explanations improve over time.
 
 ## Git Commit Workflows

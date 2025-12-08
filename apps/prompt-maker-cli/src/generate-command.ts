@@ -64,6 +64,18 @@ const BUILT_IN_CONTEXT_TEMPLATES: Record<string, string> = {
   ].join('\n\n'),
 }
 
+const envFlagEnabled = (value: string | undefined): boolean => {
+  if (!value) {
+    return false
+  }
+  const normalized = value.trim().toLowerCase()
+  return normalized !== '0' && normalized !== 'false'
+}
+
+const shouldTraceFlags = (): boolean => envFlagEnabled(process.env.PROMPT_MAKER_DEBUG_FLAGS)
+const shouldTraceCopy = (): boolean =>
+  envFlagEnabled(process.env.PROMPT_MAKER_COPY_TRACE) || shouldTraceFlags()
+
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
 
 type GenerateArgs = {
@@ -286,6 +298,28 @@ const createStreamDispatcher = (
 const POLISH_SYSTEM_PROMPT =
   'You refine prompt contracts for language models. Preserve headings, bullet ordering, and constraints. Only tighten wording and fix inconsistencies.'
 
+const logFlagSnapshot = (args: GenerateArgs): void => {
+  if (!shouldTraceFlags()) {
+    return
+  }
+
+  const snapshot = {
+    copy: args.copy,
+    polish: args.polish,
+    openChatGpt: args.openChatGpt,
+    json: args.json,
+    quiet: args.quiet,
+    stream: args.stream,
+    interactive: args.interactive,
+    showContext: args.showContext,
+    contextTemplate: args.contextTemplate ?? null,
+    contextFile: args.contextFile ?? null,
+    smartContext: args.smartContext,
+  }
+
+  console.error(chalk.dim('[pmc:flags]'), JSON.stringify(snapshot, null, 2))
+}
+
 export const runGenerateCommand = async (argv: string[]): Promise<void> => {
   const { args, showHelp } = parseGenerateArgs(argv)
 
@@ -293,6 +327,8 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     showHelp()
     return
   }
+
+  logFlagSnapshot(args)
 
   const interactiveTransportPath = args.interactiveTransport?.trim()
 
@@ -1250,17 +1286,30 @@ const maybeCopyToClipboard = async (
   prompt: string,
   showFeedback: boolean,
 ): Promise<void> => {
+  const traceEnabled = shouldTraceCopy()
+  const trace = (message: string): void => {
+    if (traceEnabled) {
+      console.error(chalk.dim(`[pmc:copy] ${message}`))
+    }
+  }
+
   if (!shouldCopy) {
+    trace('Skipping clipboard write (flag not provided).')
     return
   }
+
+  trace(`Attempting clipboard write (${prompt.length.toLocaleString()} chars).`)
 
   try {
     await clipboard.write(prompt)
     if (showFeedback) {
       console.log(chalk.green('✓ Copied prompt to clipboard.'))
+    } else {
+      trace('Copied prompt to clipboard (feedback suppressed).')
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown clipboard error.'
+    trace(`Clipboard write failed: ${message}`)
     console.warn(chalk.yellow(`Failed to copy prompt to clipboard: ${message}`))
   }
 }
