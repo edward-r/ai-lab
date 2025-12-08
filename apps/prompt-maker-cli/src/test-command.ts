@@ -23,7 +23,7 @@ type TestArgs = {
   file: string
 }
 
-type TestResult = {
+export type TestResult = {
   name: string
   pass: boolean
   reason: string
@@ -35,14 +35,51 @@ type TestProgressReporter = {
   completeAll: () => void
 }
 
+export type PromptTestRunReporter = {
+  onSuiteLoaded?: (suite: PromptTestSuite, filePath: string) => void
+  onTestStart?: (ordinal: number, test: PromptTest) => void
+  onTestComplete?: (ordinal: number, result: TestResult) => void
+  onComplete?: (results: TestResult[]) => void
+}
+
+export type PromptTestRunOptions = {
+  reporter?: PromptTestRunReporter
+}
+
+export const runPromptTestSuite = async (
+  filePath: string,
+  options: PromptTestRunOptions = {},
+): Promise<TestResult[]> => {
+  const absolutePath = path.resolve(process.cwd(), filePath)
+  const suite = await loadTestSuite(absolutePath)
+  options.reporter?.onSuiteLoaded?.(suite, absolutePath)
+  const results = await executePromptTests(suite, options.reporter)
+  options.reporter?.onComplete?.(results)
+  return results
+}
+
 export const runTestCommand = async (argv: string[]): Promise<void> => {
   const { file } = parseTestArgs(argv)
   const filePath = path.resolve(process.cwd(), file)
 
-  const suite = await loadTestSuite(filePath)
-  console.log(`Loaded ${suite.tests.length} test(s) from ${formatDisplayPath(filePath)}.`)
+  let progressReporter: TestProgressReporter | null = null
+  const reporter: PromptTestRunReporter = {
+    onSuiteLoaded: (suite, loadedPath) => {
+      console.log(`Loaded ${suite.tests.length} test(s) from ${formatDisplayPath(loadedPath)}.`)
+      progressReporter = createTestProgressReporter(suite.tests.length)
+    },
+    onTestStart: (ordinal, test) => {
+      progressReporter?.startTest(ordinal, test.name)
+    },
+    onTestComplete: () => {
+      progressReporter?.completeTest()
+    },
+    onComplete: () => {
+      progressReporter?.completeAll()
+    },
+  }
 
-  const results = await executePromptTests(suite)
+  const results = await runPromptTestSuite(filePath, { reporter })
 
   console.log('\nTest Results')
   console.log('────────────')
@@ -86,20 +123,22 @@ const parseTestArgs = (argv: string[]): TestArgs => {
   return { file }
 }
 
-const executePromptTests = async (suite: PromptTestSuite): Promise<TestResult[]> => {
+const executePromptTests = async (
+  suite: PromptTestSuite,
+  reporter?: PromptTestRunReporter,
+): Promise<TestResult[]> => {
   const service = await createPromptGeneratorService()
   const defaultModel = await resolveDefaultGenerateModel()
   const results: TestResult[] = []
-  const progressReporter = createTestProgressReporter(suite.tests.length)
 
   for (const [index, test] of suite.tests.entries()) {
-    progressReporter.startTest(index + 1, test.name)
+    const ordinal = index + 1
+    reporter?.onTestStart?.(ordinal, test)
     const result = await runSingleTest({ test, service, model: defaultModel })
     results.push(result)
-    progressReporter.completeTest()
+    reporter?.onTestComplete?.(ordinal, result)
   }
 
-  progressReporter.completeAll()
   return results
 }
 
