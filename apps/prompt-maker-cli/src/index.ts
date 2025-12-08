@@ -2,13 +2,17 @@
 
 import { runGenerateCommand } from './generate-command'
 import { runTestCommand } from './test-command'
+import { prepareTuiLaunch, runPromptMakerTui } from './tui'
 
 const { command, args } = resolveCommand(process.argv.slice(2))
+const { sanitizedArgs, shouldLaunch } = prepareTuiLaunch(args)
 
-if (command === 'test') {
-  void runTestCommand(args)
+if (command === 'generate' && shouldLaunch) {
+  void runPromptMakerTui()
+} else if (command === 'test') {
+  void runTestCommand(sanitizedArgs)
 } else {
-  void runGenerateCommand(args)
+  void runGenerateCommand(sanitizedArgs)
 }
 
 function resolveCommand(args: string[]): { command: 'generate' | 'test'; args: string[] } {

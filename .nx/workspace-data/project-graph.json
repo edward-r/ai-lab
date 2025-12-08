@@ -12775,7 +12775,22 @@
       },
       {
         "source": "prompt-maker-cli",
+        "target": "npm:@types/react",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:boxen",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
         "target": "npm:chalk",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:cli-table3",
         "type": "static"
       },
       {
@@ -12796,6 +12811,11 @@
       {
         "source": "prompt-maker-cli",
         "target": "npm:ora",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:react",
         "type": "static"
       },
       {
@@ -12821,16 +12841,6 @@
       {
         "source": "prompt-maker-cli",
         "target": "prompt-maker-core",
-        "type": "static"
-      },
-      {
-        "source": "prompt-maker-cli",
-        "target": "npm:boxen",
-        "type": "static"
-      },
-      {
-        "source": "prompt-maker-cli",
-        "target": "npm:cli-table3",
         "type": "static"
       },
       {
@@ -29558,5 +29568,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1765224542013
+  "computedAt": 1765225903838
 }
