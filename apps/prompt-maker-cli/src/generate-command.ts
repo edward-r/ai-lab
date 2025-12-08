@@ -245,6 +245,10 @@ export type StreamEventInput = {
   [EventName in StreamEvent['event']]: Omit<Extract<StreamEvent, { event: EventName }>, 'timestamp'>
 }[StreamEvent['event']]
 
+export type GeneratePipelineOptions = {
+  onStreamEvent?: (event: StreamEventInput) => void
+}
+
 type TransportLifecycleEventInput = Extract<
   StreamEventInput,
   {
@@ -331,7 +335,10 @@ const logFlagSnapshot = (args: GenerateArgs): void => {
   console.error(chalk.dim('[pmc:flags]'), JSON.stringify(snapshot, null, 2))
 }
 
-export const runGeneratePipeline = async (args: GenerateArgs): Promise<GeneratePipelineResult> => {
+export const runGeneratePipeline = async (
+  args: GenerateArgs,
+  options: GeneratePipelineOptions = {},
+): Promise<GeneratePipelineResult> => {
   logFlagSnapshot(args)
 
   const interactiveTransportPath = args.interactiveTransport?.trim()
@@ -394,8 +401,25 @@ export const runGeneratePipeline = async (args: GenerateArgs): Promise<GenerateP
     const streamDispatcher = createStreamDispatcher(args.stream, {
       ...(interactiveTransport ? { taps: [interactiveTransport.getEventWriter()] } : {}),
     })
-    interactiveTransport?.setEventEmitter((event) => {
+
+    const emitEvent = (event: StreamEventInput): void => {
+      if (options.onStreamEvent) {
+        try {
+          options.onStreamEvent(event)
+        } catch {
+          // ignore listener errors to avoid breaking pipeline
+        }
+      }
       streamDispatcher.emit(event)
+    }
+
+    const streamProxy: StreamDispatcher = {
+      mode: streamDispatcher.mode,
+      emit: emitEvent,
+    }
+
+    interactiveTransport?.setEventEmitter((event) => {
+      emitEvent(event)
     })
 
     if (interactiveTransport) {
@@ -433,7 +457,7 @@ export const runGeneratePipeline = async (args: GenerateArgs): Promise<GenerateP
       state: 'start' | 'update' | 'stop',
       scope: ProgressScope = 'generic',
     ): void => {
-      streamDispatcher.emit({ event: 'progress.update', label, state, scope })
+      emitEvent({ event: 'progress.update', label, state, scope })
     }
 
     emitProgress('Resolving context', 'start', 'generic')
@@ -507,14 +531,14 @@ export const runGeneratePipeline = async (args: GenerateArgs): Promise<GenerateP
     emitProgress('Resolving context', 'stop', 'generic')
 
     const telemetry = buildTokenTelemetry(intent, fileContext)
-    streamDispatcher.emit({ event: 'context.telemetry', telemetry })
+    emitEvent({ event: 'context.telemetry', telemetry })
 
     emitProgress('Generating prompt', 'start', 'generate')
     const generationSpinner = startSpinner('Generating prompt')
     const handleUploadStateChange = createUploadStateTracker(
       generationSpinner,
       'Generating prompt',
-      streamDispatcher,
+      streamProxy,
     )
 
     const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
@@ -524,7 +548,7 @@ export const runGeneratePipeline = async (args: GenerateArgs): Promise<GenerateP
       interactiveMode,
       interactiveTransport,
       display: shouldDisplay,
-      stream: streamDispatcher,
+      stream: streamProxy,
       onUploadStateChange: handleUploadStateChange,
     })
     generationSpinner?.stop('Generated prompt ✓')
@@ -576,7 +600,7 @@ export const runGeneratePipeline = async (args: GenerateArgs): Promise<GenerateP
       payload.renderedPrompt = renderedPrompt
     }
 
-    streamDispatcher.emit({ event: 'generation.final', result: payload })
+    emitEvent({ event: 'generation.final', result: payload })
 
     const pipelineResult: GeneratePipelineResult = {
       payload,

@@ -4,17 +4,28 @@ import TextInput from 'ink-text-input'
 
 import {
   runGeneratePipeline,
+  maybeCopyToClipboard,
+  maybeOpenChatGpt,
   type GenerateArgs,
   type GeneratePipelineResult,
   type ContextPathMetadata,
+  type StreamEventInput,
 } from '../generate-command'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { formatTokenCount } from '../token-counter'
 import { useContextState } from './context'
 import { ContextPanel, type ContextPanelFocus } from './ContextPanel'
-import { maybeCopyToClipboard, maybeOpenChatGpt } from '../generate-command'
+import { MediaPanel, type MediaPanelFocus } from './MediaPanel'
 
-type FocusField = 'intent' | 'model' | 'contextFiles' | 'contextUrls' | 'contextSmart' | 'actions'
+type FocusField =
+  | 'intent'
+  | 'model'
+  | 'contextFiles'
+  | 'contextUrls'
+  | 'contextSmart'
+  | 'mediaImages'
+  | 'mediaVideos'
+  | 'actions'
 
 const focusOrder: FocusField[] = [
   'intent',
@@ -22,6 +33,8 @@ const focusOrder: FocusField[] = [
   'contextFiles',
   'contextUrls',
   'contextSmart',
+  'mediaImages',
+  'mediaVideos',
   'actions',
 ]
 
@@ -66,7 +79,7 @@ const ContextSummary: React.FC<{ summary: GenerationSummary }> = ({ summary }) =
 )
 
 export const GenerateScreen: React.FC = () => {
-  const { files, urls, smartContextEnabled, smartContextRoot } = useContextState()
+  const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
   const [intent, setIntent] = useState('')
   const [model, setModel] = useState('gpt-4o-mini')
   const [modelTouched, setModelTouched] = useState(false)
@@ -78,6 +91,8 @@ export const GenerateScreen: React.FC = () => {
   const [error, setError] = useState<string | undefined>()
   const [feedback, setFeedback] = useState<string | undefined>()
   const [summary, setSummary] = useState<GenerationSummary | null>(null)
+  const [uploadStatus, setUploadStatus] = useState<string | undefined>()
+  const [progressStatus, setProgressStatus] = useState<string | undefined>()
 
   useEffect(() => {
     let mounted = true
@@ -98,6 +113,22 @@ export const GenerateScreen: React.FC = () => {
     [intent, status],
   )
 
+  const handleStreamEvent = useCallback((event: StreamEventInput) => {
+    if (event.event === 'upload.state') {
+      const target = event.detail.kind === 'image' ? 'image' : 'video'
+      if (event.state === 'start') {
+        setUploadStatus(`Uploading ${target} ${event.detail.filePath}…`)
+      } else {
+        setUploadStatus(`Uploaded ${target} ${event.detail.filePath}`)
+      }
+      return
+    }
+
+    if (event.event === 'progress.update') {
+      setProgressStatus(`${event.label} (${event.state})`)
+    }
+  }, [])
+
   const buildRunArgs = useCallback(
     (trimmedIntent: string): GenerateArgs => {
       const normalizedModel = model.trim()
@@ -116,8 +147,8 @@ export const GenerateScreen: React.FC = () => {
         help: false,
         context: [...files],
         urls: [...urls],
-        images: [],
-        video: [],
+        images: [...images],
+        video: [...videos],
         smartContext: smartContextEnabled,
       }
 
@@ -135,7 +166,7 @@ export const GenerateScreen: React.FC = () => {
 
       return args
     },
-    [files, urls, model, polish, smartContextEnabled, smartContextRoot],
+    [files, urls, images, videos, model, polish, smartContextEnabled, smartContextRoot],
   )
 
   const handleRun = useCallback(async () => {
@@ -154,10 +185,14 @@ export const GenerateScreen: React.FC = () => {
     setError(undefined)
     setFeedback(undefined)
     setSummary(null)
+    setUploadStatus(undefined)
+    setProgressStatus(undefined)
 
     try {
       const args = buildRunArgs(trimmedIntent)
-      const result: GeneratePipelineResult = await runGeneratePipeline(args)
+      const result: GeneratePipelineResult = await runGeneratePipeline(args, {
+        onStreamEvent: handleStreamEvent,
+      })
       setSummary({
         telemetry: result.telemetry,
         generatedPrompt: result.generatedPrompt,
@@ -186,7 +221,7 @@ export const GenerateScreen: React.FC = () => {
     } finally {
       setStatus('idle')
     }
-  }, [buildRunArgs, copyEnabled, intent, openChatGpt, status])
+  }, [buildRunArgs, copyEnabled, handleStreamEvent, intent, openChatGpt, status])
 
   useInput((input, key) => {
     if (key.tab && key.shift) {
@@ -199,7 +234,13 @@ export const GenerateScreen: React.FC = () => {
       return
     }
 
-    if (focus === 'contextFiles' || focus === 'contextUrls' || focus === 'contextSmart') {
+    if (
+      focus === 'contextFiles' ||
+      focus === 'contextUrls' ||
+      focus === 'contextSmart' ||
+      focus === 'mediaImages' ||
+      focus === 'mediaVideos'
+    ) {
       return
     }
 
@@ -244,6 +285,15 @@ export const GenerateScreen: React.FC = () => {
       }
       if (lower === 's') {
         setFocus('contextSmart')
+        return
+      }
+      if (lower === 'e') {
+        setFocus('mediaImages')
+        return
+      }
+      if (lower === 'v') {
+        setFocus('mediaVideos')
+        return
       }
     }
   })
@@ -274,6 +324,9 @@ export const GenerateScreen: React.FC = () => {
         : focus === 'contextSmart'
           ? 'smart'
           : 'none'
+
+  const mediaPanelFocus: MediaPanelFocus =
+    focus === 'mediaImages' ? 'images' : focus === 'mediaVideos' ? 'videos' : 'none'
 
   return (
     <Box flexDirection="row" marginTop={1} gap={2}>
@@ -319,12 +372,15 @@ export const GenerateScreen: React.FC = () => {
           <Text>Open ChatGPT: {openChatGpt ? 'on' : 'off'} ("o" to toggle)</Text>
           <Text color="gray">
             Use Tab / Shift+Tab to move between sections. From actions, press "g" or Enter to run,
-            "f"/"u"/"s" to focus context inputs.
+            "f"/"u"/"s" for context files/URLs/smart context, and "e"/"v" for images/videos.
           </Text>
           <Text color="gray">
             Current context: {files.length} file glob(s), {urls.length} URL(s), smart context{' '}
-            {smartContextEnabled ? 'on' : 'off'}.
+            {smartContextEnabled ? 'on' : 'off'} · Media: {images.length} image(s), {videos.length}{' '}
+            video(s).
           </Text>
+          {uploadStatus ? <Text color="cyan">{uploadStatus}</Text> : null}
+          {progressStatus ? <Text color="gray">{progressStatus}</Text> : null}
         </Box>
 
         <Box marginTop={1}>
@@ -378,8 +434,11 @@ export const GenerateScreen: React.FC = () => {
         ) : null}
       </Box>
 
-      <Box width={38}>
+      <Box width={46} flexDirection="column" gap={1}>
         <ContextPanel focus={contextPanelFocus} />
+        <Box marginTop={1}>
+          <MediaPanel focus={mediaPanelFocus} />
+        </Box>
       </Box>
     </Box>
   )
