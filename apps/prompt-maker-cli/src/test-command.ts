@@ -23,16 +23,82 @@ type TestArgs = {
   file: string
 }
 
-type TestResult = {
+export type TestCaseResult = {
   name: string
   pass: boolean
   reason: string
 }
 
-type TestProgressReporter = {
+export type TestSuiteSource =
+  | { kind: 'file'; path: string }
+  | { kind: 'inline'; suite: PromptTestSuite; originPath?: string }
+
+export type TestCoreOptions = {
+  suite: TestSuiteSource
+  workingDirectory?: string
+}
+
+export type TestCoreResult = {
+  total: number
+  passed: number
+  failed: number
+  results: TestCaseResult[]
+}
+
+export type TestCoreEvent =
+  | { type: 'test:start'; index: number; total: number; name: string }
+  | {
+      type: 'test:complete'
+      index: number
+      total: number
+      name: string
+      pass: boolean
+      reason: string
+    }
+  | { type: 'test:summary'; passed: number; failed: number }
+
+export type TestProgressReporter = {
   startTest: (ordinal: number, testName: string) => void
   completeTest: () => void
   completeAll: () => void
+}
+
+export const runTestCore = async (
+  options: TestCoreOptions,
+  onEvent?: (event: TestCoreEvent) => void,
+): Promise<TestCoreResult> => {
+  const { suite } = await resolveTestSuiteSource(options.suite, options.workingDirectory)
+
+  const service = await createPromptGeneratorService()
+  const defaultModel = await resolveDefaultGenerateModel()
+  const results: TestCaseResult[] = []
+  const total = suite.tests.length
+
+  for (const [index, test] of suite.tests.entries()) {
+    const ordinal = index + 1
+    onEvent?.({ type: 'test:start', index: ordinal, total, name: test.name })
+    const result = await runSingleTest({ test, service, model: defaultModel })
+    results.push(result)
+    onEvent?.({
+      type: 'test:complete',
+      index: ordinal,
+      total,
+      name: test.name,
+      pass: result.pass,
+      reason: result.reason,
+    })
+  }
+
+  const passed = results.filter((result) => result.pass).length
+  const failed = total - passed
+  onEvent?.({ type: 'test:summary', passed, failed })
+
+  return {
+    total,
+    passed,
+    failed,
+    results,
+  }
 }
 
 export const runTestCommand = async (argv: string[]): Promise<void> => {
@@ -42,18 +108,34 @@ export const runTestCommand = async (argv: string[]): Promise<void> => {
   const suite = await loadTestSuite(filePath)
   console.log(`Loaded ${suite.tests.length} test(s) from ${formatDisplayPath(filePath)}.`)
 
-  const results = await executePromptTests(suite)
+  const reporter = createTestProgressReporter(suite.tests.length)
+  const handleEvent = (event: TestCoreEvent): void => {
+    if (event.type === 'test:start') {
+      reporter.startTest(event.index, event.name)
+    } else if (event.type === 'test:complete') {
+      reporter.completeTest()
+    } else if (event.type === 'test:summary') {
+      reporter.completeAll()
+    }
+  }
+
+  const result = await runTestCore(
+    {
+      suite: { kind: 'inline', suite, originPath: filePath },
+      workingDirectory: path.dirname(filePath),
+    },
+    handleEvent,
+  )
 
   console.log('\nTest Results')
   console.log('────────────')
-  for (const result of results) {
-    const status = result.pass ? 'PASS' : 'FAIL'
-    console.log(`${status.padEnd(4)}  ${result.name} - ${result.reason}`)
+  for (const testResult of result.results) {
+    const status = testResult.pass ? 'PASS' : 'FAIL'
+    console.log(`${status.padEnd(4)}  ${testResult.name} - ${testResult.reason}`)
   }
 
-  const failures = results.filter((result) => !result.pass)
-  if (failures.length > 0) {
-    console.log(`\n${failures.length} test(s) failed.`)
+  if (result.failed > 0) {
+    console.log(`\n${result.failed} test(s) failed.`)
     process.exitCode = 1
   } else {
     console.log('\nAll tests passed!')
@@ -86,21 +168,22 @@ const parseTestArgs = (argv: string[]): TestArgs => {
   return { file }
 }
 
-const executePromptTests = async (suite: PromptTestSuite): Promise<TestResult[]> => {
-  const service = await createPromptGeneratorService()
-  const defaultModel = await resolveDefaultGenerateModel()
-  const results: TestResult[] = []
-  const progressReporter = createTestProgressReporter(suite.tests.length)
-
-  for (const [index, test] of suite.tests.entries()) {
-    progressReporter.startTest(index + 1, test.name)
-    const result = await runSingleTest({ test, service, model: defaultModel })
-    results.push(result)
-    progressReporter.completeTest()
+const resolveTestSuiteSource = async (
+  source: TestSuiteSource,
+  workingDirectory?: string,
+): Promise<{ suite: PromptTestSuite; originPath?: string }> => {
+  if (source.kind === 'inline') {
+    return source.originPath
+      ? { suite: source.suite, originPath: source.originPath }
+      : { suite: source.suite }
   }
 
-  progressReporter.completeAll()
-  return results
+  const baseDir = workingDirectory ?? process.cwd()
+  const absolutePath = path.isAbsolute(source.path)
+    ? source.path
+    : path.resolve(baseDir, source.path)
+  const suite = await loadTestSuite(absolutePath)
+  return { suite, originPath: absolutePath }
 }
 
 const runSingleTest = async ({
@@ -111,7 +194,7 @@ const runSingleTest = async ({
   test: PromptTest
   service: Awaited<ReturnType<typeof createPromptGeneratorService>>
   model: string
-}): Promise<TestResult> => {
+}): Promise<TestCaseResult> => {
   try {
     let fileContext = await resolveContextFiles(test.context)
 
