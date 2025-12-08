@@ -1,5 +1,5 @@
 import path from 'node:path'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import type { Key } from 'ink'
 import TextInput from 'ink-text-input'
@@ -16,6 +16,10 @@ import { runTestCore, type TestCoreEvent } from '../test-command'
 import type { TestCoreOptions } from '../test-command'
 import type { FileContext } from '../file-context'
 import { loadHistoryEntries, type HistoryEntry } from './history'
+import {
+  createRefinementController,
+  type RefinementControllerHandle,
+} from './refinement-controller'
 
 export type AppProps = {
   initialIntent?: string
@@ -23,7 +27,7 @@ export type AppProps = {
 
 type ViewName = 'generate' | 'test' | 'history'
 
-type FocusTarget = 'intent' | 'none'
+type FocusTarget = 'intent' | 'refinement' | 'none'
 
 type ProgressEntry = {
   label: string
@@ -57,6 +61,7 @@ type GenerateRunState = {
   activity: CoreMessage[]
   finalPrompt: string | null
   lastRunAt: string | null
+  awaitingRefinement: boolean
 }
 
 type TestRow = {
@@ -87,6 +92,7 @@ const initialGenerateState: GenerateRunState = {
   activity: [],
   finalPrompt: null,
   lastRunAt: null,
+  awaitingRefinement: false,
 }
 
 const initialTestState: TestRunState = {
@@ -106,6 +112,8 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([])
   const [historyStatus, setHistoryStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [historyError, setHistoryError] = useState<string | null>(null)
+  const [refinementDraft, setRefinementDraft] = useState('')
+  const [refinementHandle, setRefinementHandle] = useState<RefinementControllerHandle | null>(null)
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -176,6 +184,19 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
         return { ...prev, iterations }
       }
 
+      if (event.event === 'interactive.awaiting') {
+        return { ...prev, awaitingRefinement: true }
+      }
+
+      if (event.event === 'interactive.state') {
+        if (event.phase === 'complete') {
+          return { ...prev, awaitingRefinement: false }
+        }
+        if (event.phase === 'prompt' || event.phase === 'refine') {
+          return { ...prev, awaitingRefinement: false }
+        }
+      }
+
       return prev
     })
   }, [])
@@ -183,6 +204,24 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
   const handleContextResolved = useCallback((files: FileContext[]) => {
     setGenerateState((prev) => ({ ...prev, contextFiles: files }))
   }, [])
+
+  const submitRefinement = useCallback(() => {
+    const trimmed = refinementDraft.trim()
+    if (!trimmed || !refinementHandle) {
+      return
+    }
+    refinementHandle.submit(trimmed)
+    setRefinementDraft('')
+    setGenerateState((prev) => ({ ...prev, awaitingRefinement: false }))
+  }, [refinementDraft, refinementHandle])
+
+  const finishRefinement = useCallback(() => {
+    if (!refinementHandle) {
+      return
+    }
+    refinementHandle.finish()
+    setGenerateState((prev) => ({ ...prev, awaitingRefinement: false }))
+  }, [refinementHandle])
 
   const runGenerate = useCallback(async () => {
     if (generateState.status === 'running') {
@@ -201,9 +240,13 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
       contextFiles: generateState.contextFiles,
     })
 
+    const controllerHandle = createRefinementController()
+    setRefinementHandle(controllerHandle)
+    setRefinementDraft('')
+
     const options: GenerateCoreOptions = {
       intent: trimmedIntent,
-      interactive: false,
+      interactive: true,
       copy: false,
       openChatGpt: false,
       polish: false,
@@ -225,7 +268,11 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
 
     try {
       const result = await runGenerateCore(
-        { ...options, onContextResolved: handleContextResolved },
+        {
+          ...options,
+          interactiveController: controllerHandle.controller,
+          onContextResolved: handleContextResolved,
+        },
         handleGenerateEvent,
       )
       setGenerateState((prev) => ({
@@ -240,6 +287,10 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Generation failed.'
       setGenerateState((prev) => ({ ...prev, status: 'error', error: message }))
+    } finally {
+      controllerHandle.finish()
+      setRefinementHandle(null)
+      setGenerateState((prev) => ({ ...prev, awaitingRefinement: false }))
     }
   }, [
     generateState.contextFiles,
@@ -341,17 +392,28 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
       } else if (key.ctrl && input === '3') {
         setActiveView('history')
       } else if (key.tab && activeView === 'generate') {
-        setFocusTarget((prev) => (prev === 'intent' ? 'none' : 'intent'))
-      } else if (key.return && key.ctrl) {
+        const order: FocusTarget[] = ['intent', 'refinement', 'none']
+        setFocusTarget((prev) => {
+          const index = order.indexOf(prev)
+          const resolvedIndex = index === -1 ? 0 : (index + 1) % order.length
+          return order[resolvedIndex] ?? 'intent'
+        })
+      } else if (key.ctrl && key.return) {
         if (activeView === 'generate') {
           void runGenerate()
         } else if (activeView === 'test') {
           void runTests()
         }
+      } else if (key.ctrl && (input === 'f' || input === 'F') && activeView === 'generate') {
+        finishRefinement()
       } else if (input === 'g' && activeView === 'test') {
         void runTests()
-      } else if (input === 'r' && activeView === 'history') {
-        void refreshHistory()
+      } else if (input === 'r') {
+        if (activeView === 'generate') {
+          setFocusTarget('refinement')
+        } else if (activeView === 'history') {
+          void refreshHistory()
+        }
       }
     },
     { isActive: true },
@@ -367,7 +429,12 @@ export const App = ({ initialIntent = '' }: AppProps): JSX.Element => {
             onIntentChange={setIntentDraft}
             focus={focusTarget === 'intent'}
             state={generateState}
-            onRun={runGenerate}
+            refinementDraft={refinementDraft}
+            onRefinementChange={setRefinementDraft}
+            onSubmitRefinement={submitRefinement}
+            awaitingRefinement={generateState.awaitingRefinement}
+            refinementFocus={focusTarget === 'refinement'}
+            canRefine={Boolean(refinementHandle)}
           />
         )}
         {activeView === 'test' && (
@@ -411,10 +478,26 @@ type GenerateViewProps = {
   onIntentChange: (value: string) => void
   focus: boolean
   state: GenerateRunState
-  onRun: () => void
+  refinementDraft: string
+  onRefinementChange: (value: string) => void
+  onSubmitRefinement: () => void
+  awaitingRefinement: boolean
+  refinementFocus: boolean
+  canRefine: boolean
 }
 
-const GenerateView = ({ intent, onIntentChange, focus, state }: GenerateViewProps): JSX.Element => {
+const GenerateView = ({
+  intent,
+  onIntentChange,
+  focus,
+  state,
+  refinementDraft,
+  onRefinementChange,
+  onSubmitRefinement,
+  awaitingRefinement,
+  refinementFocus,
+  canRefine,
+}: GenerateViewProps): JSX.Element => {
   const contextPreview = useMemo(() => state.contextFiles.slice(0, 8), [state.contextFiles])
   const iterations = useMemo(
     () => [...state.iterations].sort((a, b) => a.iteration - b.iteration),
@@ -452,6 +535,34 @@ const GenerateView = ({ intent, onIntentChange, focus, state }: GenerateViewProp
             ))
           )}
         </Box>
+        <Box marginTop={1} flexDirection="column">
+          <Text color="cyan">Refinement</Text>
+          <TextInput
+            value={canRefine ? refinementDraft : ''}
+            onChange={(value) => {
+              if (canRefine) {
+                onRefinementChange(value)
+              }
+            }}
+            onSubmit={() => {
+              if (canRefine) {
+                onSubmitRefinement()
+              }
+            }}
+            focus={Boolean(canRefine && refinementFocus)}
+            placeholder={
+              canRefine ? 'Describe how to adjust the prompt' : 'Run generate to enable refinement'
+            }
+          />
+          <Text color={canRefine ? (awaitingRefinement ? 'yellow' : 'gray') : 'gray'}>
+            {canRefine
+              ? awaitingRefinement
+                ? 'Awaiting refinement input…'
+                : 'Not awaiting refinement.'
+              : 'Refinements available after generation.'}
+          </Text>
+          {canRefine && <Text color="green">Enter submits · Ctrl+F finishes session</Text>}
+        </Box>
       </Box>
       <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor="gray" padding={1}>
         <Text color="cyan">Telemetry & Progress</Text>
@@ -487,9 +598,9 @@ const GenerateView = ({ intent, onIntentChange, focus, state }: GenerateViewProp
               <Text>{latestIteration.prompt ?? '(empty prompt)'}</Text>
             </Box>
           )}
-          <Text color="cyan" marginTop={1}>
-            Refinements
-          </Text>
+          <Box marginTop={1}>
+            <Text color="cyan">Refinements</Text>
+          </Box>
           {iterations.filter((item) => item.refinement).length === 0 ? (
             <Text color="gray">No refinements captured.</Text>
           ) : (
