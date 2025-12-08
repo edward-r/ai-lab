@@ -2,18 +2,28 @@
 
 import { runGenerateCommand } from './generate-command'
 import { runTestCommand } from './test-command'
-import { prepareTuiLaunch, runPromptMakerTui } from './tui'
+import { prepareTuiLaunch } from './tui/launch'
 
-const { command, args } = resolveCommand(process.argv.slice(2))
-const { sanitizedArgs, shouldLaunch } = prepareTuiLaunch(args)
+const main = async (): Promise<void> => {
+  const { command, args } = resolveCommand(process.argv.slice(2))
+  const { sanitizedArgs, shouldLaunch, initialIntent } = prepareTuiLaunch(args)
 
-if (command === 'generate' && shouldLaunch) {
-  void runPromptMakerTui()
-} else if (command === 'test') {
-  void runTestCommand(sanitizedArgs)
-} else {
-  void runGenerateCommand(sanitizedArgs)
+  if (command === 'generate' && shouldLaunch) {
+    const { runPromptMakerTui } = await import('./tui/index.js')
+    const tuiOptions = initialIntent ? { initialIntent } : undefined
+    await runPromptMakerTui(tuiOptions)
+    return
+  }
+
+  if (command === 'test') {
+    await runTestCommand(sanitizedArgs)
+    return
+  }
+
+  await runGenerateCommand(sanitizedArgs)
 }
+
+void main()
 
 function resolveCommand(args: string[]): { command: 'generate' | 'test'; args: string[] } {
   if (args.length === 0) {

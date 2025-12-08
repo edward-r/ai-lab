@@ -1,5 +1,8 @@
 jest.mock('../generate-command', () => ({ runGenerateCommand: jest.fn() }))
 jest.mock('../test-command', () => ({ runTestCommand: jest.fn() }))
+jest.mock('../tui/launch', () => ({
+  prepareTuiLaunch: jest.fn((args: string[]) => ({ sanitizedArgs: args, shouldLaunch: false })),
+}))
 
 const getGenerateMock = () =>
   (jest.requireMock('../generate-command') as { runGenerateCommand: jest.Mock }).runGenerateCommand

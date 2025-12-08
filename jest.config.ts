@@ -22,6 +22,9 @@ const config: Config = {
     '^chalk$': '<rootDir>/tests/mocks/chalk.ts',
     '^ora$': '<rootDir>/tests/mocks/ora.ts',
     '^yargs$': '<rootDir>/tests/mocks/yargs.ts',
+    '^ink$': '<rootDir>/tests/mocks/ink.ts',
+    '^ink-text-input$': '<rootDir>/tests/mocks/ink-text-input.tsx',
+    '^ink-spinner$': '<rootDir>/tests/mocks/ink-spinner.tsx',
   },
   setupFilesAfterEnv: ['<rootDir>/apps/prompt-maker-cli/src/test-utils/setup.ts'],
   testMatch: [

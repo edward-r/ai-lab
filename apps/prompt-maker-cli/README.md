@@ -2,7 +2,8 @@
 
 Terminal-first interface for converting rough intent notes (and optional file/image context) into structured prompt contracts. The CLI now focuses exclusively on high-quality generation with optional polishing, JSON reasoning output, and built-in context tracking.
 
-- **Stateful refinement** – interactive runs feed the previous draft + your latest instruction back to the model so it can edit the existing prompt.
+- **Opencode-style TUI** – when a TTY is available you get a multi-panel UI with intent editor, telemetry, refinement composer, Test runner, and History browser. Use `--tui` to force it on, `--no-tui` (or `PROMPT_MAKER_TUI_DISABLED=1`) to fall back to the classic log-style output.
+- **Stateful refinement** – interactive runs feed the previous draft + your latest instruction back to the model so it can edit the existing prompt. The TUI exposes a refinement composer so you can iterate quickly, while transports continue to work for editor integrations.
 - **Context injection** – attach additional files with `-c/--context` (glob-aware), mix in remote docs with `--url`, and images with `--image` (PNG/JPG/WEBP/GIF, up to 20 MB each). Use `--show-context` to dump the resolved `<file path="…">…</file>` blocks for easy copy/paste.
 - **Token telemetry** – every run logs estimated input tokens and the size of each generated draft.
 - **History logging** – each command appends a JSONL record to `~/.config/prompt-maker-cli/history.jsonl` so you never lose a run.
@@ -52,6 +53,32 @@ echo "Need travel app brief" > drafts/travel.md
 prompt-maker-cli --intent-file drafts/travel.md --json > runs/travel.json
 ```
 
+## Opencode TUI at a glance
+
+The CLI automatically launches the Ink-based TUI when:
+
+- stdout **and** stdin are TTYs,
+- no blocking flags are present (`--json`, `--quiet`, `--stream jsonl`), and
+- you didn’t disable it via `--no-tui` or `PROMPT_MAKER_TUI_DISABLED=1`.
+
+Use `--tui` to force the UI on (helpful when scripting from another terminal) and `--no-tui` to revert to the legacy log output.
+
+### Views & keybindings
+
+| Shortcut                   | Action                                                      |
+| -------------------------- | ----------------------------------------------------------- |
+| `Ctrl+1 / Ctrl+2 / Ctrl+3` | Switch between **Generate**, **Test**, and **History** tabs |
+| `Ctrl+Enter`               | Run the active view (Generate/Test)                         |
+| `Tab` / `r`                | Cycle focus between intent/refinement inputs (Generate)     |
+| `Enter` (in refinement)    | Submit an instruction for another iteration (Generate)      |
+| `Ctrl+F`                   | Finish the current refinement session                       |
+| `g`                        | Run the currently selected test file (Test view)            |
+| `r` (History view)         | Refresh history entries from `history.jsonl`                |
+
+Generate view shows intent editor, context preview, telemetry/progress cards, prompt output, refinement history, and activity logs. Test view shows file picker, live progress rows, and summary stats. History view lists recent runs (intent/model/iterations/context counts) and can be refreshed on demand.
+
+Whenever a blocking flag is supplied (`--json`, `--quiet`, `--stream jsonl`) or stdout is redirected, the CLI automatically falls back to the classic non-TUI output so scripts keep working exactly as before.
+
 Key flags and behaviors:
 
 | Flag / Input                                | Purpose                                                                                                           |
@@ -72,6 +99,7 @@ Key flags and behaviors:
 | `--stream none\|jsonl`                      | Emit newline-delimited JSON events describing context, uploads, iterations, and interactive states.               |
 | `--context-template <name>`                 | Wrap the final prompt using a named template (supports built-ins like `nvim` or custom config entries).           |
 | `--interactive-transport <path>`            | Listen on a Unix socket/Windows named pipe for refine/finish commands while streaming events to the client.       |
+| `--tui` / `--no-tui`                        | Force-enable or disable the Opencode TUI (default is auto based on TTY + flags).                                  |
 | `--copy`, `--open-chatgpt`                  | Copy/open the final (possibly polished) artifact for quick sharing.                                               |
 | `--no-progress`                             | Disable the stderr spinner (useful when `--json` is scripted).                                                    |
 | `--help`                                    | Show the auto-generated Yargs help text.                                                                          |
@@ -83,7 +111,7 @@ Additional behaviors:
 - Setting `DEBUG=1` or `VERBOSE=1` prints the model’s reasoning (from the `reasoning` JSON field) to stderr after each call.
 - Each completed run is saved to `~/.config/prompt-maker-cli/history.jsonl` with a timestamp, so you can reconstruct past prompts or feed them into analytics.
 - `--show-context` dumps the resolved `<file …>` blocks to stdout (or stderr when `--json`) so you can copy the exact context into another assistant, while `--context-file` + `--context-format` capture the same payload for tooling; add `--smart-context-root <path>` when your embeddings should start from a different directory.
-- Styled telemetry banners, progress spinners, and Enquirer-powered refinement prompts make interactive mode easier to scan and drive.
+- Opencode-style TUI panels (or the classic spinner/log output when disabled) keep telemetry, prompts, and refinements easy to scan whether you’re iterating locally or piping results elsewhere.
 - `--quiet` suppresses purely cosmetic output (boxes, success ticks, clipboard/browser confirmations) while still surfacing warnings, errors, JSON payloads, and streaming events—perfect for editor integrations.
 
 ## Context templates
