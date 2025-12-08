@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
 
 import { GenerateScreen } from './GenerateScreen'
+import { ContextProvider } from './context'
 
 const AppContainer: React.FC = () => {
   const { exit } = useApp()
@@ -13,11 +14,15 @@ const AppContainer: React.FC = () => {
   })
 
   return (
-    <Box flexDirection="column" paddingX={2} paddingY={1}>
-      <Text color="cyanBright">Prompt Maker · TUI Preview</Text>
-      <Text color="gray">Tab cycles Intent → Model → Actions. Use Ctrl+C to exit.</Text>
-      <GenerateScreen />
-    </Box>
+    <ContextProvider>
+      <Box flexDirection="column" paddingX={2} paddingY={1}>
+        <Text color="cyanBright">Prompt Maker · TUI Preview</Text>
+        <Text color="gray">
+          Tab cycles Intent → Model → Context → Actions. Use Ctrl+C or Esc to exit.
+        </Text>
+        <GenerateScreen />
+      </Box>
+    </ContextProvider>
   )
 }
 

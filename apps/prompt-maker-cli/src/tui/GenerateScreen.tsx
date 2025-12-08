@@ -5,40 +5,68 @@ import TextInput from 'ink-text-input'
 import {
   runGeneratePipeline,
   type GenerateArgs,
-  type TokenTelemetry,
   type GeneratePipelineResult,
-  maybeCopyToClipboard,
-  maybeOpenChatGpt,
+  type ContextPathMetadata,
 } from '../generate-command'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { formatTokenCount } from '../token-counter'
+import { useContextState } from './context'
+import { ContextPanel, type ContextPanelFocus } from './ContextPanel'
+import { maybeCopyToClipboard, maybeOpenChatGpt } from '../generate-command'
 
-const focusOrder = ['intent', 'model', 'actions'] as const
+type FocusField = 'intent' | 'model' | 'contextFiles' | 'contextUrls' | 'contextSmart' | 'actions'
 
-type FocusField = (typeof focusOrder)[number]
+const focusOrder: FocusField[] = [
+  'intent',
+  'model',
+  'contextFiles',
+  'contextUrls',
+  'contextSmart',
+  'actions',
+]
+
+const nextFocus = (value: FocusField): FocusField => {
+  const index = focusOrder.indexOf(value)
+  return focusOrder[(index + 1) % focusOrder.length] as FocusField
+}
+
+const previousFocus = (value: FocusField): FocusField => {
+  const index = focusOrder.indexOf(value)
+  return focusOrder[(index - 1 + focusOrder.length) % focusOrder.length] as FocusField
+}
+
+type StatusState = 'idle' | 'running'
 
 type GenerationSummary = {
-  telemetry: TokenTelemetry
+  telemetry: GeneratePipelineResult['telemetry']
   generatedPrompt: string
   polishedPrompt?: string
   finalPrompt: string
   iterations: number
   model: string
+  contextPaths: ContextPathMetadata[]
 }
 
-type StatusState = 'idle' | 'running'
-
-const nextFocus = (current: FocusField): FocusField => {
-  const index = focusOrder.indexOf(current)
-  return focusOrder[(index + 1) % focusOrder.length] as FocusField
-}
-
-const previousFocus = (current: FocusField): FocusField => {
-  const index = focusOrder.indexOf(current)
-  return focusOrder[(index - 1 + focusOrder.length) % focusOrder.length] as FocusField
-}
+const ContextSummary: React.FC<{ summary: GenerationSummary }> = ({ summary }) => (
+  <Box flexDirection="column" marginTop={1}>
+    <Text color="cyan">Context Sources</Text>
+    {summary.contextPaths.length === 0 ? (
+      <Text color="gray">No additional context attached</Text>
+    ) : (
+      summary.contextPaths.slice(0, 5).map((ctx) => (
+        <Text key={`${ctx.path}-${ctx.source}`} color="gray">
+          [{ctx.source}] {ctx.path}
+        </Text>
+      ))
+    )}
+    {summary.contextPaths.length > 5 ? (
+      <Text color="gray">…and {summary.contextPaths.length - 5} more</Text>
+    ) : null}
+  </Box>
+)
 
 export const GenerateScreen: React.FC = () => {
+  const { files, urls, smartContextEnabled, smartContextRoot } = useContextState()
   const [intent, setIntent] = useState('')
   const [model, setModel] = useState('gpt-4o-mini')
   const [modelTouched, setModelTouched] = useState(false)
@@ -52,18 +80,16 @@ export const GenerateScreen: React.FC = () => {
   const [summary, setSummary] = useState<GenerationSummary | null>(null)
 
   useEffect(() => {
-    let isMounted = true
+    let mounted = true
     void resolveDefaultGenerateModel()
       .then((defaultModel) => {
-        if (isMounted && !modelTouched && defaultModel) {
+        if (mounted && !modelTouched && defaultModel) {
           setModel(defaultModel)
         }
       })
-      .catch(() => {
-        /* ignore */
-      })
+      .catch(() => undefined)
     return () => {
-      isMounted = false
+      mounted = false
     }
   }, [modelTouched])
 
@@ -88,11 +114,11 @@ export const GenerateScreen: React.FC = () => {
         showContext: false,
         contextFormat: 'text',
         help: false,
-        context: [],
-        urls: [],
+        context: [...files],
+        urls: [...urls],
         images: [],
         video: [],
-        smartContext: false,
+        smartContext: smartContextEnabled,
       }
 
       if (normalizedModel) {
@@ -103,9 +129,13 @@ export const GenerateScreen: React.FC = () => {
         args.polishModel = normalizedModel
       }
 
+      if (smartContextEnabled && smartContextRoot) {
+        args.smartContextRoot = smartContextRoot
+      }
+
       return args
     },
-    [model, polish],
+    [files, urls, model, polish, smartContextEnabled, smartContextRoot],
   )
 
   const handleRun = useCallback(async () => {
@@ -124,18 +154,19 @@ export const GenerateScreen: React.FC = () => {
     setError(undefined)
     setFeedback(undefined)
     setSummary(null)
+
     try {
       const args = buildRunArgs(trimmedIntent)
       const result: GeneratePipelineResult = await runGeneratePipeline(args)
-      const nextSummary: GenerationSummary = {
+      setSummary({
         telemetry: result.telemetry,
         generatedPrompt: result.generatedPrompt,
         finalPrompt: result.finalPrompt,
         iterations: result.iterations,
         model: result.model,
+        contextPaths: result.contextPaths,
         ...(result.polishedPrompt ? { polishedPrompt: result.polishedPrompt } : {}),
-      }
-      setSummary(nextSummary)
+      })
 
       let feedbackMessage = ''
       if (copyEnabled) {
@@ -168,43 +199,56 @@ export const GenerateScreen: React.FC = () => {
       return
     }
 
-    if (focus !== 'actions' || status === 'running') {
+    if (focus === 'contextFiles' || focus === 'contextUrls' || focus === 'contextSmart') {
       return
     }
 
-    if (key.return && canSubmit) {
-      void handleRun()
-      return
-    }
+    if (focus === 'actions') {
+      if (key.return && canSubmit) {
+        void handleRun()
+        return
+      }
 
-    const lower = input.toLowerCase()
-    switch (lower) {
-      case 'i':
-        setFocus('intent')
-        return
-      case 'm':
-        setFocus('model')
-        return
-      case 'p':
+      const lower = input.toLowerCase()
+      if (lower === 'p') {
         setPolish((prev) => !prev)
         return
-      case 'y':
+      }
+      if (lower === 'y') {
         setCopyEnabled((prev) => !prev)
         return
-      case 'o':
+      }
+      if (lower === 'o') {
         setOpenChatGpt((prev) => !prev)
         return
-      case 'g':
-        if (canSubmit) {
-          void handleRun()
-        }
+      }
+      if (lower === 'g' && canSubmit) {
+        void handleRun()
         return
-      default:
-        break
+      }
+      if (lower === 'i') {
+        setFocus('intent')
+        return
+      }
+      if (lower === 'm') {
+        setFocus('model')
+        return
+      }
+      if (lower === 'f') {
+        setFocus('contextFiles')
+        return
+      }
+      if (lower === 'u') {
+        setFocus('contextUrls')
+        return
+      }
+      if (lower === 's') {
+        setFocus('contextSmart')
+      }
     }
   })
 
-  const renderTelemetry = (telemetry: TokenTelemetry): React.ReactNode => (
+  const renderTelemetry = (telemetry: GenerationSummary['telemetry']): React.ReactNode => (
     <Box flexDirection="column" marginTop={1}>
       <Text color="cyan">Context Telemetry</Text>
       <Text>
@@ -222,101 +266,121 @@ export const GenerateScreen: React.FC = () => {
     </Box>
   )
 
+  const contextPanelFocus: ContextPanelFocus =
+    focus === 'contextFiles'
+      ? 'files'
+      : focus === 'contextUrls'
+        ? 'urls'
+        : focus === 'contextSmart'
+          ? 'smart'
+          : 'none'
+
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <Box>{focus === 'intent' ? <Text color="green">Intent</Text> : <Text>Intent</Text>}</Box>
-      <Box borderStyle="round" borderColor={focus === 'intent' ? 'green' : 'gray'} paddingX={1}>
-        <TextInput
-          value={intent}
-          onChange={setIntent}
-          placeholder="Describe what you want to generate…"
-          focus={focus === 'intent'}
-          onSubmit={() => {
-            setFocus('actions')
-            void handleRun()
-          }}
-        />
-      </Box>
+    <Box flexDirection="row" marginTop={1} gap={2}>
+      <Box flexDirection="column" flexGrow={1}>
+        <Box>{focus === 'intent' ? <Text color="green">Intent</Text> : <Text>Intent</Text>}</Box>
+        <Box borderStyle="round" borderColor={focus === 'intent' ? 'green' : 'gray'} paddingX={1}>
+          <TextInput
+            value={intent}
+            onChange={setIntent}
+            placeholder="Describe what you want to generate…"
+            focus={focus === 'intent'}
+            onSubmit={() => {
+              setFocus('actions')
+              void handleRun()
+            }}
+          />
+        </Box>
 
-      <Box marginTop={1}>
-        {focus === 'model' ? <Text color="green">Model</Text> : <Text>Model</Text>}
-      </Box>
-      <Box borderStyle="round" borderColor={focus === 'model' ? 'green' : 'gray'} paddingX={1}>
-        <TextInput
-          value={model}
-          onChange={(value) => {
-            setModelTouched(true)
-            setModel(value)
-          }}
-          placeholder="gpt-4o-mini"
-          focus={focus === 'model'}
-          onSubmit={() => setFocus('actions')}
-        />
-      </Box>
+        <Box marginTop={1}>
+          {focus === 'model' ? <Text color="green">Model</Text> : <Text>Model</Text>}
+        </Box>
+        <Box borderStyle="round" borderColor={focus === 'model' ? 'green' : 'gray'} paddingX={1}>
+          <TextInput
+            value={model}
+            onChange={(value) => {
+              setModelTouched(true)
+              setModel(value)
+            }}
+            placeholder="gpt-4o-mini"
+            focus={focus === 'model'}
+            onSubmit={() => setFocus('actions')}
+          />
+        </Box>
 
-      <Box marginTop={1} flexDirection="column">
-        {focus === 'actions' ? (
-          <Text color="green">Actions & Toggles</Text>
-        ) : (
-          <Text>Actions & Toggles</Text>
-        )}
-        <Text>Polish: {polish ? 'on' : 'off'} (toggle with "p")</Text>
-        <Text>Copy to clipboard: {copyEnabled ? 'on' : 'off'} (toggle with "y")</Text>
-        <Text>Open ChatGPT: {openChatGpt ? 'on' : 'off'} (toggle with "o")</Text>
-        <Text color="gray">
-          Use Tab to cycle fields. When actions are focused, press "g" or Enter to run, "i" to edit
-          intent, "m" to edit model.
-        </Text>
-      </Box>
-
-      <Box marginTop={1}>
-        {status === 'running' ? (
-          <Text color="cyan">Generating prompt…</Text>
-        ) : canSubmit ? (
-          <Text color="cyan">Press Enter or "g" to generate.</Text>
-        ) : (
-          <Text color="gray">Enter an intent to enable generation.</Text>
-        )}
-      </Box>
-
-      {error ? (
-        <Text color="red">{error}</Text>
-      ) : feedback ? (
-        <Text color="green">{feedback}</Text>
-      ) : null}
-
-      {summary ? (
-        <Box flexDirection="column" marginTop={1}>
-          <Text color="yellow">
-            Model {summary.model} · Iterations {summary.iterations}
+        <Box marginTop={1} flexDirection="column">
+          {focus === 'actions' ? (
+            <Text color="green">Actions & Toggles</Text>
+          ) : (
+            <Text>Actions & Toggles</Text>
+          )}
+          <Text>Polish: {polish ? 'on' : 'off'} ("p" to toggle)</Text>
+          <Text>Copy to clipboard: {copyEnabled ? 'on' : 'off'} ("y" to toggle)</Text>
+          <Text>Open ChatGPT: {openChatGpt ? 'on' : 'off'} ("o" to toggle)</Text>
+          <Text color="gray">
+            Use Tab / Shift+Tab to move between sections. From actions, press "g" or Enter to run,
+            "f"/"u"/"s" to focus context inputs.
           </Text>
-          {renderTelemetry(summary.telemetry)}
-          <Box
-            flexDirection="column"
-            borderStyle="round"
-            borderColor="green"
-            paddingX={1}
-            paddingY={0}
-            marginTop={1}
-          >
-            <Text color="green">Generated Prompt</Text>
-            <Text>{summary.generatedPrompt}</Text>
-          </Box>
-          {summary.polishedPrompt ? (
+          <Text color="gray">
+            Current context: {files.length} file glob(s), {urls.length} URL(s), smart context{' '}
+            {smartContextEnabled ? 'on' : 'off'}.
+          </Text>
+        </Box>
+
+        <Box marginTop={1}>
+          {status === 'running' ? (
+            <Text color="cyan">Generating prompt…</Text>
+          ) : canSubmit ? (
+            <Text color="cyan">Press Enter or "g" to generate.</Text>
+          ) : (
+            <Text color="gray">Enter an intent to enable generation.</Text>
+          )}
+        </Box>
+
+        {error ? (
+          <Text color="red">{error}</Text>
+        ) : feedback ? (
+          <Text color="green">{feedback}</Text>
+        ) : null}
+
+        {summary ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text color="yellow">
+              Model {summary.model} · Iterations {summary.iterations}
+            </Text>
+            {renderTelemetry(summary.telemetry)}
+            <ContextSummary summary={summary} />
             <Box
               flexDirection="column"
               borderStyle="round"
-              borderColor="magenta"
+              borderColor="green"
               paddingX={1}
               paddingY={0}
               marginTop={1}
             >
-              <Text color="magenta">Polished Prompt</Text>
-              <Text>{summary.polishedPrompt}</Text>
+              <Text color="green">Generated Prompt</Text>
+              <Text>{summary.generatedPrompt}</Text>
             </Box>
-          ) : null}
-        </Box>
-      ) : null}
+            {summary.polishedPrompt ? (
+              <Box
+                flexDirection="column"
+                borderStyle="round"
+                borderColor="magenta"
+                paddingX={1}
+                paddingY={0}
+                marginTop={1}
+              >
+                <Text color="magenta">Polished Prompt</Text>
+                <Text>{summary.polishedPrompt}</Text>
+              </Box>
+            ) : null}
+          </Box>
+        ) : null}
+      </Box>
+
+      <Box width={38}>
+        <ContextPanel focus={contextPanelFocus} />
+      </Box>
     </Box>
   )
 }
