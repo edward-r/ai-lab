@@ -11,6 +11,7 @@ import {
   type ContextPathMetadata,
   type StreamEventInput,
   type InteractiveDelegate,
+  type GeneratePipelineOptions,
 } from '../generate-command'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { formatTokenCount } from '../token-counter'
@@ -93,7 +94,11 @@ const ContextSummary: React.FC<{ summary: GenerationSummary }> = ({ summary }) =
   </Box>
 )
 
-export const GenerateScreen: React.FC = () => {
+type GenerateScreenProps = {
+  interactiveTransportPath?: string | undefined
+}
+
+export const GenerateScreen: React.FC<GenerateScreenProps> = ({ interactiveTransportPath }) => {
   const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
   const [intent, setIntent] = useState('')
   const [model, setModel] = useState('gpt-4o-mini')
@@ -102,6 +107,7 @@ export const GenerateScreen: React.FC = () => {
   const [copyEnabled, setCopyEnabled] = useState(false)
   const [openChatGpt, setOpenChatGpt] = useState(false)
   const [interactiveEnabled, setInteractiveEnabled] = useState(false)
+  const isTransportMode = Boolean(interactiveTransportPath)
   const [focus, setFocus] = useState<FocusField>('intent')
   const [status, setStatus] = useState<StatusState>('idle')
   const [error, setError] = useState<string | undefined>()
@@ -109,12 +115,28 @@ export const GenerateScreen: React.FC = () => {
   const [summary, setSummary] = useState<GenerationSummary | null>(null)
   const [uploadStatus, setUploadStatus] = useState<string | undefined>()
   const [progressStatus, setProgressStatus] = useState<string | undefined>()
+  const [transportStatus, setTransportStatus] = useState<string | undefined>(
+    interactiveTransportPath ? `Waiting to listen on ${interactiveTransportPath}` : undefined,
+  )
+  const [transportConnected, setTransportConnected] = useState(false)
+
   const [iterationHistory, setIterationHistory] = useState<IterationRecord[]>([])
   const [pendingRefinement, setPendingRefinement] = useState<PendingRefinementRequest | null>(null)
   const [refinementDraft, setRefinementDraft] = useState('')
   const refinementResolverRef = useRef<
     ((action: { type: 'refine'; instruction: string } | { type: 'finish' }) => void) | null
   >(null)
+  const isAwaitingRefinement = pendingRefinement !== null
+
+  useEffect(() => {
+    if (!interactiveTransportPath) {
+      setTransportStatus(undefined)
+      setTransportConnected(false)
+      return
+    }
+    setTransportStatus(`Ready to listen on ${interactiveTransportPath}`)
+    setTransportConnected(false)
+  }, [interactiveTransportPath])
 
   useEffect(() => {
     let mounted = true
@@ -168,6 +190,25 @@ export const GenerateScreen: React.FC = () => {
           entry.iteration === event.iteration ? { ...entry, prompt: event.prompt } : entry,
         ),
       )
+      return
+    }
+
+    if (event.event === 'transport.listening') {
+      setTransportStatus(`Listening on ${event.path}`)
+      setTransportConnected(false)
+      return
+    }
+
+    if (event.event === 'transport.client.connected') {
+      setTransportStatus('Client connected')
+      setTransportConnected(true)
+      return
+    }
+
+    if (event.event === 'transport.client.disconnected') {
+      setTransportStatus('Client disconnected')
+      setTransportConnected(false)
+      return
     }
   }, [])
 
@@ -216,23 +257,30 @@ export const GenerateScreen: React.FC = () => {
     setRefinementDraft('')
   }, [setPendingRefinement, setRefinementDraft])
 
+  useInput(
+    (_input, key) => {
+      if (key.escape) {
+        handleRefinementCancel()
+      }
+    },
+    { isActive: isAwaitingRefinement },
+  )
+
   const interactiveDelegate = useMemo<InteractiveDelegate | undefined>(() => {
-    if (!interactiveEnabled) {
+    if (!interactiveEnabled || isTransportMode) {
       return undefined
     }
     return {
       getNextAction: ({ iteration, currentPrompt }) => requestRefinement(iteration, currentPrompt),
     }
-  }, [interactiveEnabled, requestRefinement])
-
-  const isAwaitingRefinement = pendingRefinement !== null
+  }, [interactiveEnabled, isTransportMode, requestRefinement])
 
   const buildRunArgs = useCallback(
     (trimmedIntent: string): GenerateArgs => {
       const normalizedModel = model.trim()
       const args: GenerateArgs = {
         intent: trimmedIntent,
-        interactive: interactiveEnabled,
+        interactive: interactiveEnabled || isTransportMode,
         copy: false,
         openChatGpt: false,
         polish,
@@ -248,6 +296,10 @@ export const GenerateScreen: React.FC = () => {
         images: [...images],
         video: [...videos],
         smartContext: smartContextEnabled,
+      }
+
+      if (interactiveTransportPath) {
+        args.interactiveTransport = interactiveTransportPath
       }
 
       if (normalizedModel) {
@@ -274,6 +326,8 @@ export const GenerateScreen: React.FC = () => {
       smartContextEnabled,
       smartContextRoot,
       interactiveEnabled,
+      interactiveTransportPath,
+      isTransportMode,
     ],
   )
 
@@ -296,10 +350,17 @@ export const GenerateScreen: React.FC = () => {
     setUploadStatus(undefined)
     setProgressStatus(undefined)
     setIterationHistory([])
+    if (interactiveTransportPath) {
+      setTransportStatus(`Initializing transport on ${interactiveTransportPath}…`)
+      setTransportConnected(false)
+    }
 
-    const pipelineOptions = interactiveDelegate
-      ? { onStreamEvent: handleStreamEvent, interactiveDelegate }
-      : { onStreamEvent: handleStreamEvent }
+    const pipelineOptions: GeneratePipelineOptions = {
+      onStreamEvent: handleStreamEvent,
+    }
+    if (interactiveDelegate) {
+      pipelineOptions.interactiveDelegate = interactiveDelegate
+    }
 
     try {
       const args = buildRunArgs(trimmedIntent)
@@ -347,6 +408,7 @@ export const GenerateScreen: React.FC = () => {
     intent,
     openChatGpt,
     status,
+    interactiveTransportPath,
   ])
 
   useInput(
@@ -431,7 +493,7 @@ export const GenerateScreen: React.FC = () => {
           setFocus('mediaVideos')
           return
         }
-        if (lower === 'r') {
+        if (lower === 'r' && !isTransportMode) {
           setInteractiveEnabled((prev) => !prev)
           return
         }
@@ -479,7 +541,7 @@ export const GenerateScreen: React.FC = () => {
             value={intent}
             onChange={setIntent}
             placeholder="Describe what you want to generate…"
-            focus={focus === 'intent'}
+            focus={focus === 'intent' && !isAwaitingRefinement}
             onSubmit={() => {
               setFocus('actions')
               void handleRun()
@@ -498,7 +560,7 @@ export const GenerateScreen: React.FC = () => {
               setModel(value)
             }}
             placeholder="gpt-4o-mini"
-            focus={focus === 'model'}
+            focus={focus === 'model' && !isAwaitingRefinement}
             onSubmit={() => setFocus('actions')}
           />
         </Box>
@@ -512,7 +574,16 @@ export const GenerateScreen: React.FC = () => {
           <Text>Polish: {polish ? 'on' : 'off'} ("p" to toggle)</Text>
           <Text>Copy to clipboard: {copyEnabled ? 'on' : 'off'} ("y" to toggle)</Text>
           <Text>Open ChatGPT: {openChatGpt ? 'on' : 'off'} ("o" to toggle)</Text>
-          <Text>Interactive refinement: {interactiveEnabled ? 'on' : 'off'} ("r" to toggle)</Text>
+          {isTransportMode ? (
+            <Text>Interactive refinement: remote transport ({transportStatus ?? 'pending'})</Text>
+          ) : (
+            <Text>Interactive refinement: {interactiveEnabled ? 'on' : 'off'} ("r" to toggle)</Text>
+          )}
+          {isTransportMode ? (
+            <Text color={transportConnected ? 'green' : 'gray'}>
+              Transport status: {transportStatus ?? 'awaiting run'}
+            </Text>
+          ) : null}
           <Text color="gray">
             Use Tab / Shift+Tab to move between sections. From actions, press "g" or Enter to run,
             "f"/"u"/"s" for context files/URLs/smart context, and "e"/"v" for images/videos.
@@ -526,9 +597,12 @@ export const GenerateScreen: React.FC = () => {
           {progressStatus ? <Text color="gray">{progressStatus}</Text> : null}
         </Box>
 
-        {interactiveEnabled ? (
+        {interactiveEnabled || isTransportMode ? (
           <Box flexDirection="column" marginTop={1}>
             <Text color="cyan">Refinement Timeline</Text>
+            {isTransportMode ? (
+              <Text color="gray">Remote clients drive refinements via the transport socket.</Text>
+            ) : null}
             {sortedIterationHistory.length === 0 ? (
               <Text color="gray">No refinements yet.</Text>
             ) : (
