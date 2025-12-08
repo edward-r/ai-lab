@@ -127,7 +127,7 @@ type ContextPathMetadata = {
   source: ContextPathSource
 }
 
-type GenerateJsonPayload = {
+export type GenerateJsonPayload = {
   intent: string
   model: string
   prompt: string
@@ -143,7 +143,7 @@ type GenerateJsonPayload = {
   renderedPrompt?: string
 }
 
-type StreamMode = 'none' | 'jsonl'
+export type StreamMode = 'none' | 'jsonl'
 
 type StreamEventBase<EventName extends string, Payload extends object> = {
   event: EventName
