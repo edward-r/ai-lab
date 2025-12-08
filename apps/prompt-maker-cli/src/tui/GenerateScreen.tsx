@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import TextInput from 'ink-text-input'
 
@@ -10,6 +10,7 @@ import {
   type GeneratePipelineResult,
   type ContextPathMetadata,
   type StreamEventInput,
+  type InteractiveDelegate,
 } from '../generate-command'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { formatTokenCount } from '../token-counter'
@@ -60,6 +61,20 @@ type GenerationSummary = {
   contextPaths: ContextPathMetadata[]
 }
 
+type IterationRecord = {
+  iteration: number
+  prompt?: string
+  refinement?: string
+}
+
+type PendingRefinementRequest = {
+  iteration: number
+  prompt: string
+}
+
+const truncate = (value: string, max = 80): string =>
+  value.length > max ? `${value.slice(0, max)}…` : value
+
 const ContextSummary: React.FC<{ summary: GenerationSummary }> = ({ summary }) => (
   <Box flexDirection="column" marginTop={1}>
     <Text color="cyan">Context Sources</Text>
@@ -86,6 +101,7 @@ export const GenerateScreen: React.FC = () => {
   const [polish, setPolish] = useState(false)
   const [copyEnabled, setCopyEnabled] = useState(false)
   const [openChatGpt, setOpenChatGpt] = useState(false)
+  const [interactiveEnabled, setInteractiveEnabled] = useState(false)
   const [focus, setFocus] = useState<FocusField>('intent')
   const [status, setStatus] = useState<StatusState>('idle')
   const [error, setError] = useState<string | undefined>()
@@ -93,6 +109,12 @@ export const GenerateScreen: React.FC = () => {
   const [summary, setSummary] = useState<GenerationSummary | null>(null)
   const [uploadStatus, setUploadStatus] = useState<string | undefined>()
   const [progressStatus, setProgressStatus] = useState<string | undefined>()
+  const [iterationHistory, setIterationHistory] = useState<IterationRecord[]>([])
+  const [pendingRefinement, setPendingRefinement] = useState<PendingRefinementRequest | null>(null)
+  const [refinementDraft, setRefinementDraft] = useState('')
+  const refinementResolverRef = useRef<
+    ((action: { type: 'refine'; instruction: string } | { type: 'finish' }) => void) | null
+  >(null)
 
   useEffect(() => {
     let mounted = true
@@ -126,15 +148,91 @@ export const GenerateScreen: React.FC = () => {
 
     if (event.event === 'progress.update') {
       setProgressStatus(`${event.label} (${event.state})`)
+      return
+    }
+
+    if (event.event === 'generation.iteration.start') {
+      setIterationHistory((prev) => {
+        const filtered = prev.filter((entry) => entry.iteration !== event.iteration)
+        const next: IterationRecord = event.latestRefinement
+          ? { iteration: event.iteration, refinement: event.latestRefinement }
+          : { iteration: event.iteration }
+        return [...filtered, next]
+      })
+      return
+    }
+
+    if (event.event === 'generation.iteration.complete') {
+      setIterationHistory((prev) =>
+        prev.map((entry) =>
+          entry.iteration === event.iteration ? { ...entry, prompt: event.prompt } : entry,
+        ),
+      )
     }
   }, [])
+
+  const sortedIterationHistory = useMemo(() => {
+    return [...iterationHistory].sort((a, b) => a.iteration - b.iteration)
+  }, [iterationHistory])
+
+  const requestRefinement = useCallback(
+    (iteration: number, promptText: string) =>
+      new Promise<{ type: 'refine'; instruction: string } | { type: 'finish' }>((resolve) => {
+        refinementResolverRef.current = resolve
+        setPendingRefinement({ iteration, prompt: promptText })
+        setRefinementDraft('')
+      }),
+    [setPendingRefinement, setRefinementDraft],
+  )
+
+  const handleRefinementSubmit = useCallback(
+    (value: string) => {
+      const resolver = refinementResolverRef.current
+      if (!resolver) {
+        setPendingRefinement(null)
+        setRefinementDraft('')
+        return
+      }
+      const trimmed = value.trim()
+      refinementResolverRef.current = null
+      if (!trimmed) {
+        resolver({ type: 'finish' })
+      } else {
+        resolver({ type: 'refine', instruction: trimmed })
+      }
+      setPendingRefinement(null)
+      setRefinementDraft('')
+    },
+    [setPendingRefinement, setRefinementDraft],
+  )
+
+  const handleRefinementCancel = useCallback(() => {
+    const resolver = refinementResolverRef.current
+    if (resolver) {
+      resolver({ type: 'finish' })
+      refinementResolverRef.current = null
+    }
+    setPendingRefinement(null)
+    setRefinementDraft('')
+  }, [setPendingRefinement, setRefinementDraft])
+
+  const interactiveDelegate = useMemo<InteractiveDelegate | undefined>(() => {
+    if (!interactiveEnabled) {
+      return undefined
+    }
+    return {
+      getNextAction: ({ iteration, currentPrompt }) => requestRefinement(iteration, currentPrompt),
+    }
+  }, [interactiveEnabled, requestRefinement])
+
+  const isAwaitingRefinement = pendingRefinement !== null
 
   const buildRunArgs = useCallback(
     (trimmedIntent: string): GenerateArgs => {
       const normalizedModel = model.trim()
       const args: GenerateArgs = {
         intent: trimmedIntent,
-        interactive: false,
+        interactive: interactiveEnabled,
         copy: false,
         openChatGpt: false,
         polish,
@@ -166,7 +264,17 @@ export const GenerateScreen: React.FC = () => {
 
       return args
     },
-    [files, urls, images, videos, model, polish, smartContextEnabled, smartContextRoot],
+    [
+      files,
+      urls,
+      images,
+      videos,
+      model,
+      polish,
+      smartContextEnabled,
+      smartContextRoot,
+      interactiveEnabled,
+    ],
   )
 
   const handleRun = useCallback(async () => {
@@ -187,12 +295,16 @@ export const GenerateScreen: React.FC = () => {
     setSummary(null)
     setUploadStatus(undefined)
     setProgressStatus(undefined)
+    setIterationHistory([])
+
+    const pipelineOptions = interactiveDelegate
+      ? { onStreamEvent: handleStreamEvent, interactiveDelegate }
+      : { onStreamEvent: handleStreamEvent }
 
     try {
       const args = buildRunArgs(trimmedIntent)
-      const result: GeneratePipelineResult = await runGeneratePipeline(args, {
-        onStreamEvent: handleStreamEvent,
-      })
+      const result: GeneratePipelineResult = await runGeneratePipeline(args, pipelineOptions)
+
       setSummary({
         telemetry: result.telemetry,
         generatedPrompt: result.generatedPrompt,
@@ -219,84 +331,114 @@ export const GenerateScreen: React.FC = () => {
       const message = err instanceof Error ? err.message : 'Unknown generation error.'
       setError(message)
     } finally {
+      if (refinementResolverRef.current) {
+        refinementResolverRef.current({ type: 'finish' })
+        refinementResolverRef.current = null
+      }
+      setPendingRefinement(null)
+      setRefinementDraft('')
       setStatus('idle')
     }
-  }, [buildRunArgs, copyEnabled, handleStreamEvent, intent, openChatGpt, status])
+  }, [
+    buildRunArgs,
+    copyEnabled,
+    handleStreamEvent,
+    interactiveDelegate,
+    intent,
+    openChatGpt,
+    status,
+  ])
 
-  useInput((input, key) => {
-    if (key.tab && key.shift) {
-      setFocus((current) => previousFocus(current))
-      return
-    }
+  useInput(
+    (_input, key) => {
+      if (key.escape) {
+        handleRefinementCancel()
+      }
+    },
+    { isActive: isAwaitingRefinement },
+  )
 
-    if (key.tab) {
-      setFocus((current) => nextFocus(current))
-      return
-    }
-
-    if (
-      focus === 'contextFiles' ||
-      focus === 'contextUrls' ||
-      focus === 'contextSmart' ||
-      focus === 'mediaImages' ||
-      focus === 'mediaVideos'
-    ) {
-      return
-    }
-
-    if (focus === 'actions') {
-      if (key.return && canSubmit) {
-        void handleRun()
+  useInput(
+    (input, key) => {
+      if (key.tab && key.shift) {
+        setFocus((current) => previousFocus(current))
         return
       }
 
-      const lower = input.toLowerCase()
-      if (lower === 'p') {
-        setPolish((prev) => !prev)
+      if (key.tab) {
+        setFocus((current) => nextFocus(current))
         return
       }
-      if (lower === 'y') {
-        setCopyEnabled((prev) => !prev)
+
+      if (
+        focus === 'contextFiles' ||
+        focus === 'contextUrls' ||
+        focus === 'contextSmart' ||
+        focus === 'mediaImages' ||
+        focus === 'mediaVideos'
+      ) {
         return
       }
-      if (lower === 'o') {
-        setOpenChatGpt((prev) => !prev)
-        return
+
+      if (focus === 'actions') {
+        if (key.return && canSubmit) {
+          void handleRun()
+          return
+        }
+
+        const lower = input.toLowerCase()
+        if (lower === 'p') {
+          setPolish((prev) => !prev)
+          return
+        }
+        if (lower === 'y') {
+          setCopyEnabled((prev) => !prev)
+          return
+        }
+        if (lower === 'o') {
+          setOpenChatGpt((prev) => !prev)
+          return
+        }
+        if (lower === 'g' && canSubmit) {
+          void handleRun()
+          return
+        }
+        if (lower === 'i') {
+          setFocus('intent')
+          return
+        }
+        if (lower === 'm') {
+          setFocus('model')
+          return
+        }
+        if (lower === 'f') {
+          setFocus('contextFiles')
+          return
+        }
+        if (lower === 'u') {
+          setFocus('contextUrls')
+          return
+        }
+        if (lower === 's') {
+          setFocus('contextSmart')
+          return
+        }
+        if (lower === 'e') {
+          setFocus('mediaImages')
+          return
+        }
+        if (lower === 'v') {
+          setFocus('mediaVideos')
+          return
+        }
+        if (lower === 'r') {
+          setInteractiveEnabled((prev) => !prev)
+          return
+        }
       }
-      if (lower === 'g' && canSubmit) {
-        void handleRun()
-        return
-      }
-      if (lower === 'i') {
-        setFocus('intent')
-        return
-      }
-      if (lower === 'm') {
-        setFocus('model')
-        return
-      }
-      if (lower === 'f') {
-        setFocus('contextFiles')
-        return
-      }
-      if (lower === 'u') {
-        setFocus('contextUrls')
-        return
-      }
-      if (lower === 's') {
-        setFocus('contextSmart')
-        return
-      }
-      if (lower === 'e') {
-        setFocus('mediaImages')
-        return
-      }
-      if (lower === 'v') {
-        setFocus('mediaVideos')
-        return
-      }
-    }
-  })
+    },
+    { isActive: !isAwaitingRefinement },
+  )
 
   const renderTelemetry = (telemetry: GenerationSummary['telemetry']): React.ReactNode => (
     <Box flexDirection="column" marginTop={1}>
@@ -370,6 +512,7 @@ export const GenerateScreen: React.FC = () => {
           <Text>Polish: {polish ? 'on' : 'off'} ("p" to toggle)</Text>
           <Text>Copy to clipboard: {copyEnabled ? 'on' : 'off'} ("y" to toggle)</Text>
           <Text>Open ChatGPT: {openChatGpt ? 'on' : 'off'} ("o" to toggle)</Text>
+          <Text>Interactive refinement: {interactiveEnabled ? 'on' : 'off'} ("r" to toggle)</Text>
           <Text color="gray">
             Use Tab / Shift+Tab to move between sections. From actions, press "g" or Enter to run,
             "f"/"u"/"s" for context files/URLs/smart context, and "e"/"v" for images/videos.
@@ -382,6 +525,41 @@ export const GenerateScreen: React.FC = () => {
           {uploadStatus ? <Text color="cyan">{uploadStatus}</Text> : null}
           {progressStatus ? <Text color="gray">{progressStatus}</Text> : null}
         </Box>
+
+        {interactiveEnabled ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text color="cyan">Refinement Timeline</Text>
+            {sortedIterationHistory.length === 0 ? (
+              <Text color="gray">No refinements yet.</Text>
+            ) : (
+              sortedIterationHistory.map((entry) => (
+                <Box key={entry.iteration} flexDirection="column">
+                  <Text color="gray">
+                    Iteration {entry.iteration}
+                    {entry.refinement ? ` · refinement: ${entry.refinement}` : ''}
+                  </Text>
+                  {entry.prompt ? <Text>{truncate(entry.prompt)}</Text> : null}
+                </Box>
+              ))
+            )}
+            {pendingRefinement ? (
+              <Box flexDirection="column" marginTop={1}>
+                <Text color="yellow">
+                  Iteration {pendingRefinement.iteration}: describe the refinement (blank or Esc to
+                  finish)
+                </Text>
+                <Text color="gray">Last prompt preview: {truncate(pendingRefinement.prompt)}</Text>
+                <TextInput
+                  value={refinementDraft}
+                  onChange={setRefinementDraft}
+                  placeholder="Describe the refinement"
+                  focus={pendingRefinement !== null}
+                  onSubmit={handleRefinementSubmit}
+                />
+              </Box>
+            ) : null}
+          </Box>
+        ) : null}
 
         <Box marginTop={1}>
           {status === 'running' ? (

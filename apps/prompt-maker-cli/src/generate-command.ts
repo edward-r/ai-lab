@@ -245,8 +245,16 @@ export type StreamEventInput = {
   [EventName in StreamEvent['event']]: Omit<Extract<StreamEvent, { event: EventName }>, 'timestamp'>
 }[StreamEvent['event']]
 
+export type InteractiveDelegate = {
+  getNextAction: (context: {
+    iteration: number
+    currentPrompt: string
+  }) => Promise<{ type: 'refine'; instruction: string } | { type: 'finish' }>
+}
+
 export type GeneratePipelineOptions = {
   onStreamEvent?: (event: StreamEventInput) => void
+  interactiveDelegate?: InteractiveDelegate
 }
 
 type TransportLifecycleEventInput = Extract<
@@ -547,6 +555,7 @@ export const runGeneratePipeline = async (
       telemetry,
       interactiveMode,
       interactiveTransport,
+      interactiveDelegate: options.interactiveDelegate,
       display: shouldDisplay,
       stream: streamProxy,
       onUploadStateChange: handleUploadStateChange,
@@ -959,6 +968,7 @@ const runGenerationWorkflow = async ({
   telemetry,
   interactiveMode,
   interactiveTransport,
+  interactiveDelegate,
   display,
   stream,
   onUploadStateChange,
@@ -968,6 +978,7 @@ const runGenerationWorkflow = async ({
   telemetry: TokenTelemetry
   interactiveMode: InteractiveMode
   interactiveTransport?: InteractiveTransport | null
+  interactiveDelegate?: InteractiveDelegate | undefined
   display: boolean
   stream: StreamDispatcher
   onUploadStateChange?: UploadStateChange
@@ -1018,6 +1029,38 @@ const runGenerationWorkflow = async ({
             iteration,
             previousPrompt: currentPrompt,
             latestRefinement: instruction,
+          },
+          display,
+          stream,
+          inputTokens,
+          true,
+          onUploadStateChange,
+        )
+
+        stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
+      }
+    } else if (interactiveDelegate) {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        stream.emit({ event: 'interactive.awaiting', mode: interactiveMode })
+        const action = await interactiveDelegate.getNextAction({ iteration, currentPrompt })
+        if (!action || action.type === 'finish') {
+          break
+        }
+        const refinement = action.instruction.trim()
+        if (!refinement) {
+          continue
+        }
+        stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
+        context.refinements.push(refinement)
+        iteration += 1
+        currentPrompt = await generateAndMaybeDisplay(
+          service,
+          {
+            ...context,
+            iteration,
+            previousPrompt: currentPrompt,
+            latestRefinement: refinement,
           },
           display,
           stream,
