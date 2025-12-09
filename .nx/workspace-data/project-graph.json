@@ -3862,6 +3862,33 @@
         "hash": "sha512-PGgtx8Tlq8yNnAOZQzWf3HLf/8Q6Pg54gfT1q6Fewwi/pdKhjsWnmU3W8oTRJblU86mws81rKFa05+Y2RESbNQ=="
       }
     },
+    "npm:cli-cursor@3.1.0": {
+      "type": "npm",
+      "name": "npm:cli-cursor@3.1.0",
+      "data": {
+        "version": "3.1.0",
+        "packageName": "cli-cursor",
+        "hash": "sha512-I/zHAwsKf9FqGoXM4WWRACob9+SNukZTd94DWF57E4toouRulbCxcUh6RKUEOQlYTHJnzkPMySvPNaaSLNfLZw=="
+      }
+    },
+    "npm:cli-cursor": {
+      "type": "npm",
+      "name": "npm:cli-cursor",
+      "data": {
+        "version": "4.0.0",
+        "packageName": "cli-cursor",
+        "hash": "sha512-VGtlMu3x/4DOtIUwEkRezxUZ2lBacNJCHash0N0WeZDBS+7Ux1dm3XWAgWYxLJFMMdOeXMHXorshEFhbMSGelg=="
+      }
+    },
+    "npm:cli-cursor@5.0.0": {
+      "type": "npm",
+      "name": "npm:cli-cursor@5.0.0",
+      "data": {
+        "version": "5.0.0",
+        "packageName": "cli-cursor",
+        "hash": "sha512-aCj4O5wKyszjMmDT4tZj93kxyydN/K5zPWSCe6/0AV/AA1pqe5ZBIw0a2ZfPQV7lL5/yb5HsUreJ6UFAF1tEQw=="
+      }
+    },
     "npm:is-interactive@1.0.0": {
       "type": "npm",
       "name": "npm:is-interactive@1.0.0",
@@ -3968,6 +3995,51 @@
         "version": "4.0.3",
         "packageName": "picomatch",
         "hash": "sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q=="
+      }
+    },
+    "npm:restore-cursor@3.1.0": {
+      "type": "npm",
+      "name": "npm:restore-cursor@3.1.0",
+      "data": {
+        "version": "3.1.0",
+        "packageName": "restore-cursor",
+        "hash": "sha512-l+sSefzHpj5qimhFSE5a8nufZYAM3sBSVMAPtYkmC+4EH2anSGaEMXSD0izRQbu9nfyQ9y5JrVmp7E8oZrUjvA=="
+      }
+    },
+    "npm:restore-cursor@5.1.0": {
+      "type": "npm",
+      "name": "npm:restore-cursor@5.1.0",
+      "data": {
+        "version": "5.1.0",
+        "packageName": "restore-cursor",
+        "hash": "sha512-oMA2dcrw6u0YfxJQXm342bFKX/E4sG9rbTzO9ptUcR/e8A33cHuvStiYOwH7fszkZlZ1z/ta9AAoPk2F4qIOHA=="
+      }
+    },
+    "npm:restore-cursor": {
+      "type": "npm",
+      "name": "npm:restore-cursor",
+      "data": {
+        "version": "4.0.0",
+        "packageName": "restore-cursor",
+        "hash": "sha512-I9fPXU9geO9bHOt9pHHOhOkYerIMsmVaWB0rA2AI9ERh/+x/i7MV5HKBNrg+ljO5eoPVgCcnFuRjJ9uH6I/3eg=="
+      }
+    },
+    "npm:signal-exit@3.0.7": {
+      "type": "npm",
+      "name": "npm:signal-exit@3.0.7",
+      "data": {
+        "version": "3.0.7",
+        "packageName": "signal-exit",
+        "hash": "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="
+      }
+    },
+    "npm:signal-exit": {
+      "type": "npm",
+      "name": "npm:signal-exit",
+      "data": {
+        "version": "4.1.0",
+        "packageName": "signal-exit",
+        "hash": "18094101305806910444"
       }
     },
     "npm:@nx/module-federation": {
@@ -6436,33 +6508,6 @@
         "hash": "sha512-/lzGpEWL/8PfI0BmBOPRwp0c/wFNX1RdUML3jK/RcSBA9T8mZDdQpqYBKtCFTOfQbwPqWEOpjqW+Fnayc0969g=="
       }
     },
-    "npm:cli-cursor": {
-      "type": "npm",
-      "name": "npm:cli-cursor",
-      "data": {
-        "version": "3.1.0",
-        "packageName": "cli-cursor",
-        "hash": "sha512-I/zHAwsKf9FqGoXM4WWRACob9+SNukZTd94DWF57E4toouRulbCxcUh6RKUEOQlYTHJnzkPMySvPNaaSLNfLZw=="
-      }
-    },
-    "npm:cli-cursor@4.0.0": {
-      "type": "npm",
-      "name": "npm:cli-cursor@4.0.0",
-      "data": {
-        "version": "4.0.0",
-        "packageName": "cli-cursor",
-        "hash": "sha512-VGtlMu3x/4DOtIUwEkRezxUZ2lBacNJCHash0N0WeZDBS+7Ux1dm3XWAgWYxLJFMMdOeXMHXorshEFhbMSGelg=="
-      }
-    },
-    "npm:cli-cursor@5.0.0": {
-      "type": "npm",
-      "name": "npm:cli-cursor@5.0.0",
-      "data": {
-        "version": "5.0.0",
-        "packageName": "cli-cursor",
-        "hash": "sha512-aCj4O5wKyszjMmDT4tZj93kxyydN/K5zPWSCe6/0AV/AA1pqe5ZBIw0a2ZfPQV7lL5/yb5HsUreJ6UFAF1tEQw=="
-      }
-    },
     "npm:cli-spinners": {
       "type": "npm",
       "name": "npm:cli-spinners",
@@ -8810,51 +8855,6 @@
         "version": "5.0.1",
         "packageName": "ink-text-input",
         "hash": "sha512-crnsYJalG4EhneOFnr/q+Kzw1RgmXI2KsBaLFE6mpiIKxAtJLUnvygOF2IUKO8z4nwkSkveGRBMd81RoYdRSag=="
-      }
-    },
-    "npm:restore-cursor@4.0.0": {
-      "type": "npm",
-      "name": "npm:restore-cursor@4.0.0",
-      "data": {
-        "version": "4.0.0",
-        "packageName": "restore-cursor",
-        "hash": "sha512-I9fPXU9geO9bHOt9pHHOhOkYerIMsmVaWB0rA2AI9ERh/+x/i7MV5HKBNrg+ljO5eoPVgCcnFuRjJ9uH6I/3eg=="
-      }
-    },
-    "npm:restore-cursor@5.1.0": {
-      "type": "npm",
-      "name": "npm:restore-cursor@5.1.0",
-      "data": {
-        "version": "5.1.0",
-        "packageName": "restore-cursor",
-        "hash": "sha512-oMA2dcrw6u0YfxJQXm342bFKX/E4sG9rbTzO9ptUcR/e8A33cHuvStiYOwH7fszkZlZ1z/ta9AAoPk2F4qIOHA=="
-      }
-    },
-    "npm:restore-cursor": {
-      "type": "npm",
-      "name": "npm:restore-cursor",
-      "data": {
-        "version": "3.1.0",
-        "packageName": "restore-cursor",
-        "hash": "sha512-l+sSefzHpj5qimhFSE5a8nufZYAM3sBSVMAPtYkmC+4EH2anSGaEMXSD0izRQbu9nfyQ9y5JrVmp7E8oZrUjvA=="
-      }
-    },
-    "npm:signal-exit@3.0.7": {
-      "type": "npm",
-      "name": "npm:signal-exit@3.0.7",
-      "data": {
-        "version": "3.0.7",
-        "packageName": "signal-exit",
-        "hash": "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="
-      }
-    },
-    "npm:signal-exit": {
-      "type": "npm",
-      "name": "npm:signal-exit",
-      "data": {
-        "version": "4.1.0",
-        "packageName": "signal-exit",
-        "hash": "18094101305806910444"
       }
     },
     "npm:widest-line@4.0.1": {
@@ -12982,7 +12982,22 @@
       },
       {
         "source": "prompt-maker-cli",
+        "target": "npm:boxen",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
         "target": "npm:chalk",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:cli-cursor",
+        "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:cli-table3",
         "type": "static"
       },
       {
@@ -13028,16 +13043,6 @@
       {
         "source": "prompt-maker-cli",
         "target": "prompt-maker-core",
-        "type": "static"
-      },
-      {
-        "source": "prompt-maker-cli",
-        "target": "npm:boxen",
-        "type": "static"
-      },
-      {
-        "source": "prompt-maker-cli",
-        "target": "npm:cli-table3",
         "type": "static"
       },
       {
@@ -18008,6 +18013,13 @@
         "type": "static"
       }
     ],
+    "npm:cli-cursor@3.1.0": [
+      {
+        "source": "npm:cli-cursor@3.1.0",
+        "target": "npm:restore-cursor@3.1.0",
+        "type": "static"
+      }
+    ],
     "npm:log-symbols@4.1.0": [
       {
         "source": "npm:log-symbols@4.1.0",
@@ -18033,7 +18045,7 @@
       },
       {
         "source": "npm:ora@5.3.0",
-        "target": "npm:cli-cursor",
+        "target": "npm:cli-cursor@3.1.0",
         "type": "static"
       },
       {
@@ -18059,6 +18071,18 @@
       {
         "source": "npm:ora@5.3.0",
         "target": "npm:wcwidth",
+        "type": "static"
+      }
+    ],
+    "npm:restore-cursor@3.1.0": [
+      {
+        "source": "npm:restore-cursor@3.1.0",
+        "target": "npm:onetime",
+        "type": "static"
+      },
+      {
+        "source": "npm:restore-cursor@3.1.0",
+        "target": "npm:signal-exit@3.0.7",
         "type": "static"
       }
     ],
@@ -23925,7 +23949,7 @@
       },
       {
         "source": "npm:ink",
-        "target": "npm:cli-cursor@4.0.0",
+        "target": "npm:cli-cursor",
         "type": "static"
       },
       {
@@ -24043,25 +24067,6 @@
       {
         "source": "npm:ink-text-input",
         "target": "npm:type-fest@3.13.1",
-        "type": "static"
-      }
-    ],
-    "npm:cli-cursor@4.0.0": [
-      {
-        "source": "npm:cli-cursor@4.0.0",
-        "target": "npm:restore-cursor@4.0.0",
-        "type": "static"
-      }
-    ],
-    "npm:restore-cursor@4.0.0": [
-      {
-        "source": "npm:restore-cursor@4.0.0",
-        "target": "npm:onetime",
-        "type": "static"
-      },
-      {
-        "source": "npm:restore-cursor@4.0.0",
-        "target": "npm:signal-exit@3.0.7",
         "type": "static"
       }
     ],
@@ -26400,7 +26405,7 @@
       },
       {
         "source": "npm:nx",
-        "target": "npm:cli-cursor",
+        "target": "npm:cli-cursor@3.1.0",
         "type": "static"
       },
       {
@@ -30058,5 +30063,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1765295354862
+  "computedAt": 1765298708664
 }
