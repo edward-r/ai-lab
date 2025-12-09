@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
 
-import { GenerateScreen } from './GenerateScreen'
+import { CommandScreen } from './CommandScreen'
 import { TestRunnerScreen } from './TestRunnerScreen'
 import { ContextProvider } from './context'
 
@@ -53,28 +53,34 @@ const AppContainer: React.FC<{ interactiveTransport?: string | undefined }> = ({
 
   return (
     <ContextProvider>
-      <Box flexDirection="column" paddingX={2} paddingY={1}>
-        <Text color="cyanBright">Prompt Maker · TUI Preview</Text>
-        <Text color="gray">Ctrl+G → Generate · Ctrl+T → Test Runner · Ctrl+C/Esc to exit.</Text>
-        {view === 'generate' ? (
-          <>
-            <Text color="gray">
-              Tab cycles Intent → Model → Context → Actions. Use Ctrl+C or Esc to exit.
-            </Text>
-            {interactiveTransport ? (
+      <Box flexDirection="column" paddingX={2} paddingY={1} height="100%">
+        <Text color="cyanBright">Prompt Maker · Command Palette Preview</Text>
+        <Text color="gray">
+          Ctrl+G → Command Palette · Ctrl+T → Test Runner · Ctrl+C/Esc to exit.
+        </Text>
+        <Box flexDirection="column" flexGrow={1} height="100%" marginTop={1}>
+          {view === 'generate' ? (
+            <>
               <Text color="gray">
-                Interactive transport listening on {interactiveTransport}. Send JSON commands to
-                refine remotely.
+                Type intents freely or prefix with /command. Use arrow keys to browse history.
               </Text>
-            ) : null}
-            <GenerateScreen interactiveTransportPath={interactiveTransport} />
-          </>
-        ) : (
-          <>
-            <Text color="gray">Enter a test file and press Enter to run suites.</Text>
-            <TestRunnerScreen />
-          </>
-        )}
+              {interactiveTransport ? (
+                <Text color="gray">
+                  Interactive transport listening on {interactiveTransport}. Remote refinements will
+                  appear in history.
+                </Text>
+              ) : null}
+              <Box flexDirection="column" flexGrow={1} height="100%" marginTop={1}>
+                <CommandScreen interactiveTransportPath={interactiveTransport} />
+              </Box>
+            </>
+          ) : (
+            <>
+              <Text color="gray">Enter a test file and press Enter to run suites.</Text>
+              <TestRunnerScreen />
+            </>
+          )}
+        </Box>
       </Box>
     </ContextProvider>
   )
