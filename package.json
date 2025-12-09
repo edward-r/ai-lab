@@ -31,6 +31,8 @@
     "fast-glob": "^3.3.3",
     "framer-motion": "^11.0.0",
     "html-to-text": "^9.0.5",
+    "ink": "^4.4.1",
+    "ink-text-input": "^5.0.1",
     "js-tiktoken": "^1.0.21",
     "js-yaml": "^4.1.1",
     "lottie-react": "^2.4.0",

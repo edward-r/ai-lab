@@ -78,7 +78,7 @@ const shouldTraceCopy = (): boolean =>
 
 type PromptGenerator = Awaited<ReturnType<typeof createPromptGeneratorService>>
 
-type GenerateArgs = {
+export type GenerateArgs = {
   intent?: string
   intentFile?: string
   model?: string
@@ -122,12 +122,12 @@ type LoopContext = {
 
 type ContextPathSource = 'intent' | 'file' | 'url' | 'smart'
 
-type ContextPathMetadata = {
+export type ContextPathMetadata = {
   path: string
   source: ContextPathSource
 }
 
-type GenerateJsonPayload = {
+export type GenerateJsonPayload = {
   intent: string
   model: string
   prompt: string
@@ -143,7 +143,18 @@ type GenerateJsonPayload = {
   renderedPrompt?: string
 }
 
-type StreamMode = 'none' | 'jsonl'
+export type GeneratePipelineResult = {
+  payload: GenerateJsonPayload
+  telemetry: TokenTelemetry
+  generatedPrompt: string
+  polishedPrompt?: string
+  finalPrompt: string
+  iterations: number
+  model: string
+  contextPaths: ContextPathMetadata[]
+}
+
+export type StreamMode = 'none' | 'jsonl'
 
 type StreamEventBase<EventName extends string, Payload extends object> = {
   event: EventName
@@ -234,6 +245,18 @@ export type StreamEventInput = {
   [EventName in StreamEvent['event']]: Omit<Extract<StreamEvent, { event: EventName }>, 'timestamp'>
 }[StreamEvent['event']]
 
+export type InteractiveDelegate = {
+  getNextAction: (context: {
+    iteration: number
+    currentPrompt: string
+  }) => Promise<{ type: 'refine'; instruction: string } | { type: 'finish' }>
+}
+
+export type GeneratePipelineOptions = {
+  onStreamEvent?: (event: StreamEventInput) => void
+  interactiveDelegate?: InteractiveDelegate
+}
+
 type TransportLifecycleEventInput = Extract<
   StreamEventInput,
   {
@@ -320,14 +343,10 @@ const logFlagSnapshot = (args: GenerateArgs): void => {
   console.error(chalk.dim('[pmc:flags]'), JSON.stringify(snapshot, null, 2))
 }
 
-export const runGenerateCommand = async (argv: string[]): Promise<void> => {
-  const { args, showHelp } = parseGenerateArgs(argv)
-
-  if (args.help) {
-    showHelp()
-    return
-  }
-
+export const runGeneratePipeline = async (
+  args: GenerateArgs,
+  options: GeneratePipelineOptions = {},
+): Promise<GeneratePipelineResult> => {
   logFlagSnapshot(args)
 
   const interactiveTransportPath = args.interactiveTransport?.trim()
@@ -390,8 +409,25 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     const streamDispatcher = createStreamDispatcher(args.stream, {
       ...(interactiveTransport ? { taps: [interactiveTransport.getEventWriter()] } : {}),
     })
-    interactiveTransport?.setEventEmitter((event) => {
+
+    const emitEvent = (event: StreamEventInput): void => {
+      if (options.onStreamEvent) {
+        try {
+          options.onStreamEvent(event)
+        } catch {
+          // ignore listener errors to avoid breaking pipeline
+        }
+      }
       streamDispatcher.emit(event)
+    }
+
+    const streamProxy: StreamDispatcher = {
+      mode: streamDispatcher.mode,
+      emit: emitEvent,
+    }
+
+    interactiveTransport?.setEventEmitter((event) => {
+      emitEvent(event)
     })
 
     if (interactiveTransport) {
@@ -429,7 +465,7 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       state: 'start' | 'update' | 'stop',
       scope: ProgressScope = 'generic',
     ): void => {
-      streamDispatcher.emit({ event: 'progress.update', label, state, scope })
+      emitEvent({ event: 'progress.update', label, state, scope })
     }
 
     emitProgress('Resolving context', 'start', 'generic')
@@ -451,6 +487,10 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
           fileContext = [...fileContext, ...urlFiles]
           recordContextPaths(urlFiles, 'url')
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown URL fetch error.'
+        console.warn(chalk.yellow(`Failed to fetch URL context: ${message}`))
+        emitEvent({ event: 'progress.update', label: `URL error: ${message}`, state: 'update' })
       } finally {
         urlSpinner?.stop('URL context ready')
         emitProgress(label, 'stop', 'url')
@@ -476,6 +516,14 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
           fileContext = [...fileContext, ...smartFiles]
           recordContextPaths(smartFiles, 'smart')
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown smart context error.'
+        console.warn(chalk.yellow(`Smart context failed: ${message}`))
+        emitEvent({
+          event: 'progress.update',
+          label: `Smart context error: ${message}`,
+          state: 'update',
+        })
       } finally {
         smartSpinner?.stop('Smart context ready')
         emitProgress(label, 'stop', 'smart')
@@ -503,14 +551,14 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     emitProgress('Resolving context', 'stop', 'generic')
 
     const telemetry = buildTokenTelemetry(intent, fileContext)
-    streamDispatcher.emit({ event: 'context.telemetry', telemetry })
+    emitEvent({ event: 'context.telemetry', telemetry })
 
     emitProgress('Generating prompt', 'start', 'generate')
     const generationSpinner = startSpinner('Generating prompt')
     const handleUploadStateChange = createUploadStateTracker(
       generationSpinner,
       'Generating prompt',
-      streamDispatcher,
+      streamProxy,
     )
 
     const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
@@ -519,8 +567,9 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       telemetry,
       interactiveMode,
       interactiveTransport,
+      interactiveDelegate: options.interactiveDelegate,
       display: shouldDisplay,
-      stream: streamDispatcher,
+      stream: streamProxy,
       onUploadStateChange: handleUploadStateChange,
     })
     generationSpinner?.stop('Generated prompt ✓')
@@ -572,12 +621,23 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
       payload.renderedPrompt = renderedPrompt
     }
 
-    streamDispatcher.emit({ event: 'generation.final', result: payload })
+    emitEvent({ event: 'generation.final', result: payload })
+
+    const pipelineResult: GeneratePipelineResult = {
+      payload,
+      telemetry,
+      generatedPrompt,
+      finalPrompt: finalArtifact,
+      iterations,
+      model,
+      contextPaths,
+      ...(polishedPrompt ? { polishedPrompt } : {}),
+    }
 
     if (args.json) {
       console.log(JSON.stringify(payload, null, 2))
       await appendToHistory(payload)
-      return
+      return pipelineResult
     }
 
     if (renderedPrompt && shouldDisplay && contextTemplateName) {
@@ -587,12 +647,24 @@ export const runGenerateCommand = async (argv: string[]): Promise<void> => {
     }
 
     await appendToHistory(payload)
+    return pipelineResult
   } finally {
     transportCleanupHandlers.forEach(({ event, handler }) => {
       process.off(event, handler)
     })
     await interactiveTransport?.stop()
   }
+}
+
+export const runGenerateCommand = async (argv: string[]): Promise<void> => {
+  const { args, showHelp } = parseGenerateArgs(argv)
+
+  if (args.help) {
+    showHelp()
+    return
+  }
+
+  await runGeneratePipeline(args)
 }
 
 const parseGenerateArgs = (argv: string[]): ParsedArgs => {
@@ -908,6 +980,7 @@ const runGenerationWorkflow = async ({
   telemetry,
   interactiveMode,
   interactiveTransport,
+  interactiveDelegate,
   display,
   stream,
   onUploadStateChange,
@@ -917,6 +990,7 @@ const runGenerationWorkflow = async ({
   telemetry: TokenTelemetry
   interactiveMode: InteractiveMode
   interactiveTransport?: InteractiveTransport | null
+  interactiveDelegate?: InteractiveDelegate | undefined
   display: boolean
   stream: StreamDispatcher
   onUploadStateChange?: UploadStateChange
@@ -967,6 +1041,38 @@ const runGenerationWorkflow = async ({
             iteration,
             previousPrompt: currentPrompt,
             latestRefinement: instruction,
+          },
+          display,
+          stream,
+          inputTokens,
+          true,
+          onUploadStateChange,
+        )
+
+        stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
+      }
+    } else if (interactiveDelegate) {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        stream.emit({ event: 'interactive.awaiting', mode: interactiveMode })
+        const action = await interactiveDelegate.getNextAction({ iteration, currentPrompt })
+        if (!action || action.type === 'finish') {
+          break
+        }
+        const refinement = action.instruction.trim()
+        if (!refinement) {
+          continue
+        }
+        stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
+        context.refinements.push(refinement)
+        iteration += 1
+        currentPrompt = await generateAndMaybeDisplay(
+          service,
+          {
+            ...context,
+            iteration,
+            previousPrompt: currentPrompt,
+            latestRefinement: refinement,
           },
           display,
           stream,
@@ -1110,7 +1216,7 @@ type FileTokenSummary = {
   tokens: number
 }
 
-type TokenTelemetry = {
+export type TokenTelemetry = {
   files: FileTokenSummary[]
   intentTokens: number
   fileTokens: number
@@ -1281,7 +1387,7 @@ const isPromptCancellation = (error: unknown): boolean => {
   return false
 }
 
-const maybeCopyToClipboard = async (
+export const maybeCopyToClipboard = async (
   shouldCopy: boolean,
   prompt: string,
   showFeedback: boolean,
@@ -1314,7 +1420,7 @@ const maybeCopyToClipboard = async (
   }
 }
 
-const maybeOpenChatGpt = async (
+export const maybeOpenChatGpt = async (
   shouldOpen: boolean,
   prompt: string,
   showFeedback: boolean,

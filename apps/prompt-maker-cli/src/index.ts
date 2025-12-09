@@ -3,15 +3,28 @@
 import { runGenerateCommand } from './generate-command'
 import { runTestCommand } from './test-command'
 
+type CliCommand = 'generate' | 'test' | 'ui'
+
 const { command, args } = resolveCommand(process.argv.slice(2))
 
-if (command === 'test') {
-  void runTestCommand(args)
-} else {
-  void runGenerateCommand(args)
+switch (command) {
+  case 'test':
+    void runTestCommand(args)
+    break
+  case 'ui':
+    void loadAndRunTui(args)
+    break
+  case 'generate':
+  default:
+    void runGenerateCommand(args)
 }
 
-function resolveCommand(args: string[]): { command: 'generate' | 'test'; args: string[] } {
+async function loadAndRunTui(args: string[]): Promise<void> {
+  const { runTuiCommand } = await import('./tui')
+  await runTuiCommand(args)
+}
+
+function resolveCommand(args: string[]): { command: CliCommand; args: string[] } {
   if (args.length === 0) {
     return { command: 'generate', args }
   }
@@ -23,6 +36,10 @@ function resolveCommand(args: string[]): { command: 'generate' | 'test'; args: s
 
   if (first === 'test') {
     return { command: 'test', args: rest }
+  }
+
+  if (first === 'ui') {
+    return { command: 'ui', args: rest }
   }
 
   if (!first.startsWith('-') && (first === 'generate' || first === 'expand')) {
