@@ -13,6 +13,7 @@ export type AppContainerProps = {
 export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport }) => {
   const { exit } = useApp()
   const [view, setView] = useState<'generate' | 'tests'>('generate')
+  const [isPopupOpen, setIsPopupOpen] = useState(false)
 
   useEffect(() => {
     if (!process.stdout.isTTY) {
@@ -25,8 +26,21 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
     }
   }, [])
 
+  useEffect(() => {
+    if (view !== 'generate') {
+      setIsPopupOpen(false)
+    }
+  }, [view])
+
   useInput((input, key) => {
-    if ((key.ctrl && input === 'c') || key.escape) {
+    if (key.ctrl && input === 'c') {
+      exit()
+      return
+    }
+    if (key.escape) {
+      if (view === 'generate' && isPopupOpen) {
+        return
+      }
       exit()
       return
     }
@@ -59,7 +73,10 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
                 </Text>
               ) : null}
               <Box flexDirection="column" flexGrow={1} height="100%" marginTop={1}>
-                <CommandScreen interactiveTransportPath={interactiveTransport} />
+                <CommandScreen
+                  interactiveTransportPath={interactiveTransport}
+                  onPopupVisibilityChange={setIsPopupOpen}
+                />
               </Box>
             </>
           ) : (

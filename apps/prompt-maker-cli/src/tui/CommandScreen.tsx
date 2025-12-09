@@ -377,9 +377,13 @@ const filterModelOptions = (query: string): ModelOption[] => {
 
 type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
+  onPopupVisibilityChange?: (isOpen: boolean) => void
 }
 
-export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTransportPath }) => {
+export const CommandScreen: React.FC<CommandScreenProps> = ({
+  interactiveTransportPath,
+  onPopupVisibilityChange,
+}) => {
   const { stdout } = useStdout()
   const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
   const { addFile, removeFile, addUrl, removeUrl, toggleSmartContext, setSmartRoot } =
@@ -424,6 +428,22 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
   const commandQuery = isCommandMode ? trimmedInput.slice(1).trimStart() : ''
   const normalizedQuery = commandQuery.toLowerCase()
   const isPopupOpen = popupState !== null
+
+  useEffect(() => {
+    if (!onPopupVisibilityChange) {
+      return
+    }
+    onPopupVisibilityChange(isPopupOpen)
+  }, [isPopupOpen, onPopupVisibilityChange])
+
+  useEffect(() => {
+    if (!onPopupVisibilityChange) {
+      return undefined
+    }
+    return () => {
+      onPopupVisibilityChange(false)
+    }
+  }, [onPopupVisibilityChange])
 
   const commandMatches = useMemo(() => {
     if (!isCommandMode) {
