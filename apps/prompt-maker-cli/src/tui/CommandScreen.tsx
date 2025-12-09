@@ -1,7 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useInput, useStdout } from 'ink'
 import TextInput from 'ink-text-input'
 
+import {
+  runGeneratePipeline,
+  maybeCopyToClipboard,
+  maybeOpenChatGpt,
+  type GenerateArgs,
+  type GeneratePipelineOptions,
+  type GeneratePipelineResult,
+  type StreamEventInput,
+} from '../generate-command'
 import { useContextDispatch, useContextState } from './context'
 
 const INPUT_BAR_MIN_ROWS = 3
@@ -27,6 +36,7 @@ const TOGGLE_POPUP_HEIGHT = 6
 const LIST_POPUP_HEIGHT = 12
 const SMART_POPUP_HEIGHT = 9
 const MAX_VISIBLE_LIST_ITEMS = 6
+const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
 
 const TOGGLE_LABELS = {
   polish: 'Polish',
@@ -62,8 +72,14 @@ type PopupState =
   | { type: 'smart'; draft: string }
   | null
 
+type HistoryEntry = {
+  id: string
+  content: string
+  kind: 'user' | 'system' | 'progress'
+}
+
 type ScrollableOutputProps = {
-  lines: readonly string[]
+  lines: readonly HistoryEntry[]
   visibleRows: number
   scrollOffset: number
 }
@@ -82,9 +98,28 @@ const ScrollableOutput: React.FC<ScrollableOutputProps> = ({
 
   return (
     <Box flexDirection="column" height={visibleRows} overflow="hidden">
-      {visibleLines.map((line, index) => (
-        <Text key={`${startIndex + index}:${line}`}>{line}</Text>
-      ))}
+      {visibleLines.map((entry, index) => {
+        const key = `${entry.id}-${startIndex + index}`
+        if (entry.kind === 'user') {
+          return (
+            <Text key={key} color="cyan">
+              {entry.content}
+            </Text>
+          )
+        }
+        if (entry.kind === 'progress') {
+          return (
+            <Text key={key} color="yellow">
+              {entry.content}
+            </Text>
+          )
+        }
+        return (
+          <Text key={key} color="gray">
+            {entry.content}
+          </Text>
+        )
+      })}
     </Box>
   )
 }
@@ -346,12 +381,15 @@ type CommandScreenProps = {
 
 export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTransportPath }) => {
   const { stdout } = useStdout()
-  const { files, urls, smartContextEnabled, smartContextRoot } = useContextState()
+  const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
   const { addFile, removeFile, addUrl, removeUrl, toggleSmartContext, setSmartRoot } =
     useContextDispatch()
 
   const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
-  const [history, setHistory] = useState<string[]>(() => [...WELCOME_LINES])
+  const [history, setHistory] = useState<HistoryEntry[]>(() =>
+    WELCOME_LINES.map((line, index) => ({ id: `welcome-${index}`, content: line, kind: 'system' })),
+  )
+  const historyIdRef = useRef(WELCOME_LINES.length)
   const [inputValue, setInputValue] = useState('')
   const [scrollOffset, setScrollOffset] = useState(0)
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true)
@@ -361,11 +399,25 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
   const [polishEnabled, setPolishEnabled] = useState(false)
   const [copyEnabled, setCopyEnabled] = useState(false)
   const [chatGptEnabled, setChatGptEnabled] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [spinnerIndex, setSpinnerIndex] = useState(0)
+  const [statusMessage, setStatusMessage] = useState('Idle')
 
-  const pushHistory = useCallback((message: string) => {
-    setHistory((prev) => [...prev, message])
+  const pushHistory = useCallback((content: string, kind: HistoryEntry['kind'] = 'system') => {
+    setHistory((prev) => [...prev, { id: `entry-${historyIdRef.current++}`, content, kind }])
     setIsPinnedToBottom(true)
   }, [])
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setSpinnerIndex(0)
+      return
+    }
+    const timer = setInterval(() => {
+      setSpinnerIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
+    }, 120)
+    return () => clearInterval(timer)
+  }, [isGenerating])
 
   const trimmedInput = inputValue.trimStart()
   const isCommandMode = trimmedInput.startsWith('/')
@@ -420,10 +472,13 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
     }
     const transportLine = `Interactive transport listening on ${interactiveTransportPath}`
     setHistory((prev) => {
-      if (prev.includes(transportLine)) {
+      if (prev.some((entry) => entry.content === transportLine)) {
         return prev
       }
-      return [...prev, transportLine]
+      return [
+        ...prev,
+        { id: `entry-${historyIdRef.current++}`, content: transportLine, kind: 'system' },
+      ]
     })
   }, [interactiveTransportPath])
 
@@ -648,6 +703,147 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
     [setSmartRoot, pushHistory],
   )
 
+  const handleStreamEvent = useCallback(
+    (event: StreamEventInput) => {
+      switch (event.event) {
+        case 'progress.update': {
+          const scope = event.scope ? `[${event.scope}] ` : ''
+          const message = `${scope}${event.label} (${event.state})`
+          pushHistory(message, 'progress')
+          setStatusMessage(message)
+          return
+        }
+        case 'upload.state': {
+          const action = event.state === 'start' ? 'Uploading' : 'Uploaded'
+          pushHistory(`${action} ${event.detail.kind}: ${event.detail.filePath}`, 'progress')
+          return
+        }
+        case 'generation.iteration.start':
+          pushHistory(`Iteration ${event.iteration} started`, 'progress')
+          return
+        case 'generation.iteration.complete':
+          pushHistory(`Iteration ${event.iteration} complete`, 'progress')
+          return
+        case 'context.telemetry': {
+          const telemetry = event.telemetry
+          pushHistory(
+            `Telemetry · total ${telemetry.totalTokens} · intent ${telemetry.intentTokens} · files ${telemetry.fileTokens}`,
+            'progress',
+          )
+          return
+        }
+        case 'generation.final':
+          pushHistory('Generation stream finalized.', 'progress')
+          return
+        case 'transport.listening':
+          pushHistory(`Transport listening on ${event.path}`, 'progress')
+          return
+        case 'transport.client.connected':
+          pushHistory('Transport client connected.', 'progress')
+          return
+        case 'transport.client.disconnected':
+          pushHistory('Transport client disconnected.', 'progress')
+          return
+        case 'interactive.awaiting':
+          pushHistory(`Awaiting ${event.mode} input`, 'progress')
+          return
+        case 'interactive.state':
+          pushHistory(`Interactive ${event.phase} (iteration ${event.iteration})`, 'progress')
+          return
+        default:
+          return
+      }
+    },
+    [pushHistory, setStatusMessage],
+  )
+
+  const runGeneration = useCallback(
+    async (intent: string) => {
+      setIsGenerating(true)
+      setStatusMessage('Preparing generation…')
+      pushHistory('Starting generation…')
+      try {
+        const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
+        const args: GenerateArgs = {
+          intent,
+          interactive: Boolean(interactiveTransportPath),
+          copy: false,
+          openChatGpt: false,
+          polish: polishEnabled,
+          json: false,
+          quiet: true,
+          progress: false,
+          stream: 'none',
+          showContext: false,
+          contextFormat: 'text',
+          help: false,
+          context: [...files],
+          urls: [...urls],
+          images: [...images],
+          video: [...videos],
+          smartContext: smartContextEnabled,
+          model: normalizedModel,
+        }
+        if (polishEnabled) {
+          args.polishModel = normalizedModel
+        }
+        if (smartContextEnabled && smartContextRoot) {
+          args.smartContextRoot = smartContextRoot
+        }
+        if (interactiveTransportPath) {
+          args.interactiveTransport = interactiveTransportPath
+        }
+
+        const options: GeneratePipelineOptions = {
+          onStreamEvent: handleStreamEvent,
+        }
+
+        const result: GeneratePipelineResult = await runGeneratePipeline(args, options)
+        setStatusMessage('Finalizing prompt…')
+        const iterationLabel = result.iterations ? ` · ${result.iterations} iterations` : ''
+        pushHistory(`Final prompt (${result.model}${iterationLabel}):`, 'system')
+        pushHistory(result.finalPrompt, 'system')
+        if (result.telemetry) {
+          pushHistory(
+            `Telemetry · total ${result.telemetry.totalTokens} · intent ${result.telemetry.intentTokens} · files ${result.telemetry.fileTokens}`,
+            'system',
+          )
+        }
+        if (copyEnabled) {
+          await maybeCopyToClipboard(true, result.finalPrompt, false)
+          pushHistory('Copied prompt to clipboard.', 'system')
+        }
+        if (chatGptEnabled) {
+          await maybeOpenChatGpt(true, result.finalPrompt, false)
+          pushHistory('Opened ChatGPT with generated prompt.', 'system')
+        }
+        setStatusMessage('Complete')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown generation error.'
+        pushHistory(`Generation failed: ${message}`)
+        setStatusMessage('Failed')
+      } finally {
+        setIsGenerating(false)
+      }
+    },
+    [
+      chatGptEnabled,
+      copyEnabled,
+      currentModel,
+      files,
+      urls,
+      images,
+      videos,
+      polishEnabled,
+      smartContextEnabled,
+      smartContextRoot,
+      interactiveTransportPath,
+      handleStreamEvent,
+      pushHistory,
+      setStatusMessage,
+    ],
+  )
+
   useInput(
     (input, key) => {
       if (!popupState) {
@@ -854,8 +1050,14 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
         setInputValue('')
         return
       }
-      pushHistory(`> ${trimmed}`)
+      if (isGenerating) {
+        pushHistory('Generation already running. Please wait.', 'system')
+        setInputValue('')
+        return
+      }
+      pushHistory(`> ${trimmed}`, 'user')
       setInputValue('')
+      void runGeneration(trimmed)
     },
     [
       handleCommandSelection,
@@ -863,12 +1065,17 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
       isCommandMode,
       popupState,
       selectedCommand,
+      isGenerating,
+      runGeneration,
       pushHistory,
     ],
   )
 
   const statusChips = useMemo(() => {
-    const chips = [`[${currentModel}]`]
+    const statusChip = isGenerating
+      ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${statusMessage}]`
+      : `[status:${statusMessage}]`
+    const chips = [statusChip, `[${currentModel}]`]
     chips.push(`[polish:${polishEnabled ? 'on' : 'off'}]`)
     chips.push(`[copy:${copyEnabled ? 'on' : 'off'}]`)
     chips.push(`[chatgpt:${chatGptEnabled ? 'on' : 'off'}]`)
@@ -880,6 +1087,9 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
     }
     return chips
   }, [
+    isGenerating,
+    spinnerIndex,
+    statusMessage,
     currentModel,
     polishEnabled,
     copyEnabled,
