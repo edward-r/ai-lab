@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Box, Text, useInput, useStdout } from 'ink'
 import TextInput from 'ink-text-input'
 
+import { useContextDispatch, useContextState } from './context'
+
 const INPUT_BAR_MIN_ROWS = 3
 const COMMAND_DESCRIPTORS = [
   { id: 'model', label: 'Model', description: 'Switch the target LLM' },
@@ -19,14 +21,25 @@ const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 const MODEL_OPTIONS = [
   { id: 'gpt-4o-mini', label: 'gpt-4o-mini', description: 'OpenAI general-purpose LLM' },
   { id: 'gemini-1.5-pro', label: 'gemini-1.5-pro', description: 'Google Gemini multimodal' },
-]
+] as const
 const MODEL_POPUP_HEIGHT = MODEL_OPTIONS.length + 5
 const TOGGLE_POPUP_HEIGHT = 6
+const LIST_POPUP_HEIGHT = 12
+const SMART_POPUP_HEIGHT = 9
+const MAX_VISIBLE_LIST_ITEMS = 6
 
 const TOGGLE_LABELS = {
   polish: 'Polish',
   copy: 'Copy',
   chatgpt: 'ChatGPT',
+} as const
+
+const POPUP_HEIGHTS = {
+  model: MODEL_POPUP_HEIGHT,
+  toggle: TOGGLE_POPUP_HEIGHT,
+  file: LIST_POPUP_HEIGHT,
+  url: LIST_POPUP_HEIGHT,
+  smart: SMART_POPUP_HEIGHT,
 } as const
 
 const WELCOME_LINES = [
@@ -39,9 +52,14 @@ type CommandDescriptor = (typeof COMMAND_DESCRIPTORS)[number]
 type ModelOption = (typeof MODEL_OPTIONS)[number]
 type ToggleField = keyof typeof TOGGLE_LABELS
 
+type PopupKind = keyof typeof POPUP_HEIGHTS
+
 type PopupState =
   | { type: 'model'; query: string; selectionIndex: number }
   | { type: 'toggle'; field: ToggleField; selectionIndex: number }
+  | { type: 'file'; draft: string; selectionIndex: number }
+  | { type: 'url'; draft: string; selectionIndex: number }
+  | { type: 'smart'; draft: string }
   | null
 
 type ScrollableOutputProps = {
@@ -125,12 +143,83 @@ const CommandMenu: React.FC<CommandMenuProps> = ({ commands, selectedIndex }) =>
   </Box>
 )
 
+type ListPopupProps = {
+  title: string
+  placeholder: string
+  draft: string
+  items: readonly string[]
+  selectedIndex: number
+  emptyLabel: string
+  instructions: string
+  onDraftChange: (value: string) => void
+  onSubmitDraft: (value: string) => void
+}
+
+const ListPopup: React.FC<ListPopupProps> = ({
+  title,
+  placeholder,
+  draft,
+  items,
+  selectedIndex,
+  emptyLabel,
+  instructions,
+  onDraftChange,
+  onSubmitDraft,
+}) => {
+  const upperBound = Math.max(items.length - MAX_VISIBLE_LIST_ITEMS, 0)
+  const start = Math.max(0, Math.min(selectedIndex - 2, upperBound))
+  const visibleItems = items.slice(start, start + MAX_VISIBLE_LIST_ITEMS)
+
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1} paddingY={0}>
+      <Text color="blueBright">{title}</Text>
+      <Box flexDirection="column" marginTop={1}>
+        <Text color="gray">Add new</Text>
+        <TextInput
+          value={draft}
+          onChange={onDraftChange}
+          placeholder={placeholder}
+          onSubmit={() => onSubmitDraft(draft)}
+          focus
+        />
+      </Box>
+      <Box flexDirection="column" marginTop={1}>
+        {items.length === 0 ? (
+          <Text color="gray">{emptyLabel}</Text>
+        ) : (
+          <>
+            {start > 0 ? <Text color="gray">… earlier entries …</Text> : null}
+            {visibleItems.map((value, index) => {
+              const actualIndex = start + index
+              const isSelected = actualIndex === selectedIndex
+              const textProps = isSelected
+                ? ({ color: 'black', backgroundColor: 'blueBright' } as const)
+                : ({ color: 'white' } as const)
+              return (
+                <Text key={`${value}-${actualIndex}`} {...textProps}>
+                  {actualIndex + 1}. {value}
+                </Text>
+              )
+            })}
+            {start + MAX_VISIBLE_LIST_ITEMS < items.length ? (
+              <Text color="gray">… later entries …</Text>
+            ) : null}
+          </>
+        )}
+      </Box>
+      <Box marginTop={1}>
+        <Text color="gray">{instructions}</Text>
+      </Box>
+    </Box>
+  )
+}
+
 type ModelPopupProps = {
   query: string
   options: readonly ModelOption[]
   selectedIndex: number
   onQueryChange: (value: string) => void
-  onSubmit: () => void
+  onSubmit: (option?: ModelOption) => void
 }
 
 const ModelPopup: React.FC<ModelPopupProps> = ({
@@ -147,7 +236,7 @@ const ModelPopup: React.FC<ModelPopupProps> = ({
       <TextInput
         value={query}
         onChange={onQueryChange}
-        onSubmit={onSubmit}
+        onSubmit={() => onSubmit(options[selectedIndex])}
         placeholder="Start typing a model name"
         focus
       />
@@ -199,15 +288,46 @@ const TogglePopup: React.FC<TogglePopupProps> = ({ field, selectionIndex }) => {
         })}
       </Box>
       <Box marginTop={1}>
-        <Text color="gray">Enter to confirm · Esc to cancel</Text>
+        <Text color="gray">Use arrows to select · Enter to confirm · Esc to cancel</Text>
       </Box>
     </Box>
   )
 }
 
-type CommandScreenProps = {
-  interactiveTransportPath?: string | undefined
+type SmartPopupProps = {
+  enabled: boolean
+  draft: string
+  onDraftChange: (value: string) => void
+  onSubmitRoot: (value: string) => void
 }
+
+const SmartPopup: React.FC<SmartPopupProps> = ({ enabled, draft, onDraftChange, onSubmitRoot }) => (
+  <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={1} paddingY={0}>
+    <Text color="greenBright">Smart Context</Text>
+    <Box marginTop={1}>
+      <Text color="white">Status: {enabled ? 'enabled' : 'disabled'} (press T to toggle)</Text>
+    </Box>
+    <Box flexDirection="column" marginTop={1}>
+      <Text color="gray">Root override (Enter to apply; empty to clear)</Text>
+      <TextInput
+        value={draft}
+        onChange={onDraftChange}
+        onSubmit={() => onSubmitRoot(draft)}
+        placeholder="/absolute/path or relative/dir"
+        focus
+      />
+    </Box>
+    <Box marginTop={1}>
+      <Text color="gray">Enter to apply root · T to toggle · Esc to close</Text>
+    </Box>
+    <Box marginTop={1}>
+      <Text color="gray">Current root will mirror saved value.</Text>
+    </Box>
+    <Box marginTop={1}>
+      <Text color="gray">Toggle Smart Context carefully—long scans may take time.</Text>
+    </Box>
+  </Box>
+)
 
 const filterModelOptions = (query: string): ModelOption[] => {
   const trimmed = query.trim().toLowerCase()
@@ -220,8 +340,16 @@ const filterModelOptions = (query: string): ModelOption[] => {
   )
 }
 
+type CommandScreenProps = {
+  interactiveTransportPath?: string | undefined
+}
+
 export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTransportPath }) => {
   const { stdout } = useStdout()
+  const { files, urls, smartContextEnabled, smartContextRoot } = useContextState()
+  const { addFile, removeFile, addUrl, removeUrl, toggleSmartContext, setSmartRoot } =
+    useContextDispatch()
+
   const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
   const [history, setHistory] = useState<string[]>(() => [...WELCOME_LINES])
   const [inputValue, setInputValue] = useState('')
@@ -233,6 +361,11 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
   const [polishEnabled, setPolishEnabled] = useState(false)
   const [copyEnabled, setCopyEnabled] = useState(false)
   const [chatGptEnabled, setChatGptEnabled] = useState(false)
+
+  const pushHistory = useCallback((message: string) => {
+    setHistory((prev) => [...prev, message])
+    setIsPinnedToBottom(true)
+  }, [])
 
   const trimmedInput = inputValue.trimStart()
   const isCommandMode = trimmedInput.startsWith('/')
@@ -260,12 +393,7 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
   const menuHeight = isCommandMenuActive
     ? Math.min(COMMAND_MENU_HEIGHT, Math.max(visibleCommands.length, 1) + 2)
     : 0
-  const popupOverlayHeight = popupState
-    ? popupState.type === 'model'
-      ? MODEL_POPUP_HEIGHT
-      : TOGGLE_POPUP_HEIGHT
-    : 0
-  const overlayHeight = popupOverlayHeight || menuHeight
+  const overlayHeight = popupState ? POPUP_HEIGHTS[popupState.type as PopupKind] : menuHeight
 
   useEffect(() => {
     setCommandSelectionIndex(0)
@@ -327,6 +455,25 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
       return Math.min(prev, nextMax)
     })
   }, [history, historyRows, isPinnedToBottom])
+
+  useEffect(() => {
+    setPopupState((prev) => {
+      if (!prev) {
+        return prev
+      }
+      if (prev.type === 'file') {
+        const maxIndex = Math.max(files.length - 1, 0)
+        const nextIndex = Math.min(prev.selectionIndex, maxIndex)
+        return prev.selectionIndex === nextIndex ? prev : { ...prev, selectionIndex: nextIndex }
+      }
+      if (prev.type === 'url') {
+        const maxIndex = Math.max(urls.length - 1, 0)
+        const nextIndex = Math.min(prev.selectionIndex, maxIndex)
+        return prev.selectionIndex === nextIndex ? prev : { ...prev, selectionIndex: nextIndex }
+      }
+      return prev
+    })
+  }, [files.length, urls.length])
 
   const scrollTo = useCallback(
     (next: number) => {
@@ -392,62 +539,133 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
     setPopupState(null)
   }, [])
 
-  const applyModelSelection = useCallback((option: ModelOption | undefined) => {
-    if (!option) {
-      return
-    }
-    setCurrentModel(option.id)
-    setHistory((prev) => [...prev, `Model set to ${option.id}`])
-    setInputValue('')
-    setIsPinnedToBottom(true)
-    setPopupState(null)
-  }, [])
+  const applyModelSelection = useCallback(
+    (option?: ModelOption) => {
+      if (!option) {
+        return
+      }
+      setCurrentModel(option.id)
+      pushHistory(`Model set to ${option.id}`)
+      setInputValue('')
+      setPopupState(null)
+    },
+    [pushHistory],
+  )
 
-  const applyToggleSelection = useCallback((field: ToggleField, value: boolean) => {
-    const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
-    if (field === 'polish') {
-      setPolishEnabled(value)
-    } else if (field === 'copy') {
-      setCopyEnabled(value)
-    } else if (field === 'chatgpt') {
-      setChatGptEnabled(value)
-    }
-    setHistory((prev) => [...prev, message])
-    setInputValue('')
-    setIsPinnedToBottom(true)
-    setPopupState(null)
-  }, [])
+  const applyToggleSelection = useCallback(
+    (field: ToggleField, value: boolean) => {
+      const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
+      if (field === 'polish') {
+        setPolishEnabled(value)
+      } else if (field === 'copy') {
+        setCopyEnabled(value)
+      } else if (field === 'chatgpt') {
+        setChatGptEnabled(value)
+      }
+      pushHistory(message)
+      setInputValue('')
+      setPopupState(null)
+    },
+    [pushHistory],
+  )
+
+  const handleAddFile = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      addFile(trimmed)
+      pushHistory(`Context file added: ${trimmed}`)
+      setPopupState((prev) =>
+        prev?.type === 'file'
+          ? { ...prev, draft: '', selectionIndex: Math.max(files.length, 0) }
+          : prev,
+      )
+    },
+    [addFile, files.length, pushHistory],
+  )
+
+  const handleRemoveFile = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= files.length) {
+        return
+      }
+      const target = files[index]
+      removeFile(index)
+      pushHistory(`Context file removed: ${target}`)
+    },
+    [files, removeFile, pushHistory],
+  )
+
+  const handleAddUrl = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      addUrl(trimmed)
+      pushHistory(`Context URL added: ${trimmed}`)
+      setPopupState((prev) =>
+        prev?.type === 'url'
+          ? { ...prev, draft: '', selectionIndex: Math.max(urls.length, 0) }
+          : prev,
+      )
+    },
+    [addUrl, urls.length, pushHistory],
+  )
+
+  const handleRemoveUrl = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= urls.length) {
+        return
+      }
+      const target = urls[index]
+      removeUrl(index)
+      pushHistory(`Context URL removed: ${target}`)
+    },
+    [urls, removeUrl, pushHistory],
+  )
+
+  const handleSmartToggle = useCallback(
+    (nextEnabled: boolean) => {
+      if (smartContextEnabled === nextEnabled) {
+        return
+      }
+      toggleSmartContext()
+      pushHistory(`Smart context ${nextEnabled ? 'enabled' : 'disabled'}`)
+    },
+    [smartContextEnabled, toggleSmartContext, pushHistory],
+  )
+
+  const handleSmartRootSubmit = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      setSmartRoot(trimmed)
+      pushHistory(trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared')
+      setPopupState((prev) => (prev?.type === 'smart' ? { ...prev, draft: trimmed } : prev))
+    },
+    [setSmartRoot, pushHistory],
+  )
 
   useInput(
-    (_input, key) => {
+    (input, key) => {
       if (!popupState) {
         return
       }
       if (popupState.type === 'model') {
         const options = filterModelOptions(popupState.query)
-        if (key.upArrow) {
-          if (!options.length) {
-            return
-          }
-          setPopupState((prev) => {
-            if (!prev || prev.type !== 'model') {
-              return prev
-            }
-            const nextIndex = (prev.selectionIndex - 1 + options.length) % options.length
-            return { ...prev, selectionIndex: nextIndex }
+        if (key.upArrow && options.length > 0) {
+          setPopupState({
+            ...popupState,
+            selectionIndex: (popupState.selectionIndex - 1 + options.length) % options.length,
           })
           return
         }
-        if (key.downArrow) {
-          if (!options.length) {
-            return
-          }
-          setPopupState((prev) => {
-            if (!prev || prev.type !== 'model') {
-              return prev
-            }
-            const nextIndex = (prev.selectionIndex + 1) % options.length
-            return { ...prev, selectionIndex: nextIndex }
+        if (key.downArrow && options.length > 0) {
+          setPopupState({
+            ...popupState,
+            selectionIndex: (popupState.selectionIndex + 1) % options.length,
           })
           return
         }
@@ -464,22 +682,16 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
       if (popupState.type === 'toggle') {
         const options = ['On', 'Off']
         if (key.leftArrow || key.upArrow) {
-          setPopupState((prev) => {
-            if (!prev || prev.type !== 'toggle') {
-              return prev
-            }
-            const nextIndex = (prev.selectionIndex - 1 + options.length) % options.length
-            return { ...prev, selectionIndex: nextIndex }
+          setPopupState({
+            ...popupState,
+            selectionIndex: (popupState.selectionIndex - 1 + options.length) % options.length,
           })
           return
         }
         if (key.rightArrow || key.downArrow) {
-          setPopupState((prev) => {
-            if (!prev || prev.type !== 'toggle') {
-              return prev
-            }
-            const nextIndex = (prev.selectionIndex + 1) % options.length
-            return { ...prev, selectionIndex: nextIndex }
+          setPopupState({
+            ...popupState,
+            selectionIndex: (popupState.selectionIndex + 1) % options.length,
           })
           return
         }
@@ -489,6 +701,68 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
         }
         if (key.return) {
           applyToggleSelection(popupState.field, popupState.selectionIndex === 0)
+        }
+        return
+      }
+
+      if (popupState.type === 'file') {
+        if (key.upArrow && files.length > 0) {
+          setPopupState({
+            ...popupState,
+            selectionIndex: Math.max(popupState.selectionIndex - 1, 0),
+          })
+          return
+        }
+        if (key.downArrow && files.length > 0) {
+          setPopupState({
+            ...popupState,
+            selectionIndex: Math.min(popupState.selectionIndex + 1, files.length - 1),
+          })
+          return
+        }
+        if ((key.delete || key.backspace) && files.length > 0) {
+          handleRemoveFile(popupState.selectionIndex)
+          return
+        }
+        if (key.escape) {
+          closePopup()
+        }
+        return
+      }
+
+      if (popupState.type === 'url') {
+        if (key.upArrow && urls.length > 0) {
+          setPopupState({
+            ...popupState,
+            selectionIndex: Math.max(popupState.selectionIndex - 1, 0),
+          })
+          return
+        }
+        if (key.downArrow && urls.length > 0) {
+          setPopupState({
+            ...popupState,
+            selectionIndex: Math.min(popupState.selectionIndex + 1, urls.length - 1),
+          })
+          return
+        }
+        if ((key.delete || key.backspace) && urls.length > 0) {
+          handleRemoveUrl(popupState.selectionIndex)
+          return
+        }
+        if (key.escape) {
+          closePopup()
+        }
+        return
+      }
+
+      if (popupState.type === 'smart') {
+        if (typeof input === 'string' && input.toLowerCase() === 't') {
+          handleSmartToggle(!smartContextEnabled)
+          return
+        }
+        if (key.escape) {
+          closePopup()
+          return
         }
       }
     },
@@ -517,6 +791,18 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
     [polishEnabled, copyEnabled, chatGptEnabled],
   )
 
+  const openFilePopup = useCallback(() => {
+    setPopupState({ type: 'file', draft: '', selectionIndex: 0 })
+  }, [])
+
+  const openUrlPopup = useCallback(() => {
+    setPopupState({ type: 'url', draft: '', selectionIndex: 0 })
+  }, [])
+
+  const openSmartPopup = useCallback(() => {
+    setPopupState({ type: 'smart', draft: smartContextRoot ?? '' })
+  }, [smartContextRoot])
+
   const handleCommandSelection = useCallback(
     (commandId: CommandDescriptor['id']) => {
       if (commandId === 'model') {
@@ -527,10 +813,21 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
         openTogglePopup(commandId)
         return
       }
-      setHistory((prev) => [...prev, `Selected ${commandId}`])
-      setIsPinnedToBottom(true)
+      if (commandId === 'file') {
+        openFilePopup()
+        return
+      }
+      if (commandId === 'url') {
+        openUrlPopup()
+        return
+      }
+      if (commandId === 'smart') {
+        openSmartPopup()
+        return
+      }
+      pushHistory(`Selected ${commandId}`)
     },
-    [openModelPopup, openTogglePopup],
+    [openModelPopup, openTogglePopup, openFilePopup, openUrlPopup, openSmartPopup, pushHistory],
   )
 
   const handleSubmit = useCallback(
@@ -557,11 +854,17 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
         setInputValue('')
         return
       }
-      setHistory((prev) => [...prev, `> ${trimmed}`])
+      pushHistory(`> ${trimmed}`)
       setInputValue('')
-      setIsPinnedToBottom(true)
     },
-    [handleCommandSelection, isCommandMenuActive, isCommandMode, popupState, selectedCommand],
+    [
+      handleCommandSelection,
+      isCommandMenuActive,
+      isCommandMode,
+      popupState,
+      selectedCommand,
+      pushHistory,
+    ],
   )
 
   const statusChips = useMemo(() => {
@@ -569,8 +872,23 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
     chips.push(`[polish:${polishEnabled ? 'on' : 'off'}]`)
     chips.push(`[copy:${copyEnabled ? 'on' : 'off'}]`)
     chips.push(`[chatgpt:${chatGptEnabled ? 'on' : 'off'}]`)
+    chips.push(`[files:${files.length}]`)
+    chips.push(`[urls:${urls.length}]`)
+    chips.push(`[smart:${smartContextEnabled ? 'on' : 'off'}]`)
+    if (smartContextRoot) {
+      chips.push(`[root:${smartContextRoot}]`)
+    }
     return chips
-  }, [currentModel, polishEnabled, copyEnabled, chatGptEnabled])
+  }, [
+    currentModel,
+    polishEnabled,
+    copyEnabled,
+    chatGptEnabled,
+    files.length,
+    urls.length,
+    smartContextEnabled,
+    smartContextRoot,
+  ])
 
   const modelPopupOptions = popupState?.type === 'model' ? filterModelOptions(popupState.query) : []
   const modelPopupSelection =
@@ -591,17 +909,51 @@ export const CommandScreen: React.FC<CommandScreenProps> = ({ interactiveTranspo
               options={modelPopupOptions}
               selectedIndex={modelPopupSelection}
               onQueryChange={(next) =>
-                setPopupState((prev) => {
-                  if (!prev || prev.type !== 'model') {
-                    return prev
-                  }
-                  return { ...prev, query: next, selectionIndex: 0 }
-                })
+                setPopupState((prev) =>
+                  prev?.type === 'model' ? { ...prev, query: next, selectionIndex: 0 } : prev,
+                )
               }
-              onSubmit={() => applyModelSelection(modelPopupOptions[modelPopupSelection])}
+              onSubmit={(option) => applyModelSelection(option)}
+            />
+          ) : popupState.type === 'toggle' ? (
+            <TogglePopup field={popupState.field} selectionIndex={popupState.selectionIndex} />
+          ) : popupState.type === 'file' ? (
+            <ListPopup
+              title="File Context"
+              placeholder="src/**/*.ts"
+              draft={popupState.draft}
+              items={files}
+              selectedIndex={popupState.selectionIndex}
+              emptyLabel="No file globs added"
+              instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
+              onDraftChange={(next) =>
+                setPopupState((prev) => (prev?.type === 'file' ? { ...prev, draft: next } : prev))
+              }
+              onSubmitDraft={handleAddFile}
+            />
+          ) : popupState.type === 'url' ? (
+            <ListPopup
+              title="URL Context"
+              placeholder="https://github.com/..."
+              draft={popupState.draft}
+              items={urls}
+              selectedIndex={popupState.selectionIndex}
+              emptyLabel="No URLs added"
+              instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
+              onDraftChange={(next) =>
+                setPopupState((prev) => (prev?.type === 'url' ? { ...prev, draft: next } : prev))
+              }
+              onSubmitDraft={handleAddUrl}
             />
           ) : (
-            <TogglePopup field={popupState.field} selectionIndex={popupState.selectionIndex} />
+            <SmartPopup
+              enabled={smartContextEnabled}
+              draft={popupState.draft}
+              onDraftChange={(next) =>
+                setPopupState((prev) => (prev?.type === 'smart' ? { ...prev, draft: next } : prev))
+              }
+              onSubmitRoot={handleSmartRootSubmit}
+            />
           )}
         </Box>
       ) : null}
