@@ -2,7 +2,6 @@
 
 import { runGenerateCommand } from './generate-command'
 import { runTestCommand } from './test-command'
-import { runTuiCommand } from './tui'
 
 type CliCommand = 'generate' | 'test' | 'ui'
 
@@ -13,11 +12,16 @@ switch (command) {
     void runTestCommand(args)
     break
   case 'ui':
-    void runTuiCommand(args)
+    void loadAndRunTui(args)
     break
   case 'generate':
   default:
     void runGenerateCommand(args)
+}
+
+async function loadAndRunTui(args: string[]): Promise<void> {
+  const { runTuiCommand } = await import('./tui')
+  await runTuiCommand(args)
 }
 
 function resolveCommand(args: string[]): { command: CliCommand; args: string[] } {

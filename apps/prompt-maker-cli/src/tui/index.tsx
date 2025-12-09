@@ -55,7 +55,7 @@ const AppContainer: React.FC<{ interactiveTransport?: string | undefined }> = ({
     <ContextProvider>
       <Box flexDirection="column" paddingX={2} paddingY={1}>
         <Text color="cyanBright">Prompt Maker · TUI Preview</Text>
-        <Text color="gray">F1 → Generate · F2 → Test Runner · Ctrl+C/Esc to exit.</Text>
+        <Text color="gray">Ctrl+G → Generate · Ctrl+T → Test Runner · Ctrl+C/Esc to exit.</Text>
         {view === 'generate' ? (
           <>
             <Text color="gray">
