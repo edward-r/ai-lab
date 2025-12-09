@@ -1,6 +1,6 @@
 # Prompt Maker CLI
 
-Terminal-first interface for converting rough intent notes (and optional file/image context) into structured prompt contracts. The CLI now focuses exclusively on high-quality generation with optional polishing, JSON reasoning output, and built-in context tracking.
+Terminal-first interface for converting rough intent notes (and optional file/image context) into structured prompt contracts. The CLI now focuses exclusively on high-quality generation with optional polishing, JSON reasoning output, and built-in context tracking. A full Opencode-style TUI is available via `prompt-maker-cli ui`.
 
 - **Stateful refinement** – interactive runs feed the previous draft + your latest instruction back to the model so it can edit the existing prompt.
 - **Context injection** – attach additional files with `-c/--context` (glob-aware), mix in remote docs with `--url`, and images with `--image` (PNG/JPG/WEBP/GIF, up to 20 MB each). Use `--show-context` to dump the resolved `<file path="…">…</file>` blocks for easy copy/paste.
@@ -32,7 +32,7 @@ node apps/prompt-maker-cli/dist/index.js "Draft a confident onboarding-bot spec"
 
 > **Tip:** If you rely on an alias like `pmc`, make sure it resolves to `prompt-maker-cli` _after_ reinstalling. `which prompt-maker-cli` should point to your global npm prefix (e.g., `~/.nvm/versions/node/v22.15.0/bin`).
 
-## Usage
+## Usage (CLI)
 
 ```bash
 # Inline intent, token telemetry + clipboard handoff
@@ -111,6 +111,29 @@ When a template is active the CLI still emits the raw `prompt`, but also records
 - `--stream jsonl` writes newline-delimited JSON events to stdout covering context telemetry, URL/smart-context progress, upload state changes, iteration boundaries, interactive states, and the final summary payload.
 - `--interactive-transport /tmp/pmc.sock` (or a Windows named pipe) turns the CLI into a socket server: the client sends `{"type":"refine","instruction":"..."}` or `{"type":"finish"}` messages and receives the same JSONL event stream over the connection. Transport lifecycle events (`transport.listening`, `transport.client.connected`, `transport.client.disconnected`) mirror socket activity.
 - Pairing the two lets editors follow progress in a scratch buffer while driving refinements without hijacking stdin/stdout.
+
+## TUI mode (Opencode-style)
+
+Launch the guided terminal UI instead of the classic flag-only workflow:
+
+```bash
+# Default generate view
+prompt-maker-cli ui
+
+# Launch with an interactive transport socket
+prompt-maker-cli ui --interactive-transport /tmp/pmc.sock
+```
+
+Key concepts:
+
+- **Views & navigation** – use `Ctrl+G` for the Generate workspace and `Ctrl+T` for the Test Runner. Inside the Generate view, `Tab`/`Shift+Tab` moves across Intent, Model, Context panes, Media attachments, and Actions.
+- **Intent & model entry** – the left column mirrors Opencode’s editable panels. Type intent/model, then press `g` or `Enter` from the Actions section to run.
+- **Context & media management** – right-side panels let you add/remove file globs, URLs (including GitHub paths), smart context toggles/root, images, and videos. Keyboard shortcuts (`f`, `u`, `s`, `e`, `v`) focus each pane.
+- **Interactive refinement** – toggle local refinement with `r` (or provide `--interactive-transport` to accept remote commands). The refinement timeline shows each iteration, remote transport status, and inline prompts for instructions. Remote runs stream events to both the TUI and the connected socket.
+- **Telemetry & logs** – upload/progress lines, smart-context warnings, and transport status appear under Actions. Errors (missing credentials, URL failures, etc.) surface in-place and continue to emit console warnings for automation.
+- **Test Runner** – switch to the Test view (Ctrl+T) to enter a YAML file, run suites, and watch test rows update live. Recent warnings and failures are mirrored in the log panel to keep Opencode-style feedback consistent.
+
+All JSON/JSONL outputs, history logging, and clipboard/ChatGPT behaviors remain identical to the CLI. The TUI is optional: scripts and automations can continue calling `prompt-maker-cli` directly.
 
 ## JSON payload example
 
