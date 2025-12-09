@@ -1,10 +1,34 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Box, Text, useApp, useInput } from 'ink'
+import type { Key } from 'ink'
 import cliCursor from 'cli-cursor'
 
-import { CommandScreen } from './CommandScreen'
+import { CommandScreen, type CommandScreenHandle } from './CommandScreen'
 import { TestRunnerScreen } from './TestRunnerScreen'
 import { ContextProvider } from './context'
+
+const toControlCharacter = (letter: string): string | null => {
+  if (!letter) {
+    return null
+  }
+  const normalized = letter.toLowerCase()
+  const code = normalized.charCodeAt(0)
+  if (code < 97 || code > 122) {
+    return null
+  }
+  return String.fromCharCode(code - 96)
+}
+
+const matchesControlKey = (input: string, key: Key, target: string): boolean => {
+  if (!target || !input) {
+    return false
+  }
+  if (key.ctrl && input.toLowerCase() === target.toLowerCase()) {
+    return true
+  }
+  const controlChar = toControlCharacter(target)
+  return controlChar ? input === controlChar : false
+}
 
 export type AppContainerProps = {
   interactiveTransport?: string | undefined
@@ -14,6 +38,9 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
   const { exit } = useApp()
   const [view, setView] = useState<'generate' | 'tests'>('generate')
   const [isPopupOpen, setIsPopupOpen] = useState(false)
+  const [pendingCommandMenu, setPendingCommandMenu] = useState(false)
+  const [commandMenuSignal, setCommandMenuSignal] = useState(0)
+  const commandScreenRef = useRef<CommandScreenHandle | null>(null)
 
   useEffect(() => {
     if (!process.stdout.isTTY) {
@@ -32,8 +59,25 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
     }
   }, [view])
 
+  useEffect(() => {
+    if (view === 'generate' && pendingCommandMenu) {
+      commandScreenRef.current?.suppressNextInput()
+      setCommandMenuSignal((prev) => prev + 1)
+      setPendingCommandMenu(false)
+      return
+    }
+    if (view !== 'generate' && pendingCommandMenu) {
+      setPendingCommandMenu(false)
+    }
+  }, [pendingCommandMenu, view])
+
   useInput((input, key) => {
-    if (key.ctrl && input === 'c') {
+    const isControlKey = (target: string): boolean => matchesControlKey(input, key, target)
+
+    if (isControlKey('c')) {
+      if (view === 'generate') {
+        commandScreenRef.current?.suppressNextInput()
+      }
       exit()
       return
     }
@@ -44,11 +88,20 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
       exit()
       return
     }
-    if (key.ctrl && input.toLowerCase() === 'g') {
-      setView('generate')
+    if (isControlKey('g')) {
+      if (view === 'generate') {
+        commandScreenRef.current?.suppressNextInput()
+        setCommandMenuSignal((prev) => prev + 1)
+      } else {
+        setPendingCommandMenu(true)
+        setView('generate')
+      }
       return
     }
-    if (key.ctrl && input.toLowerCase() === 't') {
+    if (isControlKey('t')) {
+      if (view === 'generate') {
+        commandScreenRef.current?.suppressNextInput()
+      }
       setView('tests')
     }
   })
@@ -74,8 +127,10 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
               ) : null}
               <Box flexDirection="column" flexGrow={1} height="100%" marginTop={1}>
                 <CommandScreen
+                  ref={commandScreenRef}
                   interactiveTransportPath={interactiveTransport}
                   onPopupVisibilityChange={setIsPopupOpen}
+                  commandMenuSignal={commandMenuSignal}
                 />
               </Box>
             </>
