@@ -26,12 +26,12 @@ async function loadAndRunTui(args: string[]): Promise<void> {
 
 function resolveCommand(args: string[]): { command: CliCommand; args: string[] } {
   if (args.length === 0) {
-    return { command: 'generate', args }
+    return { command: 'ui', args }
   }
 
   const [first, ...rest] = args
   if (!first) {
-    return { command: 'generate', args }
+    return { command: 'ui', args }
   }
 
   if (first === 'test') {
@@ -44,6 +44,10 @@ function resolveCommand(args: string[]): { command: CliCommand; args: string[] }
 
   if (!first.startsWith('-') && (first === 'generate' || first === 'expand')) {
     return { command: 'generate', args: rest }
+  }
+
+  if (first.startsWith('-')) {
+    return { command: 'generate', args }
   }
 
   return { command: 'generate', args }
