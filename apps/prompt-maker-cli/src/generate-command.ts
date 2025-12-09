@@ -487,6 +487,10 @@ export const runGeneratePipeline = async (
           fileContext = [...fileContext, ...urlFiles]
           recordContextPaths(urlFiles, 'url')
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown URL fetch error.'
+        console.warn(chalk.yellow(`Failed to fetch URL context: ${message}`))
+        emitEvent({ event: 'progress.update', label: `URL error: ${message}`, state: 'update' })
       } finally {
         urlSpinner?.stop('URL context ready')
         emitProgress(label, 'stop', 'url')
@@ -512,6 +516,14 @@ export const runGeneratePipeline = async (
           fileContext = [...fileContext, ...smartFiles]
           recordContextPaths(smartFiles, 'smart')
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown smart context error.'
+        console.warn(chalk.yellow(`Smart context failed: ${message}`))
+        emitEvent({
+          event: 'progress.update',
+          label: `Smart context error: ${message}`,
+          state: 'update',
+        })
       } finally {
         smartSpinner?.stop('Smart context ready')
         emitProgress(label, 'stop', 'smart')

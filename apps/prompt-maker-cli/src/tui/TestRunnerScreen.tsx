@@ -4,6 +4,7 @@ import { Box, Text, useInput } from 'ink'
 import TextInput from 'ink-text-input'
 
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
+import { useLogBuffer } from './useLogBuffer'
 
 const STATUS_LABEL: Record<TestStatus, string> = {
   pending: 'PENDING',
@@ -49,6 +50,7 @@ export const TestRunnerScreen: React.FC = () => {
   const [summary, setSummary] = useState<{ passed: number; failed: number } | null>(null)
   const [lastRunFile, setLastRunFile] = useState<string | null>(null)
   const [focus, setFocus] = useState<FocusField>('file')
+  const { logs, log, clearLogs } = useLogBuffer()
 
   const canRun = useMemo(
     () => status !== 'running' && filePath.trim().length > 0,
@@ -65,6 +67,8 @@ export const TestRunnerScreen: React.FC = () => {
             status: 'pending',
           })),
         )
+        clearLogs()
+        log.info(`Loaded ${suite.tests.length} test(s) from ${loadedPath}`)
       },
       onTestStart: (ordinal, test) => {
         setTests((prev) => {
@@ -89,15 +93,23 @@ export const TestRunnerScreen: React.FC = () => {
           }
           return next
         })
+        if (!result.pass) {
+          log.warn(`[${result.name}] ${result.reason}`)
+        }
       },
       onComplete: (results) => {
         const passed = results.filter((result) => result.pass).length
         const failed = results.length - passed
         setSummary({ passed, failed })
         setStatus('idle')
+        if (failed === 0) {
+          log.info('All tests passed')
+        } else {
+          log.error(`${failed} test(s) failed`)
+        }
       },
     }
-  }, [])
+  }, [clearLogs, log])
 
   const handleRun = useCallback(async () => {
     if (!canRun) {
@@ -114,9 +126,10 @@ export const TestRunnerScreen: React.FC = () => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown test execution error.'
       setError(message)
+      log.error(message)
       setStatus('idle')
     }
-  }, [canRun, filePath, reporter])
+  }, [canRun, filePath, log, reporter])
 
   useInput((_, key) => {
     if (status === 'running') {
@@ -199,6 +212,20 @@ export const TestRunnerScreen: React.FC = () => {
           <Text color="yellow">Summary</Text>
           <Text color="green">Passed: {summary.passed}</Text>
           <Text color={summary.failed > 0 ? 'red' : 'green'}>Failed: {summary.failed}</Text>
+        </Box>
+      ) : null}
+
+      {logs.length > 0 ? (
+        <Box marginTop={1} flexDirection="column">
+          <Text color="cyan">Recent Logs</Text>
+          {logs.map((entry) => (
+            <Text
+              key={entry.id}
+              color={entry.level === 'error' ? 'red' : entry.level === 'warn' ? 'yellow' : 'gray'}
+            >
+              {entry.level.toUpperCase()}: {entry.message}
+            </Text>
+          ))}
         </Box>
       ) : null}
 
