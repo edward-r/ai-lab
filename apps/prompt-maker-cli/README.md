@@ -130,6 +130,7 @@ Key concepts:
 - **Intent & model entry** – the left column mirrors Opencode’s editable panels. Type intent/model, then press `g` or `Enter` from the Actions section to run.
 - **Context & media management** – right-side panels let you add/remove file globs, URLs (including GitHub paths), smart context toggles/root, images, and videos. Keyboard shortcuts (`f`, `u`, `s`, `e`, `v`) focus each pane.
 - **Interactive refinement** – toggle local refinement with `r` (or provide `--interactive-transport` to accept remote commands). The refinement timeline shows each iteration, remote transport status, and inline prompts for instructions. Remote runs stream events to both the TUI and the connected socket.
+- **JSON command** – type `/json on` (or select JSON from the command menu) to emit the same machine-readable payload as `--json` without leaving the TUI; the payload is also rendered in the history panel for copy/paste. `/json off` restores standard output, and JSON mode is disabled automatically when an interactive transport is active.
 - **Telemetry & logs** – upload/progress lines, smart-context warnings, and transport status appear under Actions. Errors (missing credentials, URL failures, etc.) surface in-place and continue to emit console warnings for automation.
 - **Test Runner** – switch to the Test view (Ctrl+T) to enter a YAML file, run suites, and watch test rows update live. Recent warnings and failures are mirrored in the log panel to keep Opencode-style feedback consistent.
 

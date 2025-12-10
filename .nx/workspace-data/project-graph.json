@@ -13074,6 +13074,11 @@
         "source": "prompt-maker-cli",
         "target": "npm:ink-text-input",
         "type": "static"
+      },
+      {
+        "source": "prompt-maker-cli",
+        "target": "npm:wrap-ansi",
+        "type": "static"
       }
     ],
     "perceptron-core": [
@@ -30063,5 +30068,5 @@
   },
   "version": "6.0",
   "errors": [],
-  "computedAt": 1765311320147
+  "computedAt": 1765383763319
 }

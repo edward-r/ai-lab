@@ -29,24 +29,44 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": "tmp/prompty.nvim/Makefile",
-        "hash": "6405989474088945629"
+        "file": "AGENTS.md",
+        "hash": "5926859589672140026"
       },
       {
-        "file": "postcss.config.js",
-        "hash": "11834113634521185343"
+        "file": "tsconfig.base.json",
+        "hash": "13780919962843055140"
       },
       {
-        "file": "tmp/prompty.nvim/.gitignore",
-        "hash": "16960008699711103039"
+        "file": "docs/cookbook.md",
+        "hash": "7503535052745585744"
+      },
+      {
+        "file": "tests/mocks/chalk.ts",
+        "hash": "10609113037865940526"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "16707872353113626074"
+      },
+      {
+        "file": "tmp/prompty.nvim/.github/workflows/test.yml",
+        "hash": "11405184456326769463"
       },
       {
         "file": "tests/mocks/boxen.ts",
         "hash": "11996218918763836320"
       },
       {
-        "file": "tmp/prompty.nvim/.luacheckrc",
-        "hash": "4159746809355638772"
+        "file": "docs/tui-design.md",
+        "hash": "4925132184030810590"
+      },
+      {
+        "file": "prompt-tests.yaml",
+        "hash": "5292543420146125941"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "7102272948128927942"
       },
       {
         "file": "scripts/run-cli-release.sh",
@@ -57,12 +77,40 @@
         "hash": "1716301107585681006"
       },
       {
+        "file": "docs/Opencode-Terminal-UI-Reference.md",
+        "hash": "2838049262769626414"
+      },
+      {
         "file": "session-ses_4fc0.md",
         "hash": "13924430113575381288"
       },
       {
-        "file": ".editorconfig",
-        "hash": "2779288990582231472"
+        "file": "tmp/prompty.nvim/tests/prompty_spec.lua",
+        "hash": "13116529021731886826"
+      },
+      {
+        "file": "tmp/prompty.nvim/.stylua.toml",
+        "hash": "1955492974478413365"
+      },
+      {
+        "file": "jest.config.ts",
+        "hash": "13088596769722367150"
+      },
+      {
+        "file": ".nvmrc",
+        "hash": "16951876268857922555"
+      },
+      {
+        "file": "tsconfig.jest.json",
+        "hash": "1993338485262061146"
+      },
+      {
+        "file": ".prettierrc",
+        "hash": "4872122421842301431"
+      },
+      {
+        "file": "tmp/prompty.nvim/plugin/prompty.lua",
+        "hash": "9512467506170728422"
       },
       {
         "file": "tmp/prompty.nvim/lua/prompty/config.lua",
@@ -73,88 +121,40 @@
         "hash": "14310063900782643358"
       },
       {
-        "file": "tmp/prompty.nvim/doc/prompty.txt",
-        "hash": "14091269399324882332"
+        "file": "tmp/prompty.nvim/tutoral.md",
+        "hash": "8798290021675490907"
       },
       {
-        "file": "tmp/prompty.nvim/lua/prompty/client.lua",
-        "hash": "3354169673431962666"
+        "file": "tmp/prompty.nvim/.luacheckrc",
+        "hash": "4159746809355638772"
       },
       {
-        "file": "tsconfig.base.json",
-        "hash": "13780919962843055140"
+        "file": "tmp/prompty.nvim/lua/prompty/init.lua",
+        "hash": "3261536538491776788"
       },
       {
         "file": ".gitignore",
         "hash": "11436792623039980707"
       },
       {
-        "file": "tmp/prompty.nvim/LICENSE",
-        "hash": "2077474660348224152"
+        "file": ".eslintrc.cjs",
+        "hash": "1696669636883572046"
       },
       {
         "file": "nx.json",
         "hash": "10895747293426653132"
       },
       {
-        "file": "tmp/prompty.nvim/tutoral.md",
-        "hash": "8798290021675490907"
-      },
-      {
-        "file": "docs/Opencode-Terminal-UI-Reference.md",
-        "hash": "2838049262769626414"
-      },
-      {
-        "file": "tmp/prompty.nvim/docs/instructions.md",
-        "hash": "13257633258046021119"
-      },
-      {
-        "file": "tmp/prompty.nvim/plugin/prompty.lua",
-        "hash": "9512467506170728422"
-      },
-      {
-        "file": "tmp/prompty.nvim/.nvmrc",
-        "hash": "16951876268857922555"
-      },
-      {
-        "file": "jest.config.ts",
-        "hash": "13088596769722367150"
-      },
-      {
-        "file": "docs/cookbook.md",
-        "hash": "7503535052745585744"
-      },
-      {
-        "file": "tmp/prompty.nvim/lua/prompty/ui.lua",
-        "hash": "3589176954003417463"
-      },
-      {
-        "file": "package.json",
-        "hash": "4336500372798868718"
-      },
-      {
-        "file": "tmp/prompty.nvim/.github/workflows/test.yml",
-        "hash": "11405184456326769463"
+        "file": "tsconfig.node.json",
+        "hash": "8684776726152056264"
       },
       {
         "file": ".github/workflows/ci.yml",
         "hash": "15256470195678966833"
       },
       {
-        "file": "tmp/prompty.nvim/tests/minimal_init.lua",
-        "hash": "7755413276954629424"
-      },
-      {
-        "file": "tests/mocks/yargs.ts",
-        "hash": "11738161071880740242"
-      },
-      {
-        "file": "tests/mocks/chalk.ts",
-        "hash": "10609113037865940526"
-      },
-      {
-        "file": "tsconfig.node.json",
-        "hash": "8684776726152056264"
+        "file": "package.json",
+        "hash": "4336500372798868718"
       },
       {
         "file": "tmp/prompty.nvim/README.md",
@@ -165,110 +165,63 @@
         "hash": "2139653527659314484"
       },
       {
-        "file": "tmp/prompty.nvim/tests/prompty_spec.lua",
-        "hash": "13116529021731886826"
-      },
-      {
-        "file": "prompt-tests.yaml",
-        "hash": "5292543420146125941"
-      },
-      {
-        "file": "tmp/prompty.nvim/.stylua.toml",
-        "hash": "1955492974478413365"
-      },
-      {
-        "file": ".prettierrc",
-        "hash": "4872122421842301431"
-      },
-      {
-        "file": ".eslintrc.cjs",
-        "hash": "1696669636883572046"
-      },
-      {
-        "file": "docs/tui-design.md",
-        "hash": "4925132184030810590"
-      },
-      {
-        "file": "tsconfig.json",
-        "hash": "16667827072884385791"
-      },
-      {
-        "file": "tsconfig.jest.json",
-        "hash": "1993338485262061146"
+        "file": "tmp/prompty.nvim/.nvmrc",
+        "hash": "16951876268857922555"
       },
       {
         "file": "tailwind.config.ts",
         "hash": "3771228352708915812"
       },
       {
-        "file": ".nvmrc",
-        "hash": "16951876268857922555"
+        "file": "tmp/prompty.nvim/.gitignore",
+        "hash": "16960008699711103039"
       },
       {
-        "file": "tmp/prompty.nvim/lua/prompty/init.lua",
-        "hash": "3261536538491776788"
+        "file": "tmp/prompty.nvim/lua/prompty/client.lua",
+        "hash": "3354169673431962666"
       },
       {
-        "file": "AGENTS.md",
-        "hash": "5926859589672140026"
+        "file": "tmp/prompty.nvim/docs/instructions.md",
+        "hash": "13257633258046021119"
       },
       {
-        "file": "package-lock.json",
-        "hash": "16707872353113626074"
+        "file": "tsconfig.json",
+        "hash": "16667827072884385791"
       },
       {
-        "file": "eslint.config.mjs",
-        "hash": "7102272948128927942"
+        "file": "tmp/prompty.nvim/doc/prompty.txt",
+        "hash": "14091269399324882332"
+      },
+      {
+        "file": "tmp/prompty.nvim/tests/minimal_init.lua",
+        "hash": "7755413276954629424"
+      },
+      {
+        "file": "tests/mocks/yargs.ts",
+        "hash": "11738161071880740242"
+      },
+      {
+        "file": "tmp/prompty.nvim/lua/prompty/ui.lua",
+        "hash": "3589176954003417463"
+      },
+      {
+        "file": ".editorconfig",
+        "hash": "2779288990582231472"
+      },
+      {
+        "file": "tmp/prompty.nvim/Makefile",
+        "hash": "6405989474088945629"
+      },
+      {
+        "file": "tmp/prompty.nvim/LICENSE",
+        "hash": "2077474660348224152"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "11834113634521185343"
       }
     ],
     "projectFileMap": {
-      "perceptron-core": [
-        {
-          "file": "libs/perceptron-core/AGENTS.md",
-          "hash": "6178470852539095894"
-        },
-        {
-          "file": "libs/perceptron-core/project.json",
-          "hash": "15571648856739924981"
-        },
-        {
-          "file": "libs/perceptron-core/src/index.ts",
-          "hash": "8240860054729818693"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.test.ts",
-          "hash": "2763675980340157823",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/activation.ts",
-          "hash": "10493328169959022042"
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
-          "hash": "14897755387999689691",
-          "deps": [
-            "npm:vitest"
-          ]
-        },
-        {
-          "file": "libs/perceptron-core/src/lib/perceptron.ts",
-          "hash": "801047537965533375"
-        },
-        {
-          "file": "libs/perceptron-core/tsconfig.json",
-          "hash": "16535889485124124979"
-        },
-        {
-          "file": "libs/perceptron-core/vitest.config.ts",
-          "hash": "9903363322179040656",
-          "deps": [
-            "npm:vitest"
-          ]
-        }
-      ],
       "prompt-maker-core": [
         {
           "file": "libs/prompt-maker-core/project.json",
@@ -725,7 +678,7 @@
       "prompt-maker-cli": [
         {
           "file": "apps/prompt-maker-cli/README.md",
-          "hash": "4624239899273299562"
+          "hash": "16049953925091320083"
         },
         {
           "file": "apps/prompt-maker-cli/docs/Hey-Presto-Screenshots.pdf",
@@ -987,11 +940,12 @@
         },
         {
           "file": "apps/prompt-maker-cli/src/tui/CommandScreen.tsx",
-          "hash": "10609844389227555376",
+          "hash": "2580836889086302787",
           "deps": [
             "npm:react",
             "npm:ink",
-            "npm:ink-text-input"
+            "npm:ink-text-input",
+            "npm:wrap-ansi"
           ]
         },
         {
@@ -1065,6 +1019,53 @@
         {
           "file": "apps/prompt-maker-cli/tutorial.md",
           "hash": "6043696785927670248"
+        }
+      ],
+      "perceptron-core": [
+        {
+          "file": "libs/perceptron-core/AGENTS.md",
+          "hash": "6178470852539095894"
+        },
+        {
+          "file": "libs/perceptron-core/project.json",
+          "hash": "15571648856739924981"
+        },
+        {
+          "file": "libs/perceptron-core/src/index.ts",
+          "hash": "8240860054729818693"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.test.ts",
+          "hash": "2763675980340157823",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/activation.ts",
+          "hash": "10493328169959022042"
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.test.ts",
+          "hash": "14897755387999689691",
+          "deps": [
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "libs/perceptron-core/src/lib/perceptron.ts",
+          "hash": "801047537965533375"
+        },
+        {
+          "file": "libs/perceptron-core/tsconfig.json",
+          "hash": "16535889485124124979"
+        },
+        {
+          "file": "libs/perceptron-core/vitest.config.ts",
+          "hash": "9903363322179040656",
+          "deps": [
+            "npm:vitest"
+          ]
         }
       ]
     }
