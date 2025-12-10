@@ -10,6 +10,7 @@ import React, {
 } from 'react'
 import { Box, Text, useInput, useStdout } from 'ink'
 import TextInput from 'ink-text-input'
+import wrapAnsi from 'wrap-ansi'
 
 import {
   runGeneratePipeline,
@@ -36,6 +37,7 @@ const COMMAND_DESCRIPTORS = [
   { id: 'polish', label: 'Polish', description: 'Enable prompt polishing' },
   { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
+  { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
   { id: 'test', label: 'Test', description: 'Run prompt tests (/test <file>)' },
 ] as const
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
@@ -57,6 +59,7 @@ const TOGGLE_LABELS = {
   polish: 'Polish',
   copy: 'Copy',
   chatgpt: 'ChatGPT',
+  json: 'JSON',
 } as const
 
 const POPUP_HEIGHTS = {
@@ -443,6 +446,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       useContextDispatch()
 
     const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
+    const [terminalColumns, setTerminalColumns] = useState(stdout?.columns ?? 80)
     const [history, setHistory] = useState<HistoryEntry[]>(() =>
       WELCOME_LINES.map((line, index) => ({
         id: `welcome-${index}`,
@@ -460,6 +464,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const [polishEnabled, setPolishEnabled] = useState(false)
     const [copyEnabled, setCopyEnabled] = useState(false)
     const [chatGptEnabled, setChatGptEnabled] = useState(false)
+    const [jsonOutputEnabled, setJsonOutputEnabled] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
     const [spinnerIndex, setSpinnerIndex] = useState(0)
     const [statusMessage, setStatusMessage] = useState('Idle')
@@ -600,6 +605,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       }
       const handleResize = (): void => {
         setTerminalRows(stdout.rows)
+        setTerminalColumns(stdout.columns)
       }
       stdout.on('resize', handleResize)
       return () => {
@@ -723,6 +729,15 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const applyToggleSelection = useCallback(
       (field: ToggleField, value: boolean) => {
+        if (field === 'json' && value && interactiveTransportPath) {
+          pushHistory(
+            'JSON output cannot be enabled while interactive transport is active.',
+            'system',
+          )
+          setInputValue('')
+          setPopupState(null)
+          return
+        }
         const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
         if (field === 'polish') {
           setPolishEnabled(value)
@@ -730,12 +745,23 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           setCopyEnabled(value)
         } else if (field === 'chatgpt') {
           setChatGptEnabled(value)
+        } else if (field === 'json') {
+          setJsonOutputEnabled(value)
         }
         pushHistory(message)
         setInputValue('')
         setPopupState(null)
       },
-      [pushHistory],
+      [
+        interactiveTransportPath,
+        pushHistory,
+        setJsonOutputEnabled,
+        setInputValue,
+        setPopupState,
+        setPolishEnabled,
+        setCopyEnabled,
+        setChatGptEnabled,
+      ],
     )
 
     const handleAddFile = useCallback(
@@ -946,7 +972,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
             copy: false,
             openChatGpt: false,
             polish: polishEnabled,
-            json: false,
+            json: jsonOutputEnabled,
             quiet: true,
             progress: false,
             stream: 'none',
@@ -985,6 +1011,17 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
               'system',
             )
           }
+          if (jsonOutputEnabled) {
+            pushHistory('JSON payload:', 'system')
+            const prettyPayload = JSON.stringify(result.payload, null, 2)
+            const wrapWidth = Math.max(40, terminalColumns - 6)
+            prettyPayload.split('\n').forEach((line) => {
+              const wrapped = wrapAnsi(line, wrapWidth, { trim: false, hard: true })
+              wrapped.split('\n').forEach((wrappedLine) => {
+                pushHistory(wrappedLine, 'system')
+              })
+            })
+          }
           if (copyEnabled) {
             await maybeCopyToClipboard(true, result.finalPrompt, false)
             pushHistory('Copied prompt to clipboard.', 'system')
@@ -1011,9 +1048,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         images,
         videos,
         polishEnabled,
+        jsonOutputEnabled,
         smartContextEnabled,
         smartContextRoot,
         interactiveTransportPath,
+        terminalColumns,
         handleStreamEvent,
         pushHistory,
         setStatusMessage,
@@ -1165,10 +1204,16 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const openTogglePopup = useCallback(
       (field: ToggleField) => {
         const currentValue =
-          field === 'polish' ? polishEnabled : field === 'copy' ? copyEnabled : chatGptEnabled
+          field === 'polish'
+            ? polishEnabled
+            : field === 'copy'
+              ? copyEnabled
+              : field === 'chatgpt'
+                ? chatGptEnabled
+                : jsonOutputEnabled
         setPopupState({ type: 'toggle', field, selectionIndex: currentValue ? 0 : 1 })
       },
-      [polishEnabled, copyEnabled, chatGptEnabled],
+      [polishEnabled, copyEnabled, chatGptEnabled, jsonOutputEnabled],
     )
 
     const openFilePopup = useCallback(() => {
@@ -1195,6 +1240,26 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
         if (commandId === 'polish' || commandId === 'copy' || commandId === 'chatgpt') {
           openTogglePopup(commandId)
+          return
+        }
+        if (commandId === 'json') {
+          if (interactiveTransportPath) {
+            pushHistory(
+              'JSON output is unavailable while interactive transport is enabled.',
+              'system',
+            )
+            return
+          }
+          const normalized = argsRaw ? argsRaw.trim().toLowerCase() : ''
+          if (normalized === 'on' || normalized === 'off') {
+            const nextEnabled = normalized === 'on'
+
+            setJsonOutputEnabled(nextEnabled)
+            pushHistory(`JSON ${nextEnabled ? 'enabled' : 'disabled'}`)
+            setInputValue('')
+            return
+          }
+          openTogglePopup('json')
           return
         }
         if (commandId === 'file') {
@@ -1229,6 +1294,9 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         openTestPopup,
         pushHistory,
         runTestsFromCommand,
+        interactiveTransportPath,
+        setJsonOutputEnabled,
+        setInputValue,
       ],
     )
 
@@ -1286,6 +1354,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       chips.push(`[polish:${polishEnabled ? 'on' : 'off'}]`)
       chips.push(`[copy:${copyEnabled ? 'on' : 'off'}]`)
       chips.push(`[chatgpt:${chatGptEnabled ? 'on' : 'off'}]`)
+      chips.push(`[json:${jsonOutputEnabled ? 'on' : 'off'}]`)
       chips.push(`[files:${files.length}]`)
       chips.push(`[urls:${urls.length}]`)
       chips.push(`[smart:${smartContextEnabled ? 'on' : 'off'}]`)
@@ -1303,6 +1372,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       polishEnabled,
       copyEnabled,
       chatGptEnabled,
+      jsonOutputEnabled,
       files.length,
       urls.length,
       smartContextEnabled,
