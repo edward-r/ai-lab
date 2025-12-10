@@ -42,6 +42,29 @@ You must output a valid JSON object with exactly two keys:
 Do not output any text outside of this JSON object.
 `
 
+const SERIES_SYSTEM_PROMPT = `
+You are a Lead Architect Agent. Decompose the user's intent into a cohesive plan consisting of:
+- One overview prompt that frames the entire effort.
+- A sequence of atomic prompts that can be executed and tested independently.
+
+Atomic Prompt Standards:
+- Every atomic prompt must be self-contained—never rely on text from previous steps.
+- Each atomic prompt must target a single, verifiable state change.
+- Each atomic prompt must end with a "Validation" section describing how a human can confirm the work is complete.
+
+Return strict JSON matching this schema (do not wrap in markdown fences):
+{
+  "reasoning": string,
+  "overviewPrompt": string,
+  "atomicPrompts": [
+    { "title": string, "content": string },
+    { "title": string, "content": string }
+  ]
+}
+
+Do not perform the work yourself. Only return the JSON payload described above.
+`
+
 const GEMINI_MODEL_PREFIXES = ['gemini', 'gemma']
 
 export type UploadState = 'start' | 'finish'
@@ -62,6 +85,12 @@ export type PromptGenerationRequest = {
 type CoTResponse = {
   reasoning: string
   prompt: string
+}
+
+export type SeriesResponse = {
+  reasoning: string
+  overviewPrompt: string
+  atomicPrompts: Array<{ title: string; content: string }>
 }
 
 export class PromptGeneratorService {
@@ -110,10 +139,53 @@ export class PromptGeneratorService {
       return rawResponse
     }
   }
+
+  async generatePromptSeries(request: PromptGenerationRequest): Promise<SeriesResponse> {
+    await ensureModelCredentials(request.model)
+
+    const userContent = await buildSeriesUserMessage(
+      request.intent,
+      request.fileContext,
+      request.images,
+      request.videos,
+      request.onUploadStateChange,
+    )
+
+    const messages: Message[] = [
+      { role: 'system', content: SERIES_SYSTEM_PROMPT },
+      { role: 'user', content: userContent },
+    ]
+
+    const rawResponse = await callLLM(messages, request.model)
+
+    let series: SeriesResponse
+    try {
+      series = parseLLMJson<SeriesResponse>(rawResponse)
+    } catch (error) {
+      throw new Error('LLM did not return valid SeriesResponse JSON.')
+    }
+
+    validateSeriesResponse(series)
+
+    if (process.env.DEBUG || process.env.VERBOSE) {
+      console.error('\n--- Series Reasoning ---')
+      console.error(series.reasoning)
+      console.error('------------------------\n')
+    }
+
+    return series
+  }
 }
 
 export const createPromptGeneratorService = async (): Promise<PromptGeneratorService> => {
   return new PromptGeneratorService()
+}
+
+export const generatePromptSeries = async (
+  request: PromptGenerationRequest,
+): Promise<SeriesResponse> => {
+  const service = await createPromptGeneratorService()
+  return await service.generatePromptSeries(request)
 }
 
 export const resolveDefaultGenerateModel = async (): Promise<string> => {
@@ -205,6 +277,40 @@ const buildRefinementMessage = async (
   return await mergeMediaWithText(text, imagePaths, videoPaths, onUploadStateChange)
 }
 
+const buildSeriesUserMessage = async (
+  intent: string,
+  files: FileContext[],
+  imagePaths: string[],
+  videoPaths: string[],
+  onUploadStateChange?: UploadStateChange,
+): Promise<MessageContent> => {
+  const sections: string[] = []
+
+  if (files.length > 0) {
+    sections.push('Context Files:\n' + formatContextForPrompt(files))
+  }
+
+  sections.push(`User Intent:\n${intent.trim()}`)
+  sections.push(
+    [
+      'Task:',
+      'Design a planning artifact consisting of one overview prompt plus a set of atomic prompts.',
+      'Each atomic prompt must be self-contained, target a specific verifiable state change, and include a "Validation" section describing how a human can confirm completion.',
+      'Do not perform the tasks; only describe them.',
+    ].join(' '),
+  )
+  sections.push(
+    [
+      'Output Requirements:',
+      'Return strict JSON matching the schema { "reasoning": string, "overviewPrompt": string, "atomicPrompts": Array<{ "title": string; "content": string }> }.',
+      'Never wrap the JSON in markdown code fences and never add extra keys.',
+    ].join(' '),
+  )
+
+  const text = sections.join('\n\n')
+  return await mergeMediaWithText(text, imagePaths, videoPaths, onUploadStateChange)
+}
+
 const mergeMediaWithText = async (
   text: string,
   imagePaths: string[],
@@ -244,6 +350,36 @@ const resolveVideoParts = async (
   }
 
   return parts
+}
+
+const validateSeriesResponse = (response: SeriesResponse): void => {
+  if (!response || typeof response !== 'object') {
+    throw new Error('LLM returned SeriesResponse with invalid shape.')
+  }
+
+  if (typeof response.reasoning !== 'string' || !response.reasoning.trim()) {
+    throw new Error('Series reasoning is required.')
+  }
+
+  if (typeof response.overviewPrompt !== 'string' || !response.overviewPrompt.trim()) {
+    throw new Error('Series overviewPrompt is required.')
+  }
+
+  if (!Array.isArray(response.atomicPrompts) || response.atomicPrompts.length === 0) {
+    throw new Error('Series atomicPrompts must include at least one entry.')
+  }
+
+  response.atomicPrompts.forEach((entry, index) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(`Atomic prompt ${index + 1} is invalid.`)
+    }
+    if (typeof entry.title !== 'string' || !entry.title.trim()) {
+      throw new Error(`Atomic prompt ${index + 1} is missing a title.`)
+    }
+    if (typeof entry.content !== 'string' || !entry.content.trim()) {
+      throw new Error(`Atomic prompt ${index + 1} is missing content.`)
+    }
+  })
 }
 
 const parseLLMJson = <T>(text: string): T => {

@@ -146,7 +146,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
   })
 
   it('returns raw response when LLM output is not JSON', async () => {
-    (callLLM as jest.Mock).mockResolvedValue('plain text response')
+    ;(callLLM as jest.Mock).mockResolvedValue('plain text response')
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     const service = await buildService()
     const prompt = await service.generatePrompt({
@@ -176,5 +176,88 @@ describe('PromptGeneratorService.generatePrompt', () => {
     })
     expect(err).toHaveBeenCalledWith(expect.stringContaining('--- AI Reasoning ---'))
     err.mockRestore()
+    delete process.env.DEBUG
+  })
+})
+
+describe('PromptGeneratorService.generatePromptSeries', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    configModule.loadCliConfig.mockResolvedValue({
+      promptGenerator: { defaultModel: 'gpt-4o-mini', defaultGeminiModel: 'gemini-1.5-pro' },
+    })
+    resolveImageParts.mockResolvedValue([{ type: 'image', mimeType: 'image/png', data: 'aaa' }])
+    mediaLoader.uploadFileForGemini.mockResolvedValue('gs://video')
+    mediaLoader.inferVideoMimeType.mockReturnValue('video/mp4')
+  })
+
+  const buildService = async () => new PromptGeneratorService()
+
+  const seriesPayload = {
+    reasoning: 'analysis',
+    overviewPrompt: '# Overview',
+    atomicPrompts: [{ title: 'Step', content: 'Do a thing\n\nValidation: ...' }],
+  }
+
+  it('parses valid JSON into a SeriesResponse and uploads media', async () => {
+    ;(callLLM as jest.Mock).mockResolvedValue(JSON.stringify(seriesPayload))
+    const service = await buildService()
+    const result = await service.generatePromptSeries({
+      intent: 'Plan something',
+      model: 'gpt-4o-mini',
+      fileContext: [{ path: 'ctx.md', content: 'context' }],
+      images: ['diagram.png'],
+      videos: ['clip.mp4'],
+    })
+    expect(resolveImageParts).toHaveBeenCalledWith(['diagram.png'], undefined)
+    expect(mediaLoader.uploadFileForGemini).toHaveBeenCalledWith('clip.mp4')
+    expect(result).toEqual(seriesPayload)
+  })
+
+  it('throws when the LLM response is not valid JSON', async () => {
+    ;(callLLM as jest.Mock).mockResolvedValue('not json')
+    const service = await buildService()
+    await expect(
+      service.generatePromptSeries({
+        intent: 'Plan',
+        model: 'gpt-4o-mini',
+        fileContext: [],
+        images: [],
+        videos: [],
+      }),
+    ).rejects.toThrow('LLM did not return valid SeriesResponse JSON.')
+  })
+
+  it('throws when the JSON is missing atomic prompts', async () => {
+    ;(callLLM as jest.Mock).mockResolvedValue(
+      JSON.stringify({ reasoning: 'r', overviewPrompt: '# Overview', atomicPrompts: [] }),
+    )
+    const service = await buildService()
+    await expect(
+      service.generatePromptSeries({
+        intent: 'Plan',
+        model: 'gpt-4o-mini',
+        fileContext: [],
+        images: [],
+        videos: [],
+      }),
+    ).rejects.toThrow('Series atomicPrompts must include at least one entry.')
+  })
+
+  it('logs reasoning when DEBUG env var is set', async () => {
+    process.env.DEBUG = '1'
+    ;(callLLM as jest.Mock).mockResolvedValue(JSON.stringify(seriesPayload))
+    const err = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const service = await buildService()
+    await service.generatePromptSeries({
+      intent: 'Plan something',
+      model: 'gpt-4o-mini',
+      fileContext: [],
+      images: [],
+      videos: [],
+    })
+    expect(err).toHaveBeenCalledWith(expect.stringContaining('--- Series Reasoning ---'))
+    err.mockRestore()
+    delete process.env.DEBUG
   })
 })

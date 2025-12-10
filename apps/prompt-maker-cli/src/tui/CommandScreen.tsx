@@ -21,6 +21,16 @@ import {
   type GeneratePipelineResult,
   type StreamEventInput,
 } from '../generate-command'
+import {
+  generatePromptSeries,
+  isGemini,
+  type PromptGenerationRequest,
+  type SeriesResponse,
+  type UploadStateChange,
+} from '../prompt-generator-service'
+import { resolveFileContext } from '../file-context'
+import { resolveSmartContextFiles } from '../smart-context-service'
+import { resolveUrlContext } from '../url-context'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context'
 
@@ -35,6 +45,7 @@ const COMMAND_DESCRIPTORS = [
   { id: 'image', label: 'Image', description: 'Attach reference images' },
   { id: 'video', label: 'Video', description: 'Attach reference videos' },
   { id: 'polish', label: 'Polish', description: 'Enable prompt polishing' },
+  { id: 'series', label: 'Series', description: 'Generate atomic prompt series' },
   { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
@@ -455,6 +466,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       })),
     )
     const historyIdRef = useRef(WELCOME_LINES.length)
+    const lastUserIntentRef = useRef<string | null>(null)
     const [inputValue, setInputValue] = useState('')
     const [scrollOffset, setScrollOffset] = useState(0)
     const [isPinnedToBottom, setIsPinnedToBottom] = useState(true)
@@ -1059,6 +1071,119 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       ],
     )
 
+    const runSeriesGeneration = useCallback(
+      async (intent: string) => {
+        setIsGenerating(true)
+        setStatusMessage('Series: resolving context…')
+        pushHistory('[series] Starting series generation…', 'progress')
+        try {
+          const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
+          let targetModel = normalizedModel
+          if (videos.length > 0 && !isGemini(targetModel)) {
+            targetModel = 'gemini-1.5-pro'
+            pushHistory('[series] Switching to gemini-1.5-pro for video support.', 'progress')
+          }
+
+          let resolvedContext = await resolveFileContext([...files])
+          if (resolvedContext.length > 0) {
+            pushHistory(
+              `[series] Added ${resolvedContext.length} file context entr${resolvedContext.length === 1 ? 'y' : 'ies'}.`,
+              'progress',
+            )
+          }
+
+          if (urls.length > 0) {
+            pushHistory(`[series] Fetching ${urls.length} URL source(s)…`, 'progress')
+            try {
+              const urlFiles = await resolveUrlContext(urls, {
+                onProgress: (message: string) => {
+                  pushHistory(`[series] ${message}`, 'progress')
+                  setStatusMessage(`Series: ${message}`)
+                },
+              })
+              if (urlFiles.length > 0) {
+                resolvedContext = [...resolvedContext, ...urlFiles]
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Unknown URL context error.'
+              pushHistory(`[series] URL context failed: ${message}`, 'progress')
+            }
+          }
+
+          if (smartContextEnabled) {
+            pushHistory('[series] Resolving smart context…', 'progress')
+            try {
+              const smartFiles = await resolveSmartContextFiles(
+                intent,
+                resolvedContext,
+                (message: string) => {
+                  pushHistory(`[series] ${message}`, 'progress')
+                  setStatusMessage(`Series: ${message}`)
+                },
+                smartContextRoot ?? undefined,
+              )
+              if (smartFiles.length > 0) {
+                resolvedContext = [...resolvedContext, ...smartFiles]
+              }
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : 'Unknown smart context error.'
+              pushHistory(`[series] Smart context failed: ${message}`, 'progress')
+            }
+          }
+
+          pushHistory(`[series] Context ready (${resolvedContext.length} file(s)).`, 'progress')
+
+          const handleUploadState: UploadStateChange = (state, detail) => {
+            const action = state === 'start' ? 'Uploading' : 'Uploaded'
+            pushHistory(`[series] ${action} ${detail.kind}: ${detail.filePath}`, 'progress')
+          }
+
+          const request: PromptGenerationRequest = {
+            intent,
+            model: targetModel,
+            fileContext: resolvedContext,
+            images: [...images],
+            videos: [...videos],
+            onUploadStateChange: handleUploadState,
+          }
+
+          setStatusMessage('Series: generating…')
+          const series: SeriesResponse = await generatePromptSeries(request)
+          pushHistory('[series] Overview ready.', 'progress')
+          pushHistory(`[Overview] ${series.overviewPrompt}`, 'system')
+          series.atomicPrompts.forEach((step, index) => {
+            const stepNumber = index + 1
+            pushHistory(`[Step ${stepNumber}: ${step.title}] ${step.content}`, 'system')
+          })
+          setStatusMessage('Series complete')
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Unknown series generation error.'
+          pushHistory(`[series] Failed: ${message}`, 'progress')
+          setStatusMessage('Series failed')
+        } finally {
+          setIsGenerating(false)
+        }
+      },
+      [
+        currentModel,
+        files,
+        urls,
+        images,
+        videos,
+        smartContextEnabled,
+        smartContextRoot,
+        pushHistory,
+        setStatusMessage,
+        resolveFileContext,
+        resolveUrlContext,
+        resolveSmartContextFiles,
+        isGemini,
+        generatePromptSeries,
+      ],
+    )
+
     useInput(
       (input, key) => {
         if (!popupState) {
@@ -1274,6 +1399,26 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           openSmartPopup()
           return
         }
+        if (commandId === 'series') {
+          if (isGenerating) {
+            pushHistory('Generation already running. Please wait.', 'system')
+            return
+          }
+          const trimmedArgs = argsRaw?.trim() ?? ''
+          const intentSource = trimmedArgs || lastUserIntentRef.current || ''
+          if (!intentSource) {
+            pushHistory(
+              'Series mode requires an intent. Use /series <intent> or submit an intent first.',
+              'system',
+            )
+            return
+          }
+          lastUserIntentRef.current = intentSource
+          pushHistory(`> /series ${intentSource}`, 'user')
+          setInputValue('')
+          void runSeriesGeneration(intentSource)
+          return
+        }
         if (commandId === 'test') {
           const trimmedArgs = argsRaw?.trim() ?? ''
           if (trimmedArgs) {
@@ -1291,12 +1436,14 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         openFilePopup,
         openUrlPopup,
         openSmartPopup,
+        runSeriesGeneration,
         openTestPopup,
         pushHistory,
         runTestsFromCommand,
         interactiveTransportPath,
         setJsonOutputEnabled,
         setInputValue,
+        isGenerating,
       ],
     )
 
@@ -1330,6 +1477,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           return
         }
         pushHistory(`> ${trimmed}`, 'user')
+        lastUserIntentRef.current = trimmed
         setInputValue('')
         void runGeneration(trimmed)
       },
