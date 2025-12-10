@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import { Box, Text, useInput, useStdout } from 'ink'
+import { Box, Text, useApp, useInput, useStdout } from 'ink'
 import TextInput from 'ink-text-input'
 import wrapAnsi from 'wrap-ansi'
 
@@ -50,6 +50,7 @@ const COMMAND_DESCRIPTORS = [
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
   { id: 'test', label: 'Test', description: 'Run prompt tests (/test <file>)' },
+  { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
 ] as const
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 
@@ -451,6 +452,7 @@ export type CommandScreenHandle = {
 
 export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>(
   ({ interactiveTransportPath, onPopupVisibilityChange, commandMenuSignal }, ref) => {
+    const { exit } = useApp()
     const { stdout } = useStdout()
     const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
     const { addFile, removeFile, addUrl, removeUrl, toggleSmartContext, setSmartRoot } =
@@ -773,22 +775,10 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         setPolishEnabled,
         setCopyEnabled,
         setChatGptEnabled,
-      ],
-    )
+          exit,
+        ],
+      )
 
-    const handleAddFile = useCallback(
-      (value: string) => {
-        const trimmed = value.trim()
-        if (!trimmed) {
-          return
-        }
-        addFile(trimmed)
-        pushHistory(`Context file added: ${trimmed}`)
-        setPopupState((prev) =>
-          prev?.type === 'file'
-            ? { ...prev, draft: '', selectionIndex: Math.max(files.length, 0) }
-            : prev,
-        )
       },
       [addFile, files.length, pushHistory],
     )
@@ -1399,6 +1389,12 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           openSmartPopup()
           return
         }
+        if (commandId === 'exit') {
+          pushHistory('Exiting…', 'system')
+          setInputValue('')
+          exit()
+          return
+        }
         if (commandId === 'series') {
           if (isGenerating) {
             pushHistory('Generation already running. Please wait.', 'system')
@@ -1444,6 +1440,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         setJsonOutputEnabled,
         setInputValue,
         isGenerating,
+        exit,
       ],
     )
 
