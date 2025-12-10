@@ -39,6 +39,7 @@ const COMMAND_DESCRIPTORS = [
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
   { id: 'test', label: 'Test', description: 'Run prompt tests (/test <file>)' },
+  { id: 'exit', label: 'Exit', description: 'Quit the app' },
 ] as const
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 
@@ -75,6 +76,7 @@ const WELCOME_LINES = [
   'Welcome to the Prompt Maker command palette preview.',
   'Type natural language requests or start a command with /.',
   'Press Enter to log input; arrow keys scroll history.',
+  'Use the /exit command when you are ready to quit.',
 ]
 
 type CommandDescriptor = (typeof COMMAND_DESCRIPTORS)[number]
@@ -432,6 +434,7 @@ type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
   onPopupVisibilityChange?: (isOpen: boolean) => void
   commandMenuSignal?: number
+  onExitRequest?: () => void
 }
 
 export type CommandScreenHandle = {
@@ -439,7 +442,10 @@ export type CommandScreenHandle = {
 }
 
 export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>(
-  ({ interactiveTransportPath, onPopupVisibilityChange, commandMenuSignal }, ref) => {
+  (
+    { interactiveTransportPath, onPopupVisibilityChange, commandMenuSignal, onExitRequest },
+    ref,
+  ) => {
     const { stdout } = useStdout()
     const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
     const { addFile, removeFile, addUrl, removeUrl, toggleSmartContext, setSmartRoot } =
@@ -1283,6 +1289,16 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           }
           return
         }
+        if (commandId === 'exit') {
+          setInputValue('')
+          if (onExitRequest) {
+            pushHistory('Exiting Prompt Maker...', 'system')
+            onExitRequest()
+          } else {
+            pushHistory('Exit command unavailable in this context.', 'system')
+          }
+          return
+        }
         pushHistory(`Selected ${commandId}`)
       },
       [
@@ -1297,6 +1313,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         interactiveTransportPath,
         setJsonOutputEnabled,
         setInputValue,
+        onExitRequest,
       ],
     )
 

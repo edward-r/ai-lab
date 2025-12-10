@@ -133,6 +133,7 @@ Key concepts:
 - **JSON command** – type `/json on` (or select JSON from the command menu) to emit the same machine-readable payload as `--json` without leaving the TUI; the payload is also rendered in the history panel for copy/paste. `/json off` restores standard output, and JSON mode is disabled automatically when an interactive transport is active.
 - **Telemetry & logs** – upload/progress lines, smart-context warnings, and transport status appear under Actions. Errors (missing credentials, URL failures, etc.) surface in-place and continue to emit console warnings for automation.
 - **Test Runner** – switch to the Test view (Ctrl+T) to enter a YAML file, run suites, and watch test rows update live. Recent warnings and failures are mirrored in the log panel to keep Opencode-style feedback consistent.
+- **Exiting** – type `/exit` (or select `Exit` in the command menu) from the Generate view when you are ready to quit. Esc now just closes popups; it no longer ends the session.
 
 All JSON/JSONL outputs, history logging, and clipboard/ChatGPT behaviors remain identical to the CLI. The TUI is optional: scripts and automations can continue calling `prompt-maker-cli` directly.
 

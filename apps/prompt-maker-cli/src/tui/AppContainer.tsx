@@ -37,7 +37,6 @@ export type AppContainerProps = {
 export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport }) => {
   const { exit } = useApp()
   const [view, setView] = useState<'generate' | 'tests'>('generate')
-  const [isPopupOpen, setIsPopupOpen] = useState(false)
   const [pendingCommandMenu, setPendingCommandMenu] = useState(false)
   const [commandMenuSignal, setCommandMenuSignal] = useState(0)
   const commandScreenRef = useRef<CommandScreenHandle | null>(null)
@@ -54,12 +53,6 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
   }, [])
 
   useEffect(() => {
-    if (view !== 'generate') {
-      setIsPopupOpen(false)
-    }
-  }, [view])
-
-  useEffect(() => {
     if (view === 'generate' && pendingCommandMenu) {
       commandScreenRef.current?.suppressNextInput()
       setCommandMenuSignal((prev) => prev + 1)
@@ -74,20 +67,6 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
   useInput((input, key) => {
     const isControlKey = (target: string): boolean => matchesControlKey(input, key, target)
 
-    if (isControlKey('c')) {
-      if (view === 'generate') {
-        commandScreenRef.current?.suppressNextInput()
-      }
-      exit()
-      return
-    }
-    if (key.escape) {
-      if (view === 'generate' && isPopupOpen) {
-        return
-      }
-      exit()
-      return
-    }
     if (isControlKey('g')) {
       if (view === 'generate') {
         commandScreenRef.current?.suppressNextInput()
@@ -111,7 +90,7 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
       <Box flexDirection="column" paddingX={2} paddingY={1} height="100%">
         <Text color="cyanBright">Prompt Maker · Command Palette Preview</Text>
         <Text color="gray">
-          Ctrl+G → Command Palette · Ctrl+T → Test Runner · Ctrl+C/Esc to exit.
+          Ctrl+G → Command Palette · Ctrl+T → Test Runner · Type /exit to quit.
         </Text>
         <Box flexDirection="column" flexGrow={1} height="100%" marginTop={1}>
           {view === 'generate' ? (
@@ -129,8 +108,8 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
                 <CommandScreen
                   ref={commandScreenRef}
                   interactiveTransportPath={interactiveTransport}
-                  onPopupVisibilityChange={setIsPopupOpen}
                   commandMenuSignal={commandMenuSignal}
+                  onExitRequest={exit}
                 />
               </Box>
             </>
