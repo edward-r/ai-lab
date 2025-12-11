@@ -7,7 +7,11 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'image', label: 'Image', description: 'Attach reference images' },
   { id: 'video', label: 'Video', description: 'Attach reference videos' },
   { id: 'polish', label: 'Polish', description: 'Enable prompt polishing' },
-  { id: 'series', label: 'Series', description: 'Generate atomic prompt series' },
+  {
+    id: 'series',
+    label: 'Series',
+    description: 'Generate atomic prompt series (Tab)',
+  },
   { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
@@ -35,4 +39,5 @@ export const POPUP_HEIGHTS = {
   smart: 9,
   test: 7,
   intent: 7,
+  series: 8,
 } as const

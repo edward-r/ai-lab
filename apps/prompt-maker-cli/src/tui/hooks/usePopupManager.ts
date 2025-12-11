@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { useCallback, useState } from 'react'
 
 import { MODEL_OPTIONS, TOGGLE_LABELS } from '../config'
@@ -17,11 +19,13 @@ export type PopupManagerActions = {
   openSmartPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
+  openSeriesPopup: (initialDraft?: string, hintOverride?: string) => void
   closePopup: () => void
   handleCommandSelection: (commandId: CommandDescriptor['id'], argsRaw?: string) => void
   handleModelPopupSubmit: (option?: ModelOption) => void
   applyToggleSelection: (field: ToggleField, value: boolean) => void
   handleIntentFileSubmit: (value: string) => void
+  handleSeriesIntentSubmit: (value: string) => void
 }
 
 export type UsePopupManagerOptions = {
@@ -48,6 +52,8 @@ export type UsePopupManagerOptions = {
   copyEnabled: boolean
   chatGptEnabled: boolean
   jsonOutputEnabled: boolean
+  getLatestTypedIntent: () => string | null
+  syncTypedIntentRef: (intent: string) => void
 }
 
 export const usePopupManager = ({
@@ -74,6 +80,8 @@ export const usePopupManager = ({
   copyEnabled,
   chatGptEnabled,
   jsonOutputEnabled,
+  getLatestTypedIntent,
+  syncTypedIntentRef,
 }: UsePopupManagerOptions): {
   popupState: PopupState
   setPopupState: React.Dispatch<React.SetStateAction<PopupState>>
@@ -123,6 +131,21 @@ export const usePopupManager = ({
   const openIntentPopup = useCallback(() => {
     setPopupState({ type: 'intent', draft: intentFilePath })
   }, [intentFilePath])
+
+  const openSeriesPopup = useCallback(
+    (initialDraft?: string, hintOverride?: string) => {
+      const trimmedIntentFile = intentFilePath.trim()
+      const defaultHint = trimmedIntentFile
+        ? 'Intent file is active; /series only uses typed text.'
+        : 'Enter the intent to generate an atomic series.'
+      setPopupState({
+        type: 'series',
+        draft: initialDraft ?? '',
+        hint: hintOverride ?? defaultHint,
+      })
+    },
+    [intentFilePath],
+  )
 
   const closePopup = useCallback(() => {
     setPopupState(null)
@@ -202,6 +225,23 @@ export const usePopupManager = ({
     [pushHistory, setInputValue, setIntentFilePath],
   )
 
+  const handleSeriesIntentSubmit = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        pushHistory('Series intent cannot be empty.', 'system')
+        return
+      }
+      lastUserIntentRef.current = trimmed
+      syncTypedIntentRef(trimmed)
+      pushHistory(`> /series ${trimmed}`, 'user')
+      setInputValue('')
+      setPopupState(null)
+      void runSeriesGeneration(trimmed)
+    },
+    [lastUserIntentRef, pushHistory, runSeriesGeneration, setInputValue, syncTypedIntentRef],
+  )
+
   const handleCommandSelection = useCallback(
     (commandId: CommandDescriptor['id'], argsRaw?: string) => {
       switch (commandId) {
@@ -250,23 +290,46 @@ export const usePopupManager = ({
           exitApp()
           return
         case 'series': {
-          if (isGenerating) {
-            pushHistory('Generation already running. Please wait.', 'system')
-            return
+          const handleSeriesCommand = async (): Promise<void> => {
+            if (isGenerating) {
+              pushHistory('Generation already running. Please wait.', 'system')
+              return
+            }
+            const trimmedArgs = argsRaw?.trim() ?? ''
+            const latestTypedIntent = getLatestTypedIntent() ?? ''
+            let initialDraft = trimmedArgs || latestTypedIntent || lastUserIntentRef.current || ''
+            let hintOverride: string | undefined
+            if (!initialDraft) {
+              const trimmedIntentFile = intentFilePath.trim()
+              if (trimmedIntentFile) {
+                try {
+                  const raw = await fs.readFile(trimmedIntentFile, 'utf8')
+                  const fileIntent = raw.trim()
+                  if (fileIntent) {
+                    initialDraft = fileIntent
+                    const fileLabel = path.basename(trimmedIntentFile)
+                    hintOverride = `Loaded from intent file ${fileLabel}`
+                    syncTypedIntentRef(fileIntent)
+                  } else {
+                    pushHistory(
+                      `[series] Intent file ${trimmedIntentFile} is empty; please add content.`,
+                      'system',
+                    )
+                  }
+                } catch (error) {
+                  const message =
+                    error instanceof Error ? error.message : 'Unknown intent file error.'
+                  pushHistory(
+                    `[series] Failed to read intent file ${trimmedIntentFile}: ${message}`,
+                    'system',
+                  )
+                }
+              }
+            }
+            openSeriesPopup(initialDraft, hintOverride)
+            setInputValue('')
           }
-          const trimmedArgs = argsRaw?.trim() ?? ''
-          const intentSource = trimmedArgs || lastUserIntentRef.current || ''
-          if (!intentSource) {
-            pushHistory(
-              'Series mode requires an intent. Use /series <intent> or submit an intent first.',
-              'system',
-            )
-            return
-          }
-          lastUserIntentRef.current = intentSource
-          pushHistory(`> /series ${intentSource}`, 'user')
-          setInputValue('')
-          void runSeriesGeneration(intentSource)
+          void handleSeriesCommand()
           return
         }
         case 'test': {
@@ -285,19 +348,22 @@ export const usePopupManager = ({
     [
       exitApp,
       interactiveTransportPath,
+      intentFilePath,
       isGenerating,
       lastUserIntentRef,
       openFilePopup,
       openModelPopup,
+      openSeriesPopup,
       openSmartPopup,
       openTestPopup,
       openTogglePopup,
       openUrlPopup,
       pushHistory,
-      runSeriesGeneration,
       runTestsFromCommand,
       setInputValue,
       setJsonOutputEnabled,
+      getLatestTypedIntent,
+      syncTypedIntentRef,
     ],
   )
 
@@ -312,11 +378,13 @@ export const usePopupManager = ({
       openSmartPopup,
       openTestPopup,
       openIntentPopup,
+      openSeriesPopup,
       closePopup,
       handleCommandSelection,
       handleModelPopupSubmit,
       applyToggleSelection,
       handleIntentFileSubmit,
+      handleSeriesIntentSubmit,
     },
   }
 }

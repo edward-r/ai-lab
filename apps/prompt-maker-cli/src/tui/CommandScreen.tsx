@@ -21,6 +21,7 @@ import { SmartPopup } from './components/popups/SmartPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
 import { IntentFilePopup } from './components/popups/IntentFilePopup'
+import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS } from './config'
 import { resolveIntentSource } from './intent-source'
 import { useCommandHistory } from './hooks/useCommandHistory'
@@ -52,6 +53,7 @@ const WELCOME_LINES = [
   'Type natural language requests or start a command with /.',
   'Press Enter to log input; arrow keys scroll history.',
   'Use /intent to load intent text from a file (blank clears).',
+  'Tip: Press Tab to open the Series intent popup.',
 ]
 
 const WELCOME_HISTORY: HistoryEntry[] = WELCOME_LINES.map((line, index) => ({
@@ -81,6 +83,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
     const [terminalColumns, setTerminalColumns] = useState(stdout?.columns ?? 80)
     const lastUserIntentRef = useRef<string | null>(null)
+    const lastTypedIntentRef = useRef<string>('')
     const [inputValue, setInputValue] = useState('')
     const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
     const [currentModel, setCurrentModel] = useState<ModelOption['id']>('gpt-4o-mini')
@@ -111,6 +114,15 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         suppressNextInputRef.current = true
       },
     }))
+
+    const getLatestTypedIntent = useCallback(() => {
+      const trimmed = lastTypedIntentRef.current.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }, [])
+
+    const syncTypedIntentRef = useCallback((intent: string) => {
+      lastTypedIntentRef.current = intent
+    }, [])
 
     const trimmedInput = inputValue.trimStart()
     const isCommandMode = trimmedInput.startsWith('/')
@@ -161,6 +173,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         handleModelPopupSubmit,
         applyToggleSelection,
         handleIntentFileSubmit,
+        handleSeriesIntentSubmit,
       },
     } = usePopupManager({
       currentModel,
@@ -186,6 +199,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       copyEnabled,
       chatGptEnabled,
       jsonOutputEnabled,
+      getLatestTypedIntent,
+      syncTypedIntentRef,
     })
 
     const isPopupOpen = popupState !== null
@@ -371,6 +386,23 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
       },
       { isActive: isCommandMenuActive },
+    )
+
+    useInput(
+      (_input, key) => {
+        if (popupState || isCommandMenuActive || isCommandMode) {
+          return
+        }
+        if (!key.tab || key.shift) {
+          return
+        }
+        if (isGenerating) {
+          pushHistory('Generation already running. Please wait.', 'system')
+          return
+        }
+        handleCommandSelection('series', inputValue)
+      },
+      { isActive: !isPopupOpen },
     )
 
     const selectedCommand =
@@ -610,6 +642,13 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           return
         }
 
+        if (popupState.type === 'series') {
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
         if (popupState.type === 'test') {
           if (key.escape) {
             closePopup()
@@ -753,6 +792,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           return
         }
         setInputValue(next)
+        const trimmedStart = next.trimStart()
+        if (trimmedStart.startsWith('/')) {
+          return
+        }
+        lastTypedIntentRef.current = next
       },
       [popupState, setInputValue],
     )
@@ -823,6 +867,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                   )
                 }
                 onSubmitDraft={handleIntentFileSubmit}
+              />
+            ) : popupState.type === 'series' ? (
+              <SeriesIntentPopup
+                draft={popupState.draft}
+                hint={popupState.hint}
+                isRunning={isGenerating}
+                onDraftChange={(next) =>
+                  setPopupState((prev) =>
+                    prev?.type === 'series' ? { ...prev, draft: next } : prev,
+                  )
+                }
+                onSubmitDraft={handleSeriesIntentSubmit}
               />
             ) : popupState.type === 'test' ? (
               <TestPopup
