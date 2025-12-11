@@ -126,14 +126,19 @@ export const useGenerationPipeline = ({
   )
 
   const runGeneration = useCallback(
-    async (intent: string) => {
+    async (intentInput: { intent?: string; intentFile?: string }) => {
+      const trimmedIntent = intentInput.intent?.trim() ?? ''
+      const trimmedIntentFile = intentInput.intentFile?.trim() ?? ''
+      if (!trimmedIntent && !trimmedIntentFile) {
+        pushHistory('No intent provided. Enter text or set an intent file.', 'system')
+        return
+      }
       setIsGenerating(true)
       setStatusMessage('Preparing generation…')
       pushHistory('Starting generation…')
       try {
         const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
         const args: GenerateArgs = {
-          intent,
           interactive: Boolean(interactiveTransportPath),
           copy: false,
           openChatGpt: false,
@@ -151,6 +156,11 @@ export const useGenerationPipeline = ({
           video: [...videos],
           smartContext: smartContextEnabled,
           model: normalizedModel,
+        }
+        if (trimmedIntentFile) {
+          args.intentFile = trimmedIntentFile
+        } else {
+          args.intent = trimmedIntent
         }
         if (polishEnabled) {
           args.polishModel = normalizedModel

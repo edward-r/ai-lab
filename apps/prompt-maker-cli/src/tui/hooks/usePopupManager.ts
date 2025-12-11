@@ -16,10 +16,12 @@ export type PopupManagerActions = {
   openUrlPopup: () => void
   openSmartPopup: () => void
   openTestPopup: () => void
+  openIntentPopup: () => void
   closePopup: () => void
   handleCommandSelection: (commandId: CommandDescriptor['id'], argsRaw?: string) => void
   handleModelPopupSubmit: (option?: ModelOption) => void
   applyToggleSelection: (field: ToggleField, value: boolean) => void
+  handleIntentFileSubmit: (value: string) => void
 }
 
 export type UsePopupManagerOptions = {
@@ -40,6 +42,8 @@ export type UsePopupManagerOptions = {
   setCopyEnabled: (value: boolean) => void
   setChatGptEnabled: (value: boolean) => void
   setJsonOutputEnabled: (value: boolean) => void
+  setIntentFilePath: (value: string) => void
+  intentFilePath: string
   polishEnabled: boolean
   copyEnabled: boolean
   chatGptEnabled: boolean
@@ -64,6 +68,8 @@ export const usePopupManager = ({
   setCopyEnabled,
   setChatGptEnabled,
   setJsonOutputEnabled,
+  setIntentFilePath,
+  intentFilePath,
   polishEnabled,
   copyEnabled,
   chatGptEnabled,
@@ -113,6 +119,10 @@ export const usePopupManager = ({
   const openTestPopup = useCallback(() => {
     setPopupState({ type: 'test', draft: lastTestFile ?? defaultTestFile })
   }, [defaultTestFile, lastTestFile])
+
+  const openIntentPopup = useCallback(() => {
+    setPopupState({ type: 'intent', draft: intentFilePath })
+  }, [intentFilePath])
 
   const closePopup = useCallback(() => {
     setPopupState(null)
@@ -179,6 +189,19 @@ export const usePopupManager = ({
     ],
   )
 
+  const handleIntentFileSubmit = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      setIntentFilePath(trimmed)
+      pushHistory(
+        trimmed ? `Intent file set to ${trimmed}` : 'Intent file cleared; using typed intent.',
+      )
+      setInputValue('')
+      setPopupState(null)
+    },
+    [pushHistory, setInputValue, setIntentFilePath],
+  )
+
   const handleCommandSelection = useCallback(
     (commandId: CommandDescriptor['id'], argsRaw?: string) => {
       switch (commandId) {
@@ -217,6 +240,9 @@ export const usePopupManager = ({
           return
         case 'smart':
           openSmartPopup()
+          return
+        case 'intent':
+          openIntentPopup()
           return
         case 'exit':
           pushHistory('Exiting…', 'system')
@@ -285,10 +311,12 @@ export const usePopupManager = ({
       openUrlPopup,
       openSmartPopup,
       openTestPopup,
+      openIntentPopup,
       closePopup,
       handleCommandSelection,
       handleModelPopupSubmit,
       applyToggleSelection,
+      handleIntentFileSubmit,
     },
   }
 }
