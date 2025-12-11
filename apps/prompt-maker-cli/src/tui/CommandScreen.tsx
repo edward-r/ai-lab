@@ -9,7 +9,6 @@ import React, {
   useState,
 } from 'react'
 import { Box, Text, useApp, useInput, useStdout } from 'ink'
-import TextInput from 'ink-text-input'
 import wrapAnsi from 'wrap-ansi'
 
 import {
@@ -21,6 +20,16 @@ import {
   type GeneratePipelineResult,
   type StreamEventInput,
 } from '../generate-command'
+import { InputBar } from './components/core/InputBar'
+import { CommandMenu } from './components/core/CommandMenu'
+import { ScrollableOutput } from './components/core/ScrollableOutput'
+import type { HistoryEntry } from './components/core/ScrollableOutput'
+import { ListPopup } from './components/popups/ListPopup'
+import { ModelPopup } from './components/popups/ModelPopup'
+import type { ModelPopupOption } from './components/popups/ModelPopup'
+import { SmartPopup } from './components/popups/SmartPopup'
+import { TestPopup } from './components/popups/TestPopup'
+import { TogglePopup } from './components/popups/TogglePopup'
 import {
   generatePromptSeries,
   isGemini,
@@ -63,7 +72,6 @@ const TOGGLE_POPUP_HEIGHT = 6
 const LIST_POPUP_HEIGHT = 12
 const SMART_POPUP_HEIGHT = 9
 const TEST_POPUP_HEIGHT = 7
-const MAX_VISIBLE_LIST_ITEMS = 6
 const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
 
@@ -103,331 +111,6 @@ type PopupState =
   | { type: 'smart'; draft: string }
   | { type: 'test'; draft: string }
   | null
-
-type HistoryEntry = {
-  id: string
-  content: string
-  kind: 'user' | 'system' | 'progress'
-}
-
-type ScrollableOutputProps = {
-  lines: readonly HistoryEntry[]
-  visibleRows: number
-  scrollOffset: number
-}
-
-const ScrollableOutput: React.FC<ScrollableOutputProps> = ({
-  lines,
-  visibleRows,
-  scrollOffset,
-}) => {
-  const startIndex = Math.max(0, Math.min(scrollOffset, Math.max(0, lines.length - visibleRows)))
-  const endIndex = Math.min(lines.length, startIndex + visibleRows)
-  const visibleLines = useMemo(
-    () => lines.slice(startIndex, endIndex),
-    [lines, startIndex, endIndex],
-  )
-
-  return (
-    <Box flexDirection="column" height={visibleRows} overflow="hidden">
-      {visibleLines.map((entry, index) => {
-        const key = `${entry.id}-${startIndex + index}`
-        if (entry.kind === 'user') {
-          return (
-            <Text key={key} color="cyan">
-              {entry.content}
-            </Text>
-          )
-        }
-        if (entry.kind === 'progress') {
-          return (
-            <Text key={key} color="yellow">
-              {entry.content}
-            </Text>
-          )
-        }
-        return (
-          <Text key={key} color="gray">
-            {entry.content}
-          </Text>
-        )
-      })}
-    </Box>
-  )
-}
-
-type InputBarProps = {
-  value: string
-  onChange: (next: string) => void
-  onSubmit: (value: string) => void
-  isDisabled?: boolean
-  statusChips: readonly string[]
-}
-
-const InputBar: React.FC<InputBarProps> = ({
-  value,
-  onChange,
-  onSubmit,
-  isDisabled = false,
-  statusChips,
-}) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-    <Text color="cyan">{statusChips.join(' ')}</Text>
-    <Text color="gray">Intent / Command</Text>
-    <Box>
-      <Text color="cyan">› </Text>
-      <TextInput
-        value={value}
-        onChange={onChange}
-        onSubmit={onSubmit}
-        placeholder="Describe your goal or type /command"
-        focus={!isDisabled}
-      />
-    </Box>
-  </Box>
-)
-
-type CommandMenuProps = {
-  commands: readonly CommandDescriptor[]
-  selectedIndex: number
-}
-
-const CommandMenu: React.FC<CommandMenuProps> = ({ commands, selectedIndex }) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1} paddingY={0}>
-    <Text color="magentaBright">Commands</Text>
-    {commands.map((command, index) => {
-      const isSelected = index === selectedIndex
-      const shortcut = `/${command.id}`.padEnd(10)
-      const textProps = isSelected
-        ? ({ color: 'black', backgroundColor: 'magentaBright' } as const)
-        : ({ color: 'white' } as const)
-      return (
-        <Text key={command.id} {...textProps}>
-          {shortcut} {command.description}
-        </Text>
-      )
-    })}
-  </Box>
-)
-
-type ListPopupProps = {
-  title: string
-  placeholder: string
-  draft: string
-  items: readonly string[]
-  selectedIndex: number
-  emptyLabel: string
-  instructions: string
-  onDraftChange: (value: string) => void
-  onSubmitDraft: (value: string) => void
-}
-
-const ListPopup: React.FC<ListPopupProps> = ({
-  title,
-  placeholder,
-  draft,
-  items,
-  selectedIndex,
-  emptyLabel,
-  instructions,
-  onDraftChange,
-  onSubmitDraft,
-}) => {
-  const upperBound = Math.max(items.length - MAX_VISIBLE_LIST_ITEMS, 0)
-  const start = Math.max(0, Math.min(selectedIndex - 2, upperBound))
-  const visibleItems = items.slice(start, start + MAX_VISIBLE_LIST_ITEMS)
-
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1} paddingY={0}>
-      <Text color="blueBright">{title}</Text>
-      <Box flexDirection="column" marginTop={1}>
-        <Text color="gray">Add new</Text>
-        <TextInput
-          value={draft}
-          onChange={onDraftChange}
-          placeholder={placeholder}
-          onSubmit={() => onSubmitDraft(draft)}
-          focus
-        />
-      </Box>
-      <Box flexDirection="column" marginTop={1}>
-        {items.length === 0 ? (
-          <Text color="gray">{emptyLabel}</Text>
-        ) : (
-          <>
-            {start > 0 ? <Text color="gray">… earlier entries …</Text> : null}
-            {visibleItems.map((value, index) => {
-              const actualIndex = start + index
-              const isSelected = actualIndex === selectedIndex
-              const textProps = isSelected
-                ? ({ color: 'black', backgroundColor: 'blueBright' } as const)
-                : ({ color: 'white' } as const)
-              return (
-                <Text key={`${value}-${actualIndex}`} {...textProps}>
-                  {actualIndex + 1}. {value}
-                </Text>
-              )
-            })}
-            {start + MAX_VISIBLE_LIST_ITEMS < items.length ? (
-              <Text color="gray">… later entries …</Text>
-            ) : null}
-          </>
-        )}
-      </Box>
-      <Box marginTop={1}>
-        <Text color="gray">{instructions}</Text>
-      </Box>
-    </Box>
-  )
-}
-
-type ModelPopupProps = {
-  query: string
-  options: readonly ModelOption[]
-  selectedIndex: number
-  onQueryChange: (value: string) => void
-  onSubmit: (option?: ModelOption) => void
-}
-
-const ModelPopup: React.FC<ModelPopupProps> = ({
-  query,
-  options,
-  selectedIndex,
-  onQueryChange,
-  onSubmit,
-}) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-    <Text color="cyanBright">Select Model</Text>
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="gray">Search</Text>
-      <TextInput
-        value={query}
-        onChange={onQueryChange}
-        onSubmit={() => onSubmit(options[selectedIndex])}
-        placeholder="Start typing a model name"
-        focus
-      />
-    </Box>
-    <Box flexDirection="column" marginTop={1}>
-      {options.length === 0 ? (
-        <Text color="gray">No models match.</Text>
-      ) : (
-        options.map((option, index) => {
-          const isSelected = index === selectedIndex
-          const textProps = isSelected
-            ? ({ color: 'black', backgroundColor: 'cyanBright' } as const)
-            : ({ color: 'white' } as const)
-          return (
-            <Text key={option.id} {...textProps}>
-              {option.label} · {option.description}
-            </Text>
-          )
-        })
-      )}
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Enter to confirm · Esc to cancel</Text>
-    </Box>
-  </Box>
-)
-
-type TogglePopupProps = {
-  field: ToggleField
-  selectionIndex: number
-}
-
-const TogglePopup: React.FC<TogglePopupProps> = ({ field, selectionIndex }) => {
-  const options = ['On', 'Off']
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} paddingY={0}>
-      <Text color="yellowBright">{TOGGLE_LABELS[field]} Setting</Text>
-      <Box flexDirection="column" marginTop={1}>
-        {options.map((label, index) => {
-          const isSelected = index === selectionIndex
-          const textProps = isSelected
-            ? ({ color: 'black', backgroundColor: 'yellowBright' } as const)
-            : ({ color: 'white' } as const)
-          return (
-            <Text key={label} {...textProps}>
-              {label}
-            </Text>
-          )
-        })}
-      </Box>
-      <Box marginTop={1}>
-        <Text color="gray">Use arrows to select · Enter to confirm · Esc to cancel</Text>
-      </Box>
-    </Box>
-  )
-}
-
-type SmartPopupProps = {
-  enabled: boolean
-  draft: string
-  onDraftChange: (value: string) => void
-  onSubmitRoot: (value: string) => void
-}
-
-const SmartPopup: React.FC<SmartPopupProps> = ({ enabled, draft, onDraftChange, onSubmitRoot }) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={1} paddingY={0}>
-    <Text color="greenBright">Smart Context</Text>
-    <Box marginTop={1}>
-      <Text color="white">Status: {enabled ? 'enabled' : 'disabled'} (press T to toggle)</Text>
-    </Box>
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="gray">Root override (Enter to apply; empty to clear)</Text>
-      <TextInput
-        value={draft}
-        onChange={onDraftChange}
-        onSubmit={() => onSubmitRoot(draft)}
-        placeholder="/absolute/path or relative/dir"
-        focus
-      />
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Enter to apply root · T to toggle · Esc to close</Text>
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Current root will mirror saved value.</Text>
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Toggle Smart Context carefully—long scans may take time.</Text>
-    </Box>
-  </Box>
-)
-
-type TestPopupProps = {
-  draft: string
-  isRunning: boolean
-  onDraftChange: (value: string) => void
-  onSubmitDraft: (value: string) => void
-}
-
-const TestPopup: React.FC<TestPopupProps> = ({
-  draft,
-  isRunning,
-  onDraftChange,
-  onSubmitDraft,
-}) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-    <Text color="cyanBright">Prompt Tests</Text>
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="gray">Suite path (Enter to run; blank uses prompt-tests.yaml)</Text>
-      <TextInput
-        value={draft}
-        onChange={onDraftChange}
-        onSubmit={() => onSubmitDraft(draft)}
-        placeholder="prompt-tests.yaml"
-        focus
-      />
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">
-        {isRunning ? 'Tests running… please wait' : 'Enter to start tests · Esc to close'}
-      </Text>
-    </Box>
-  </Box>
-)
 
 const filterModelOptions = (query: string): ModelOption[] => {
   const trimmed = query.trim().toLowerCase()
@@ -739,6 +422,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         setPopupState(null)
       },
       [pushHistory],
+    )
+
+    const handleModelPopupSubmit = useCallback(
+      (option?: ModelPopupOption) => {
+        if (!option) {
+          applyModelSelection(undefined)
+          return
+        }
+        const nextOption = MODEL_OPTIONS.find((model) => model.id === option.id)
+        applyModelSelection(nextOption)
+      },
+      [applyModelSelection],
     )
 
     const applyToggleSelection = useCallback(
@@ -1576,7 +1271,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                     prev?.type === 'model' ? { ...prev, query: next, selectionIndex: 0 } : prev,
                   )
                 }
-                onSubmit={(option) => applyModelSelection(option)}
+                onSubmit={handleModelPopupSubmit}
               />
             ) : popupState.type === 'toggle' ? (
               <TogglePopup field={popupState.field} selectionIndex={popupState.selectionIndex} />
