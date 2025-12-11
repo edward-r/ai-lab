@@ -1,5 +1,5 @@
 import path from 'node:path'
-import React, {
+import {
   forwardRef,
   useCallback,
   useEffect,
@@ -8,426 +8,36 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import { Box, Text, useApp, useInput, useStdout } from 'ink'
-import TextInput from 'ink-text-input'
-import wrapAnsi from 'wrap-ansi'
+import { Box, useApp, useInput, useStdout } from 'ink'
 
-import {
-  runGeneratePipeline,
-  maybeCopyToClipboard,
-  maybeOpenChatGpt,
-  type GenerateArgs,
-  type GeneratePipelineOptions,
-  type GeneratePipelineResult,
-  type StreamEventInput,
-} from '../generate-command'
-import {
-  generatePromptSeries,
-  isGemini,
-  type PromptGenerationRequest,
-  type SeriesResponse,
-  type UploadStateChange,
-} from '../prompt-generator-service'
-import { resolveFileContext } from '../file-context'
-import { resolveSmartContextFiles } from '../smart-context-service'
-import { resolveUrlContext } from '../url-context'
+import { InputBar } from './components/core/InputBar'
+import { CommandMenu } from './components/core/CommandMenu'
+import { ScrollableOutput } from './components/core/ScrollableOutput'
+import { ListPopup } from './components/popups/ListPopup'
+import { ModelPopup } from './components/popups/ModelPopup'
+import { SmartPopup } from './components/popups/SmartPopup'
+import { TestPopup } from './components/popups/TestPopup'
+import { TogglePopup } from './components/popups/TogglePopup'
+import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS } from './config'
+import { useCommandHistory } from './hooks/useCommandHistory'
+import { useGenerationPipeline } from './hooks/useGenerationPipeline'
+import { usePopupManager } from './hooks/usePopupManager'
+import type {
+  CommandDescriptor,
+  HistoryEntry,
+  ModelOption,
+  PopupKind,
+  PopupState,
+  ToggleField,
+} from './types'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context'
 
 const APP_STATIC_ROWS = 7
 const INPUT_BAR_ROWS = 5
 const COMMAND_SCREEN_STATIC_ROWS = INPUT_BAR_ROWS + 3
-const COMMAND_DESCRIPTORS = [
-  { id: 'model', label: 'Model', description: 'Switch the target LLM' },
-  { id: 'file', label: 'File', description: 'Attach file context' },
-  { id: 'url', label: 'URL', description: 'Add URL context' },
-  { id: 'smart', label: 'Smart Context', description: 'Toggle smart context root' },
-  { id: 'image', label: 'Image', description: 'Attach reference images' },
-  { id: 'video', label: 'Video', description: 'Attach reference videos' },
-  { id: 'polish', label: 'Polish', description: 'Enable prompt polishing' },
-  { id: 'series', label: 'Series', description: 'Generate atomic prompt series' },
-  { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
-  { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
-  { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
-  { id: 'test', label: 'Test', description: 'Run prompt tests (/test <file>)' },
-  { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
-] as const
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
-
-const MODEL_OPTIONS = [
-  { id: 'gpt-4o-mini', label: 'gpt-4o-mini', description: 'OpenAI general-purpose LLM' },
-  { id: 'gemini-1.5-pro', label: 'gemini-1.5-pro', description: 'Google Gemini multimodal' },
-] as const
-const MODEL_POPUP_HEIGHT = MODEL_OPTIONS.length + 5
-const TOGGLE_POPUP_HEIGHT = 6
-const LIST_POPUP_HEIGHT = 12
-const SMART_POPUP_HEIGHT = 9
-const TEST_POPUP_HEIGHT = 7
-const MAX_VISIBLE_LIST_ITEMS = 6
-const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
-
-const TOGGLE_LABELS = {
-  polish: 'Polish',
-  copy: 'Copy',
-  chatgpt: 'ChatGPT',
-  json: 'JSON',
-} as const
-
-const POPUP_HEIGHTS = {
-  model: MODEL_POPUP_HEIGHT,
-  toggle: TOGGLE_POPUP_HEIGHT,
-  file: LIST_POPUP_HEIGHT,
-  url: LIST_POPUP_HEIGHT,
-  smart: SMART_POPUP_HEIGHT,
-  test: TEST_POPUP_HEIGHT,
-} as const
-
-const WELCOME_LINES = [
-  'Welcome to the Prompt Maker command palette preview.',
-  'Type natural language requests or start a command with /.',
-  'Press Enter to log input; arrow keys scroll history.',
-]
-
-type CommandDescriptor = (typeof COMMAND_DESCRIPTORS)[number]
-type ModelOption = (typeof MODEL_OPTIONS)[number]
-type ToggleField = keyof typeof TOGGLE_LABELS
-
-type PopupKind = keyof typeof POPUP_HEIGHTS
-
-type PopupState =
-  | { type: 'model'; query: string; selectionIndex: number }
-  | { type: 'toggle'; field: ToggleField; selectionIndex: number }
-  | { type: 'file'; draft: string; selectionIndex: number }
-  | { type: 'url'; draft: string; selectionIndex: number }
-  | { type: 'smart'; draft: string }
-  | { type: 'test'; draft: string }
-  | null
-
-type HistoryEntry = {
-  id: string
-  content: string
-  kind: 'user' | 'system' | 'progress'
-}
-
-type ScrollableOutputProps = {
-  lines: readonly HistoryEntry[]
-  visibleRows: number
-  scrollOffset: number
-}
-
-const ScrollableOutput: React.FC<ScrollableOutputProps> = ({
-  lines,
-  visibleRows,
-  scrollOffset,
-}) => {
-  const startIndex = Math.max(0, Math.min(scrollOffset, Math.max(0, lines.length - visibleRows)))
-  const endIndex = Math.min(lines.length, startIndex + visibleRows)
-  const visibleLines = useMemo(
-    () => lines.slice(startIndex, endIndex),
-    [lines, startIndex, endIndex],
-  )
-
-  return (
-    <Box flexDirection="column" height={visibleRows} overflow="hidden">
-      {visibleLines.map((entry, index) => {
-        const key = `${entry.id}-${startIndex + index}`
-        if (entry.kind === 'user') {
-          return (
-            <Text key={key} color="cyan">
-              {entry.content}
-            </Text>
-          )
-        }
-        if (entry.kind === 'progress') {
-          return (
-            <Text key={key} color="yellow">
-              {entry.content}
-            </Text>
-          )
-        }
-        return (
-          <Text key={key} color="gray">
-            {entry.content}
-          </Text>
-        )
-      })}
-    </Box>
-  )
-}
-
-type InputBarProps = {
-  value: string
-  onChange: (next: string) => void
-  onSubmit: (value: string) => void
-  isDisabled?: boolean
-  statusChips: readonly string[]
-}
-
-const InputBar: React.FC<InputBarProps> = ({
-  value,
-  onChange,
-  onSubmit,
-  isDisabled = false,
-  statusChips,
-}) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-    <Text color="cyan">{statusChips.join(' ')}</Text>
-    <Text color="gray">Intent / Command</Text>
-    <Box>
-      <Text color="cyan">› </Text>
-      <TextInput
-        value={value}
-        onChange={onChange}
-        onSubmit={onSubmit}
-        placeholder="Describe your goal or type /command"
-        focus={!isDisabled}
-      />
-    </Box>
-  </Box>
-)
-
-type CommandMenuProps = {
-  commands: readonly CommandDescriptor[]
-  selectedIndex: number
-}
-
-const CommandMenu: React.FC<CommandMenuProps> = ({ commands, selectedIndex }) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1} paddingY={0}>
-    <Text color="magentaBright">Commands</Text>
-    {commands.map((command, index) => {
-      const isSelected = index === selectedIndex
-      const shortcut = `/${command.id}`.padEnd(10)
-      const textProps = isSelected
-        ? ({ color: 'black', backgroundColor: 'magentaBright' } as const)
-        : ({ color: 'white' } as const)
-      return (
-        <Text key={command.id} {...textProps}>
-          {shortcut} {command.description}
-        </Text>
-      )
-    })}
-  </Box>
-)
-
-type ListPopupProps = {
-  title: string
-  placeholder: string
-  draft: string
-  items: readonly string[]
-  selectedIndex: number
-  emptyLabel: string
-  instructions: string
-  onDraftChange: (value: string) => void
-  onSubmitDraft: (value: string) => void
-}
-
-const ListPopup: React.FC<ListPopupProps> = ({
-  title,
-  placeholder,
-  draft,
-  items,
-  selectedIndex,
-  emptyLabel,
-  instructions,
-  onDraftChange,
-  onSubmitDraft,
-}) => {
-  const upperBound = Math.max(items.length - MAX_VISIBLE_LIST_ITEMS, 0)
-  const start = Math.max(0, Math.min(selectedIndex - 2, upperBound))
-  const visibleItems = items.slice(start, start + MAX_VISIBLE_LIST_ITEMS)
-
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1} paddingY={0}>
-      <Text color="blueBright">{title}</Text>
-      <Box flexDirection="column" marginTop={1}>
-        <Text color="gray">Add new</Text>
-        <TextInput
-          value={draft}
-          onChange={onDraftChange}
-          placeholder={placeholder}
-          onSubmit={() => onSubmitDraft(draft)}
-          focus
-        />
-      </Box>
-      <Box flexDirection="column" marginTop={1}>
-        {items.length === 0 ? (
-          <Text color="gray">{emptyLabel}</Text>
-        ) : (
-          <>
-            {start > 0 ? <Text color="gray">… earlier entries …</Text> : null}
-            {visibleItems.map((value, index) => {
-              const actualIndex = start + index
-              const isSelected = actualIndex === selectedIndex
-              const textProps = isSelected
-                ? ({ color: 'black', backgroundColor: 'blueBright' } as const)
-                : ({ color: 'white' } as const)
-              return (
-                <Text key={`${value}-${actualIndex}`} {...textProps}>
-                  {actualIndex + 1}. {value}
-                </Text>
-              )
-            })}
-            {start + MAX_VISIBLE_LIST_ITEMS < items.length ? (
-              <Text color="gray">… later entries …</Text>
-            ) : null}
-          </>
-        )}
-      </Box>
-      <Box marginTop={1}>
-        <Text color="gray">{instructions}</Text>
-      </Box>
-    </Box>
-  )
-}
-
-type ModelPopupProps = {
-  query: string
-  options: readonly ModelOption[]
-  selectedIndex: number
-  onQueryChange: (value: string) => void
-  onSubmit: (option?: ModelOption) => void
-}
-
-const ModelPopup: React.FC<ModelPopupProps> = ({
-  query,
-  options,
-  selectedIndex,
-  onQueryChange,
-  onSubmit,
-}) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-    <Text color="cyanBright">Select Model</Text>
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="gray">Search</Text>
-      <TextInput
-        value={query}
-        onChange={onQueryChange}
-        onSubmit={() => onSubmit(options[selectedIndex])}
-        placeholder="Start typing a model name"
-        focus
-      />
-    </Box>
-    <Box flexDirection="column" marginTop={1}>
-      {options.length === 0 ? (
-        <Text color="gray">No models match.</Text>
-      ) : (
-        options.map((option, index) => {
-          const isSelected = index === selectedIndex
-          const textProps = isSelected
-            ? ({ color: 'black', backgroundColor: 'cyanBright' } as const)
-            : ({ color: 'white' } as const)
-          return (
-            <Text key={option.id} {...textProps}>
-              {option.label} · {option.description}
-            </Text>
-          )
-        })
-      )}
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Enter to confirm · Esc to cancel</Text>
-    </Box>
-  </Box>
-)
-
-type TogglePopupProps = {
-  field: ToggleField
-  selectionIndex: number
-}
-
-const TogglePopup: React.FC<TogglePopupProps> = ({ field, selectionIndex }) => {
-  const options = ['On', 'Off']
-  return (
-    <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} paddingY={0}>
-      <Text color="yellowBright">{TOGGLE_LABELS[field]} Setting</Text>
-      <Box flexDirection="column" marginTop={1}>
-        {options.map((label, index) => {
-          const isSelected = index === selectionIndex
-          const textProps = isSelected
-            ? ({ color: 'black', backgroundColor: 'yellowBright' } as const)
-            : ({ color: 'white' } as const)
-          return (
-            <Text key={label} {...textProps}>
-              {label}
-            </Text>
-          )
-        })}
-      </Box>
-      <Box marginTop={1}>
-        <Text color="gray">Use arrows to select · Enter to confirm · Esc to cancel</Text>
-      </Box>
-    </Box>
-  )
-}
-
-type SmartPopupProps = {
-  enabled: boolean
-  draft: string
-  onDraftChange: (value: string) => void
-  onSubmitRoot: (value: string) => void
-}
-
-const SmartPopup: React.FC<SmartPopupProps> = ({ enabled, draft, onDraftChange, onSubmitRoot }) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={1} paddingY={0}>
-    <Text color="greenBright">Smart Context</Text>
-    <Box marginTop={1}>
-      <Text color="white">Status: {enabled ? 'enabled' : 'disabled'} (press T to toggle)</Text>
-    </Box>
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="gray">Root override (Enter to apply; empty to clear)</Text>
-      <TextInput
-        value={draft}
-        onChange={onDraftChange}
-        onSubmit={() => onSubmitRoot(draft)}
-        placeholder="/absolute/path or relative/dir"
-        focus
-      />
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Enter to apply root · T to toggle · Esc to close</Text>
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Current root will mirror saved value.</Text>
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">Toggle Smart Context carefully—long scans may take time.</Text>
-    </Box>
-  </Box>
-)
-
-type TestPopupProps = {
-  draft: string
-  isRunning: boolean
-  onDraftChange: (value: string) => void
-  onSubmitDraft: (value: string) => void
-}
-
-const TestPopup: React.FC<TestPopupProps> = ({
-  draft,
-  isRunning,
-  onDraftChange,
-  onSubmitDraft,
-}) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-    <Text color="cyanBright">Prompt Tests</Text>
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="gray">Suite path (Enter to run; blank uses prompt-tests.yaml)</Text>
-      <TextInput
-        value={draft}
-        onChange={onDraftChange}
-        onSubmit={() => onSubmitDraft(draft)}
-        placeholder="prompt-tests.yaml"
-        focus
-      />
-    </Box>
-    <Box marginTop={1}>
-      <Text color="gray">
-        {isRunning ? 'Tests running… please wait' : 'Enter to start tests · Esc to close'}
-      </Text>
-    </Box>
-  </Box>
-)
 
 const filterModelOptions = (query: string): ModelOption[] => {
   const trimmed = query.trim().toLowerCase()
@@ -439,6 +49,18 @@ const filterModelOptions = (query: string): ModelOption[] => {
       option.id.toLowerCase().includes(trimmed) || option.label.toLowerCase().includes(trimmed),
   )
 }
+
+const WELCOME_LINES = [
+  'Welcome to the Prompt Maker command palette preview.',
+  'Type natural language requests or start a command with /.',
+  'Press Enter to log input; arrow keys scroll history.',
+]
+
+const WELCOME_HISTORY: HistoryEntry[] = WELCOME_LINES.map((line, index) => ({
+  id: `welcome-${index}`,
+  content: line,
+  kind: 'system',
+}))
 
 type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
@@ -460,53 +82,36 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
     const [terminalColumns, setTerminalColumns] = useState(stdout?.columns ?? 80)
-    const [history, setHistory] = useState<HistoryEntry[]>(() =>
-      WELCOME_LINES.map((line, index) => ({
-        id: `welcome-${index}`,
-        content: line,
-        kind: 'system',
-      })),
-    )
-    const historyIdRef = useRef(WELCOME_LINES.length)
     const lastUserIntentRef = useRef<string | null>(null)
     const [inputValue, setInputValue] = useState('')
-    const [scrollOffset, setScrollOffset] = useState(0)
-    const [isPinnedToBottom, setIsPinnedToBottom] = useState(true)
     const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
-    const [popupState, setPopupState] = useState<PopupState>(null)
     const [currentModel, setCurrentModel] = useState<ModelOption['id']>('gpt-4o-mini')
     const [polishEnabled, setPolishEnabled] = useState(false)
     const [copyEnabled, setCopyEnabled] = useState(false)
     const [chatGptEnabled, setChatGptEnabled] = useState(false)
     const [jsonOutputEnabled, setJsonOutputEnabled] = useState(false)
-    const [isGenerating, setIsGenerating] = useState(false)
-    const [spinnerIndex, setSpinnerIndex] = useState(0)
-    const [statusMessage, setStatusMessage] = useState('Idle')
     const [isTestCommandRunning, setIsTestCommandRunning] = useState(false)
     const [lastTestFile, setLastTestFile] = useState<string | null>(null)
     const suppressNextInputRef = useRef(false)
+
+    const pushHistoryRef = useRef<(content: string, kind?: HistoryEntry['kind']) => void>(() => {})
+    const pushHistoryProxy = useCallback(
+      (content: string, kind: HistoryEntry['kind'] = 'system') => {
+        pushHistoryRef.current(content, kind)
+      },
+      [],
+    )
+
+    const runTestsFromCommandRef = useRef<(value: string) => void>(() => {})
+    const runTestsFromCommandProxy = useCallback((value: string) => {
+      runTestsFromCommandRef.current(value)
+    }, [])
 
     useImperativeHandle(ref, () => ({
       suppressNextInput: () => {
         suppressNextInputRef.current = true
       },
     }))
-
-    const pushHistory = useCallback((content: string, kind: HistoryEntry['kind'] = 'system') => {
-      setHistory((prev) => [...prev, { id: `entry-${historyIdRef.current++}`, content, kind }])
-      setIsPinnedToBottom(true)
-    }, [])
-
-    useEffect(() => {
-      if (!isGenerating) {
-        setSpinnerIndex(0)
-        return
-      }
-      const timer = setInterval(() => {
-        setSpinnerIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
-      }, 120)
-      return () => clearInterval(timer)
-    }, [isGenerating])
 
     const trimmedInput = inputValue.trimStart()
     const isCommandMode = trimmedInput.startsWith('/')
@@ -527,6 +132,54 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const normalizedQuery = parsedCommand.keyword.toLowerCase()
     const commandArgsRaw = parsedCommand.args
+
+    const { isGenerating, runGeneration, runSeriesGeneration, statusChips } = useGenerationPipeline(
+      {
+        pushHistory: pushHistoryProxy,
+        files,
+        urls,
+        images,
+        videos,
+        smartContextEnabled,
+        smartContextRoot,
+        currentModel,
+        interactiveTransportPath,
+        terminalColumns,
+        polishEnabled,
+        jsonOutputEnabled,
+        copyEnabled,
+        chatGptEnabled,
+        isTestCommandRunning,
+      },
+    )
+
+    const {
+      popupState,
+      setPopupState,
+      actions: { closePopup, handleCommandSelection, handleModelPopupSubmit, applyToggleSelection },
+    } = usePopupManager({
+      currentModel,
+      smartContextRoot,
+      lastTestFile,
+      defaultTestFile: DEFAULT_TEST_FILE,
+      interactiveTransportPath,
+      isGenerating,
+      lastUserIntentRef,
+      pushHistory: pushHistoryProxy,
+      setInputValue,
+      runSeriesGeneration,
+      runTestsFromCommand: runTestsFromCommandProxy,
+      exitApp: exit,
+      setCurrentModel,
+      setPolishEnabled,
+      setCopyEnabled,
+      setChatGptEnabled,
+      setJsonOutputEnabled,
+      polishEnabled,
+      copyEnabled,
+      chatGptEnabled,
+      jsonOutputEnabled,
+    })
 
     const isPopupOpen = popupState !== null
 
@@ -561,12 +214,29 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       return filtered.length > 0 ? filtered : COMMAND_DESCRIPTORS
     }, [isCommandMode, normalizedQuery])
 
-    const isCommandMenuActive = isCommandMode && !isPopupOpen
     const visibleCommands = commandMatches
+    const isCommandMenuActive = isCommandMode && !isPopupOpen
     const menuHeight = isCommandMenuActive
       ? Math.min(COMMAND_MENU_HEIGHT, Math.max(visibleCommands.length, 1) + 2)
       : 0
     const overlayHeight = popupState ? POPUP_HEIGHTS[popupState.type as PopupKind] : menuHeight
+    const historyRows = useMemo(() => {
+      const overlaySpacingRows = popupState || isCommandMenuActive ? 1 : 0
+      const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_STATIC_ROWS
+      const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
+      const availableRows = terminalRows - overlayHeight - parentRows - overlaySpacingRows
+      return Math.max(1, availableRows)
+    }, [interactiveTransportPath, isCommandMenuActive, overlayHeight, popupState, terminalRows])
+
+    const { history, pushHistory, scroll } = useCommandHistory({
+      initialEntries: WELCOME_HISTORY,
+      visibleRows: historyRows,
+    })
+    const { offset: scrollOffset, scrollTo, scrollBy } = scroll
+
+    useEffect(() => {
+      pushHistoryRef.current = pushHistory
+    }, [pushHistory])
 
     useEffect(() => {
       setCommandSelectionIndex(0)
@@ -579,8 +249,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       setPopupState(null)
       setInputValue('/')
       setCommandSelectionIndex(0)
-      setIsPinnedToBottom(true)
-    }, [commandMenuSignal])
+      scrollTo(Number.MAX_SAFE_INTEGER)
+    }, [commandMenuSignal, scrollTo])
 
     useEffect(() => {
       if (!commandMatches.length) {
@@ -602,16 +272,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         return
       }
       const transportLine = `Interactive transport listening on ${interactiveTransportPath}`
-      setHistory((prev) => {
-        if (prev.some((entry) => entry.content === transportLine)) {
-          return prev
-        }
-        return [
-          ...prev,
-          { id: `entry-${historyIdRef.current++}`, content: transportLine, kind: 'system' },
-        ]
-      })
-    }, [interactiveTransportPath])
+      if (history.some((entry) => entry.content === transportLine)) {
+        return
+      }
+      pushHistory(transportLine, 'system')
+    }, [history, interactiveTransportPath, pushHistory])
 
     useEffect(() => {
       if (!stdout) {
@@ -626,24 +291,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         stdout.off('resize', handleResize)
       }
     }, [stdout])
-
-    const historyRows = useMemo(() => {
-      const overlaySpacingRows = popupState || isCommandMenuActive ? 1 : 0
-      const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_STATIC_ROWS
-      const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
-      const availableRows = terminalRows - overlayHeight - parentRows - overlaySpacingRows
-      return Math.max(1, availableRows)
-    }, [interactiveTransportPath, isCommandMenuActive, overlayHeight, popupState, terminalRows])
-
-    useEffect(() => {
-      setScrollOffset((prev) => {
-        const nextMax = Math.max(0, history.length - historyRows)
-        if (isPinnedToBottom) {
-          return nextMax
-        }
-        return Math.min(prev, nextMax)
-      })
-    }, [history, historyRows, isPinnedToBottom])
 
     useEffect(() => {
       setPopupState((prev) => {
@@ -663,23 +310,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         return prev
       })
     }, [files.length, urls.length])
-
-    const scrollTo = useCallback(
-      (next: number) => {
-        const nextMax = Math.max(0, history.length - historyRows)
-        const clamped = Math.max(0, Math.min(next, nextMax))
-        setScrollOffset(clamped)
-        setIsPinnedToBottom(clamped >= nextMax)
-      },
-      [history.length, historyRows],
-    )
-
-    const scrollBy = useCallback(
-      (delta: number) => {
-        scrollTo(scrollOffset + delta)
-      },
-      [scrollOffset, scrollTo],
-    )
 
     useInput(
       (_, key) => {
@@ -724,59 +354,10 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       { isActive: isCommandMenuActive },
     )
 
-    const closePopup = useCallback(() => {
-      setPopupState(null)
-    }, [])
-
-    const applyModelSelection = useCallback(
-      (option?: ModelOption) => {
-        if (!option) {
-          return
-        }
-        setCurrentModel(option.id)
-        pushHistory(`Model set to ${option.id}`)
-        setInputValue('')
-        setPopupState(null)
-      },
-      [pushHistory],
-    )
-
-    const applyToggleSelection = useCallback(
-      (field: ToggleField, value: boolean) => {
-        if (field === 'json' && value && interactiveTransportPath) {
-          pushHistory(
-            'JSON output cannot be enabled while interactive transport is active.',
-            'system',
-          )
-          setInputValue('')
-          setPopupState(null)
-          return
-        }
-        const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
-        if (field === 'polish') {
-          setPolishEnabled(value)
-        } else if (field === 'copy') {
-          setCopyEnabled(value)
-        } else if (field === 'chatgpt') {
-          setChatGptEnabled(value)
-        } else if (field === 'json') {
-          setJsonOutputEnabled(value)
-        }
-        pushHistory(message)
-        setInputValue('')
-        setPopupState(null)
-      },
-      [
-        interactiveTransportPath,
-        pushHistory,
-        setInputValue,
-        setPopupState,
-        setPolishEnabled,
-        setCopyEnabled,
-        setChatGptEnabled,
-        setJsonOutputEnabled,
-      ],
-    )
+    const selectedCommand =
+      isCommandMenuActive && visibleCommands.length > 0
+        ? visibleCommands[Math.min(commandSelectionIndex, visibleCommands.length - 1)]
+        : undefined
 
     const handleAddFile = useCallback(
       (value: string) => {
@@ -857,6 +438,161 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       [setSmartRoot, pushHistory],
     )
 
+    useInput(
+      (input, key) => {
+        if (!popupState) {
+          return
+        }
+
+        if (popupState.type === 'model') {
+          const options = filterModelOptions(popupState.query)
+          if (key.upArrow && options.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'model'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex - 1 + options.length) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.downArrow && options.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'model'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex + 1) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.escape) {
+            closePopup()
+            return
+          }
+          if (key.return) {
+            handleModelPopupSubmit(options[popupState.selectionIndex])
+          }
+          return
+        }
+
+        if (popupState.type === 'toggle') {
+          const options = ['On', 'Off']
+          if (key.leftArrow || key.upArrow) {
+            setPopupState((prev) =>
+              prev?.type === 'toggle'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex - 1 + options.length) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.rightArrow || key.downArrow) {
+            setPopupState((prev) =>
+              prev?.type === 'toggle'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex + 1) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.escape) {
+            closePopup()
+            return
+          }
+          if (key.return) {
+            applyToggleSelection(popupState.field, popupState.selectionIndex === 0)
+          }
+          return
+        }
+
+        if (popupState.type === 'file') {
+          if (key.upArrow && files.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'file'
+                ? { ...prev, selectionIndex: Math.max(prev.selectionIndex - 1, 0) }
+                : prev,
+            )
+            return
+          }
+          if (key.downArrow && files.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'file'
+                ? {
+                    ...prev,
+                    selectionIndex: Math.min(prev.selectionIndex + 1, files.length - 1),
+                  }
+                : prev,
+            )
+            return
+          }
+          if ((key.delete || key.backspace) && files.length > 0) {
+            handleRemoveFile(popupState.selectionIndex)
+            return
+          }
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
+        if (popupState.type === 'url') {
+          if (key.upArrow && urls.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'url'
+                ? { ...prev, selectionIndex: Math.max(prev.selectionIndex - 1, 0) }
+                : prev,
+            )
+            return
+          }
+          if (key.downArrow && urls.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'url'
+                ? {
+                    ...prev,
+                    selectionIndex: Math.min(prev.selectionIndex + 1, urls.length - 1),
+                  }
+                : prev,
+            )
+            return
+          }
+          if ((key.delete || key.backspace) && urls.length > 0) {
+            handleRemoveUrl(popupState.selectionIndex)
+            return
+          }
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
+        if (popupState.type === 'smart') {
+          if (typeof input === 'string' && input.toLowerCase() === 't') {
+            handleSmartToggle(!smartContextEnabled)
+            return
+          }
+          if (key.escape) {
+            closePopup()
+            return
+          }
+          return
+        }
+
+        if (popupState.type === 'test') {
+          if (key.escape) {
+            closePopup()
+          }
+        }
+      },
+      { isActive: isPopupOpen },
+    )
+
     const runTestsFromCommand = useCallback(
       async (fileArg?: string) => {
         const normalized = fileArg?.trim() ?? ''
@@ -919,542 +655,9 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       [runTestsFromCommand],
     )
 
-    const handleStreamEvent = useCallback(
-      (event: StreamEventInput) => {
-        switch (event.event) {
-          case 'progress.update': {
-            const scope = event.scope ? `[${event.scope}] ` : ''
-            const message = `${scope}${event.label} (${event.state})`
-            pushHistory(message, 'progress')
-            setStatusMessage(message)
-            return
-          }
-          case 'upload.state': {
-            const action = event.state === 'start' ? 'Uploading' : 'Uploaded'
-            pushHistory(`${action} ${event.detail.kind}: ${event.detail.filePath}`, 'progress')
-            return
-          }
-          case 'generation.iteration.start':
-            pushHistory(`Iteration ${event.iteration} started`, 'progress')
-            return
-          case 'generation.iteration.complete':
-            pushHistory(`Iteration ${event.iteration} complete`, 'progress')
-            return
-          case 'context.telemetry': {
-            const telemetry = event.telemetry
-            pushHistory(
-              `Telemetry · total ${telemetry.totalTokens} · intent ${telemetry.intentTokens} · files ${telemetry.fileTokens}`,
-              'progress',
-            )
-            return
-          }
-          case 'generation.final':
-            pushHistory('Generation stream finalized.', 'progress')
-            return
-          case 'transport.listening':
-            pushHistory(`Transport listening on ${event.path}`, 'progress')
-            return
-          case 'transport.client.connected':
-            pushHistory('Transport client connected.', 'progress')
-            return
-          case 'transport.client.disconnected':
-            pushHistory('Transport client disconnected.', 'progress')
-            return
-          case 'interactive.awaiting':
-            pushHistory(`Awaiting ${event.mode} input`, 'progress')
-            return
-          case 'interactive.state':
-            pushHistory(`Interactive ${event.phase} (iteration ${event.iteration})`, 'progress')
-            return
-          default:
-            return
-        }
-      },
-      [pushHistory, setStatusMessage],
-    )
-
-    const runGeneration = useCallback(
-      async (intent: string) => {
-        setIsGenerating(true)
-        setStatusMessage('Preparing generation…')
-        pushHistory('Starting generation…')
-        try {
-          const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
-          const args: GenerateArgs = {
-            intent,
-            interactive: Boolean(interactiveTransportPath),
-            copy: false,
-            openChatGpt: false,
-            polish: polishEnabled,
-            json: jsonOutputEnabled,
-            quiet: true,
-            progress: false,
-            stream: 'none',
-            showContext: false,
-            contextFormat: 'text',
-            help: false,
-            context: [...files],
-            urls: [...urls],
-            images: [...images],
-            video: [...videos],
-            smartContext: smartContextEnabled,
-            model: normalizedModel,
-          }
-          if (polishEnabled) {
-            args.polishModel = normalizedModel
-          }
-          if (smartContextEnabled && smartContextRoot) {
-            args.smartContextRoot = smartContextRoot
-          }
-          if (interactiveTransportPath) {
-            args.interactiveTransport = interactiveTransportPath
-          }
-
-          const options: GeneratePipelineOptions = {
-            onStreamEvent: handleStreamEvent,
-          }
-
-          const result: GeneratePipelineResult = await runGeneratePipeline(args, options)
-          setStatusMessage('Finalizing prompt…')
-          const iterationLabel = result.iterations ? ` · ${result.iterations} iterations` : ''
-          pushHistory(`Final prompt (${result.model}${iterationLabel}):`, 'system')
-          pushHistory(result.finalPrompt, 'system')
-          if (result.telemetry) {
-            pushHistory(
-              `Telemetry · total ${result.telemetry.totalTokens} · intent ${result.telemetry.intentTokens} · files ${result.telemetry.fileTokens}`,
-              'system',
-            )
-          }
-          if (jsonOutputEnabled) {
-            pushHistory('JSON payload:', 'system')
-            const prettyPayload = JSON.stringify(result.payload, null, 2)
-            const wrapWidth = Math.max(40, terminalColumns - 6)
-            prettyPayload.split('\n').forEach((line) => {
-              const wrapped = wrapAnsi(line, wrapWidth, { trim: false, hard: true })
-              wrapped.split('\n').forEach((wrappedLine) => {
-                pushHistory(wrappedLine, 'system')
-              })
-            })
-          }
-          if (copyEnabled) {
-            await maybeCopyToClipboard(true, result.finalPrompt, false)
-            pushHistory('Copied prompt to clipboard.', 'system')
-          }
-          if (chatGptEnabled) {
-            await maybeOpenChatGpt(true, result.finalPrompt, false)
-            pushHistory('Opened ChatGPT with generated prompt.', 'system')
-          }
-          setStatusMessage('Complete')
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown generation error.'
-          pushHistory(`Generation failed: ${message}`)
-          setStatusMessage('Failed')
-        } finally {
-          setIsGenerating(false)
-        }
-      },
-      [
-        chatGptEnabled,
-        copyEnabled,
-        currentModel,
-        files,
-        urls,
-        images,
-        videos,
-        polishEnabled,
-        jsonOutputEnabled,
-        smartContextEnabled,
-        smartContextRoot,
-        interactiveTransportPath,
-        terminalColumns,
-        handleStreamEvent,
-        pushHistory,
-        setStatusMessage,
-      ],
-    )
-
-    const runSeriesGeneration = useCallback(
-      async (intent: string) => {
-        setIsGenerating(true)
-        setStatusMessage('Series: resolving context…')
-        pushHistory('[series] Starting series generation…', 'progress')
-        try {
-          const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
-          let targetModel = normalizedModel
-          if (videos.length > 0 && !isGemini(targetModel)) {
-            targetModel = 'gemini-1.5-pro'
-            pushHistory('[series] Switching to gemini-1.5-pro for video support.', 'progress')
-          }
-
-          let resolvedContext = await resolveFileContext([...files])
-          if (resolvedContext.length > 0) {
-            pushHistory(
-              `[series] Added ${resolvedContext.length} file context entr${resolvedContext.length === 1 ? 'y' : 'ies'}.`,
-              'progress',
-            )
-          }
-
-          if (urls.length > 0) {
-            pushHistory(`[series] Fetching ${urls.length} URL source(s)…`, 'progress')
-            try {
-              const urlFiles = await resolveUrlContext(urls, {
-                onProgress: (message: string) => {
-                  pushHistory(`[series] ${message}`, 'progress')
-                  setStatusMessage(`Series: ${message}`)
-                },
-              })
-              if (urlFiles.length > 0) {
-                resolvedContext = [...resolvedContext, ...urlFiles]
-              }
-            } catch (error) {
-              const message = error instanceof Error ? error.message : 'Unknown URL context error.'
-              pushHistory(`[series] URL context failed: ${message}`, 'progress')
-            }
-          }
-
-          if (smartContextEnabled) {
-            pushHistory('[series] Resolving smart context…', 'progress')
-            try {
-              const smartFiles = await resolveSmartContextFiles(
-                intent,
-                resolvedContext,
-                (message: string) => {
-                  pushHistory(`[series] ${message}`, 'progress')
-                  setStatusMessage(`Series: ${message}`)
-                },
-                smartContextRoot ?? undefined,
-              )
-              if (smartFiles.length > 0) {
-                resolvedContext = [...resolvedContext, ...smartFiles]
-              }
-            } catch (error) {
-              const message =
-                error instanceof Error ? error.message : 'Unknown smart context error.'
-              pushHistory(`[series] Smart context failed: ${message}`, 'progress')
-            }
-          }
-
-          pushHistory(`[series] Context ready (${resolvedContext.length} file(s)).`, 'progress')
-
-          const handleUploadState: UploadStateChange = (state, detail) => {
-            const action = state === 'start' ? 'Uploading' : 'Uploaded'
-            pushHistory(`[series] ${action} ${detail.kind}: ${detail.filePath}`, 'progress')
-          }
-
-          const request: PromptGenerationRequest = {
-            intent,
-            model: targetModel,
-            fileContext: resolvedContext,
-            images: [...images],
-            videos: [...videos],
-            onUploadStateChange: handleUploadState,
-          }
-
-          setStatusMessage('Series: generating…')
-          const series: SeriesResponse = await generatePromptSeries(request)
-          pushHistory('[series] Overview ready.', 'progress')
-          pushHistory(`[Overview] ${series.overviewPrompt}`, 'system')
-          series.atomicPrompts.forEach((step, index) => {
-            const stepNumber = index + 1
-            pushHistory(`[Step ${stepNumber}: ${step.title}] ${step.content}`, 'system')
-          })
-          setStatusMessage('Series complete')
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Unknown series generation error.'
-          pushHistory(`[series] Failed: ${message}`, 'progress')
-          setStatusMessage('Series failed')
-        } finally {
-          setIsGenerating(false)
-        }
-      },
-      [
-        currentModel,
-        files,
-        urls,
-        images,
-        videos,
-        smartContextEnabled,
-        smartContextRoot,
-        pushHistory,
-        setStatusMessage,
-        resolveFileContext,
-        resolveUrlContext,
-        resolveSmartContextFiles,
-        isGemini,
-        generatePromptSeries,
-      ],
-    )
-
-    useInput(
-      (input, key) => {
-        if (!popupState) {
-          return
-        }
-        if (popupState.type === 'model') {
-          const options = filterModelOptions(popupState.query)
-          if (key.upArrow && options.length > 0) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: (popupState.selectionIndex - 1 + options.length) % options.length,
-            })
-            return
-          }
-          if (key.downArrow && options.length > 0) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: (popupState.selectionIndex + 1) % options.length,
-            })
-            return
-          }
-          if (key.escape) {
-            closePopup()
-            return
-          }
-          if (key.return) {
-            applyModelSelection(options[popupState.selectionIndex])
-          }
-          return
-        }
-
-        if (popupState.type === 'toggle') {
-          const options = ['On', 'Off']
-          if (key.leftArrow || key.upArrow) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: (popupState.selectionIndex - 1 + options.length) % options.length,
-            })
-            return
-          }
-          if (key.rightArrow || key.downArrow) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: (popupState.selectionIndex + 1) % options.length,
-            })
-            return
-          }
-          if (key.escape) {
-            closePopup()
-            return
-          }
-          if (key.return) {
-            applyToggleSelection(popupState.field, popupState.selectionIndex === 0)
-          }
-          return
-        }
-
-        if (popupState.type === 'file') {
-          if (key.upArrow && files.length > 0) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: Math.max(popupState.selectionIndex - 1, 0),
-            })
-            return
-          }
-          if (key.downArrow && files.length > 0) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: Math.min(popupState.selectionIndex + 1, files.length - 1),
-            })
-            return
-          }
-          if ((key.delete || key.backspace) && files.length > 0) {
-            handleRemoveFile(popupState.selectionIndex)
-            return
-          }
-          if (key.escape) {
-            closePopup()
-          }
-          return
-        }
-
-        if (popupState.type === 'url') {
-          if (key.upArrow && urls.length > 0) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: Math.max(popupState.selectionIndex - 1, 0),
-            })
-            return
-          }
-          if (key.downArrow && urls.length > 0) {
-            setPopupState({
-              ...popupState,
-              selectionIndex: Math.min(popupState.selectionIndex + 1, urls.length - 1),
-            })
-            return
-          }
-          if ((key.delete || key.backspace) && urls.length > 0) {
-            handleRemoveUrl(popupState.selectionIndex)
-            return
-          }
-          if (key.escape) {
-            closePopup()
-          }
-          return
-        }
-
-        if (popupState.type === 'smart') {
-          if (typeof input === 'string' && input.toLowerCase() === 't') {
-            handleSmartToggle(!smartContextEnabled)
-            return
-          }
-          if (key.escape) {
-            closePopup()
-            return
-          }
-          return
-        }
-
-        if (popupState.type === 'test') {
-          if (key.escape) {
-            closePopup()
-          }
-          return
-        }
-      },
-      { isActive: isPopupOpen },
-    )
-
-    const selectedCommand =
-      isCommandMenuActive && visibleCommands.length > 0
-        ? visibleCommands[Math.min(commandSelectionIndex, visibleCommands.length - 1)]
-        : undefined
-
-    const openModelPopup = useCallback(() => {
-      const defaultIndex = Math.max(
-        0,
-        MODEL_OPTIONS.findIndex((option) => option.id === currentModel),
-      )
-      setPopupState({ type: 'model', query: '', selectionIndex: defaultIndex })
-    }, [currentModel])
-
-    const openTogglePopup = useCallback(
-      (field: ToggleField) => {
-        const currentValue =
-          field === 'polish'
-            ? polishEnabled
-            : field === 'copy'
-              ? copyEnabled
-              : field === 'chatgpt'
-                ? chatGptEnabled
-                : jsonOutputEnabled
-        setPopupState({ type: 'toggle', field, selectionIndex: currentValue ? 0 : 1 })
-      },
-      [polishEnabled, copyEnabled, chatGptEnabled, jsonOutputEnabled],
-    )
-
-    const openFilePopup = useCallback(() => {
-      setPopupState({ type: 'file', draft: '', selectionIndex: 0 })
-    }, [])
-
-    const openUrlPopup = useCallback(() => {
-      setPopupState({ type: 'url', draft: '', selectionIndex: 0 })
-    }, [])
-
-    const openSmartPopup = useCallback(() => {
-      setPopupState({ type: 'smart', draft: smartContextRoot ?? '' })
-    }, [smartContextRoot])
-
-    const openTestPopup = useCallback(() => {
-      setPopupState({ type: 'test', draft: lastTestFile ?? DEFAULT_TEST_FILE })
-    }, [lastTestFile])
-
-    const handleCommandSelection = useCallback(
-      (commandId: CommandDescriptor['id'], argsRaw?: string) => {
-        if (commandId === 'model') {
-          openModelPopup()
-          return
-        }
-        if (commandId === 'polish' || commandId === 'copy' || commandId === 'chatgpt') {
-          openTogglePopup(commandId)
-          return
-        }
-        if (commandId === 'json') {
-          if (interactiveTransportPath) {
-            pushHistory(
-              'JSON output is unavailable while interactive transport is enabled.',
-              'system',
-            )
-            return
-          }
-          const normalized = argsRaw ? argsRaw.trim().toLowerCase() : ''
-          if (normalized === 'on' || normalized === 'off') {
-            const nextEnabled = normalized === 'on'
-
-            setJsonOutputEnabled(nextEnabled)
-            pushHistory(`JSON ${nextEnabled ? 'enabled' : 'disabled'}`)
-            setInputValue('')
-            return
-          }
-          openTogglePopup('json')
-          return
-        }
-        if (commandId === 'file') {
-          openFilePopup()
-          return
-        }
-        if (commandId === 'url') {
-          openUrlPopup()
-          return
-        }
-        if (commandId === 'smart') {
-          openSmartPopup()
-          return
-        }
-        if (commandId === 'exit') {
-          pushHistory('Exiting…', 'system')
-          setInputValue('')
-          exit()
-          return
-        }
-        if (commandId === 'series') {
-          if (isGenerating) {
-            pushHistory('Generation already running. Please wait.', 'system')
-            return
-          }
-          const trimmedArgs = argsRaw?.trim() ?? ''
-          const intentSource = trimmedArgs || lastUserIntentRef.current || ''
-          if (!intentSource) {
-            pushHistory(
-              'Series mode requires an intent. Use /series <intent> or submit an intent first.',
-              'system',
-            )
-            return
-          }
-          lastUserIntentRef.current = intentSource
-          pushHistory(`> /series ${intentSource}`, 'user')
-          setInputValue('')
-          void runSeriesGeneration(intentSource)
-          return
-        }
-        if (commandId === 'test') {
-          const trimmedArgs = argsRaw?.trim() ?? ''
-          if (trimmedArgs) {
-            void runTestsFromCommand(trimmedArgs)
-          } else {
-            openTestPopup()
-          }
-          return
-        }
-        pushHistory(`Selected ${commandId}`)
-      },
-      [
-        openModelPopup,
-        openTogglePopup,
-        openFilePopup,
-        openUrlPopup,
-        openSmartPopup,
-        runSeriesGeneration,
-        openTestPopup,
-        pushHistory,
-        runTestsFromCommand,
-        interactiveTransportPath,
-        setJsonOutputEnabled,
-        setInputValue,
-        isGenerating,
-        exit,
-      ],
-    )
+    useEffect(() => {
+      runTestsFromCommandRef.current = runTestsFromCommand
+    }, [runTestsFromCommand])
 
     const handleSubmit = useCallback(
       (value: string) => {
@@ -1503,40 +706,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       ],
     )
 
-    const statusChips = useMemo(() => {
-      const statusChip = isGenerating
-        ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${statusMessage}]`
-        : `[status:${statusMessage}]`
-      const chips = [statusChip, `[${currentModel}]`]
-      chips.push(`[polish:${polishEnabled ? 'on' : 'off'}]`)
-      chips.push(`[copy:${copyEnabled ? 'on' : 'off'}]`)
-      chips.push(`[chatgpt:${chatGptEnabled ? 'on' : 'off'}]`)
-      chips.push(`[json:${jsonOutputEnabled ? 'on' : 'off'}]`)
-      chips.push(`[files:${files.length}]`)
-      chips.push(`[urls:${urls.length}]`)
-      chips.push(`[smart:${smartContextEnabled ? 'on' : 'off'}]`)
-      chips.push(`[tests:${isTestCommandRunning ? 'running' : 'idle'}]`)
-      if (smartContextRoot) {
-        chips.push(`[root:${smartContextRoot}]`)
-      }
-
-      return chips
-    }, [
-      isGenerating,
-      spinnerIndex,
-      statusMessage,
-      currentModel,
-      polishEnabled,
-      copyEnabled,
-      chatGptEnabled,
-      jsonOutputEnabled,
-      files.length,
-      urls.length,
-      smartContextEnabled,
-      smartContextRoot,
-      isTestCommandRunning,
-    ])
-
     const handleInputChange = useCallback(
       (next: string) => {
         if (popupState) {
@@ -1576,7 +745,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                     prev?.type === 'model' ? { ...prev, query: next, selectionIndex: 0 } : prev,
                   )
                 }
-                onSubmit={(option) => applyModelSelection(option)}
+                onSubmit={handleModelPopupSubmit}
               />
             ) : popupState.type === 'toggle' ? (
               <TogglePopup field={popupState.field} selectionIndex={popupState.selectionIndex} />
