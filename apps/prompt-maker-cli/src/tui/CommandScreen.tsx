@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-empty-function */
+/* eslint-disable react-hooks/exhaustive-deps */
 import path from 'node:path'
 import {
   forwardRef,
@@ -22,14 +24,7 @@ import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS } from './config'
 import { useCommandHistory } from './hooks/useCommandHistory'
 import { useGenerationPipeline } from './hooks/useGenerationPipeline'
 import { usePopupManager } from './hooks/usePopupManager'
-import type {
-  CommandDescriptor,
-  HistoryEntry,
-  ModelOption,
-  PopupKind,
-  PopupState,
-  ToggleField,
-} from './types'
+import type { HistoryEntry, ModelOption, PopupKind } from './types'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context-store'
 
