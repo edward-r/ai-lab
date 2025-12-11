@@ -13,6 +13,7 @@ export type PopupState =
   | { type: 'smart'; draft: string }
   | { type: 'test'; draft: string }
   | { type: 'intent'; draft: string }
+  | { type: 'series'; draft: string; hint?: string }
   | null
 
 export type HistoryEntry = {
