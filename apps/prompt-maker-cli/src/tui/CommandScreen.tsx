@@ -29,6 +29,7 @@ import { SmartPopup } from './components/popups/SmartPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
 import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, TOGGLE_LABELS, POPUP_HEIGHTS } from './config'
+import { useCommandHistory } from './hooks/useCommandHistory'
 import type {
   CommandDescriptor,
   HistoryEntry,
@@ -74,6 +75,12 @@ const WELCOME_LINES = [
   'Press Enter to log input; arrow keys scroll history.',
 ]
 
+const WELCOME_HISTORY: HistoryEntry[] = WELCOME_LINES.map((line, index) => ({
+  id: `welcome-${index}`,
+  content: line,
+  kind: 'system',
+}))
+
 type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
   onPopupVisibilityChange?: (isOpen: boolean) => void
@@ -94,18 +101,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
     const [terminalColumns, setTerminalColumns] = useState(stdout?.columns ?? 80)
-    const [history, setHistory] = useState<HistoryEntry[]>(() =>
-      WELCOME_LINES.map((line, index) => ({
-        id: `welcome-${index}`,
-        content: line,
-        kind: 'system',
-      })),
-    )
-    const historyIdRef = useRef(WELCOME_LINES.length)
     const lastUserIntentRef = useRef<string | null>(null)
     const [inputValue, setInputValue] = useState('')
-    const [scrollOffset, setScrollOffset] = useState(0)
-    const [isPinnedToBottom, setIsPinnedToBottom] = useState(true)
     const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
     const [popupState, setPopupState] = useState<PopupState>(null)
     const [currentModel, setCurrentModel] = useState<ModelOption['id']>('gpt-4o-mini')
@@ -125,11 +122,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         suppressNextInputRef.current = true
       },
     }))
-
-    const pushHistory = useCallback((content: string, kind: HistoryEntry['kind'] = 'system') => {
-      setHistory((prev) => [...prev, { id: `entry-${historyIdRef.current++}`, content, kind }])
-      setIsPinnedToBottom(true)
-    }, [])
 
     useEffect(() => {
       if (!isGenerating) {
@@ -201,6 +193,19 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       ? Math.min(COMMAND_MENU_HEIGHT, Math.max(visibleCommands.length, 1) + 2)
       : 0
     const overlayHeight = popupState ? POPUP_HEIGHTS[popupState.type as PopupKind] : menuHeight
+    const historyRows = useMemo(() => {
+      const overlaySpacingRows = popupState || isCommandMenuActive ? 1 : 0
+      const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_STATIC_ROWS
+      const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
+      const availableRows = terminalRows - overlayHeight - parentRows - overlaySpacingRows
+      return Math.max(1, availableRows)
+    }, [interactiveTransportPath, isCommandMenuActive, overlayHeight, popupState, terminalRows])
+
+    const { history, pushHistory, scroll } = useCommandHistory({
+      initialEntries: WELCOME_HISTORY,
+      visibleRows: historyRows,
+    })
+    const { offset: scrollOffset, scrollTo, scrollBy } = scroll
 
     useEffect(() => {
       setCommandSelectionIndex(0)
@@ -213,8 +218,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       setPopupState(null)
       setInputValue('/')
       setCommandSelectionIndex(0)
-      setIsPinnedToBottom(true)
-    }, [commandMenuSignal])
+      scrollTo(Number.MAX_SAFE_INTEGER)
+    }, [commandMenuSignal, scrollTo])
 
     useEffect(() => {
       if (!commandMatches.length) {
@@ -236,16 +241,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         return
       }
       const transportLine = `Interactive transport listening on ${interactiveTransportPath}`
-      setHistory((prev) => {
-        if (prev.some((entry) => entry.content === transportLine)) {
-          return prev
-        }
-        return [
-          ...prev,
-          { id: `entry-${historyIdRef.current++}`, content: transportLine, kind: 'system' },
-        ]
-      })
-    }, [interactiveTransportPath])
+      if (history.some((entry) => entry.content === transportLine)) {
+        return
+      }
+      pushHistory(transportLine, 'system')
+    }, [history, interactiveTransportPath, pushHistory])
 
     useEffect(() => {
       if (!stdout) {
@@ -260,24 +260,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         stdout.off('resize', handleResize)
       }
     }, [stdout])
-
-    const historyRows = useMemo(() => {
-      const overlaySpacingRows = popupState || isCommandMenuActive ? 1 : 0
-      const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_STATIC_ROWS
-      const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
-      const availableRows = terminalRows - overlayHeight - parentRows - overlaySpacingRows
-      return Math.max(1, availableRows)
-    }, [interactiveTransportPath, isCommandMenuActive, overlayHeight, popupState, terminalRows])
-
-    useEffect(() => {
-      setScrollOffset((prev) => {
-        const nextMax = Math.max(0, history.length - historyRows)
-        if (isPinnedToBottom) {
-          return nextMax
-        }
-        return Math.min(prev, nextMax)
-      })
-    }, [history, historyRows, isPinnedToBottom])
 
     useEffect(() => {
       setPopupState((prev) => {
@@ -297,23 +279,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         return prev
       })
     }, [files.length, urls.length])
-
-    const scrollTo = useCallback(
-      (next: number) => {
-        const nextMax = Math.max(0, history.length - historyRows)
-        const clamped = Math.max(0, Math.min(next, nextMax))
-        setScrollOffset(clamped)
-        setIsPinnedToBottom(clamped >= nextMax)
-      },
-      [history.length, historyRows],
-    )
-
-    const scrollBy = useCallback(
-      (delta: number) => {
-        scrollTo(scrollOffset + delta)
-      },
-      [scrollOffset, scrollTo],
-    )
 
     useInput(
       (_, key) => {
