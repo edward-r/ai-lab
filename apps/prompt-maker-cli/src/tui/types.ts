@@ -12,6 +12,7 @@ export type PopupState =
   | { type: 'url'; draft: string; selectionIndex: number }
   | { type: 'smart'; draft: string }
   | { type: 'test'; draft: string }
+  | { type: 'intent'; draft: string }
   | null
 
 export type HistoryEntry = {

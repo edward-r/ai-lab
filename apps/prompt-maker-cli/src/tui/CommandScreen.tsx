@@ -20,7 +20,9 @@ import { ModelPopup } from './components/popups/ModelPopup'
 import { SmartPopup } from './components/popups/SmartPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
+import { IntentFilePopup } from './components/popups/IntentFilePopup'
 import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS } from './config'
+import { resolveIntentSource } from './intent-source'
 import { useCommandHistory } from './hooks/useCommandHistory'
 import { useGenerationPipeline } from './hooks/useGenerationPipeline'
 import { usePopupManager } from './hooks/usePopupManager'
@@ -49,6 +51,7 @@ const WELCOME_LINES = [
   'Welcome to the Prompt Maker command palette preview.',
   'Type natural language requests or start a command with /.',
   'Press Enter to log input; arrow keys scroll history.',
+  'Use /intent to load intent text from a file (blank clears).',
 ]
 
 const WELCOME_HISTORY: HistoryEntry[] = WELCOME_LINES.map((line, index) => ({
@@ -81,6 +84,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const [inputValue, setInputValue] = useState('')
     const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
     const [currentModel, setCurrentModel] = useState<ModelOption['id']>('gpt-4o-mini')
+    const [intentFilePath, setIntentFilePath] = useState('')
     const [polishEnabled, setPolishEnabled] = useState(false)
     const [copyEnabled, setCopyEnabled] = useState(false)
     const [chatGptEnabled, setChatGptEnabled] = useState(false)
@@ -151,7 +155,13 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const {
       popupState,
       setPopupState,
-      actions: { closePopup, handleCommandSelection, handleModelPopupSubmit, applyToggleSelection },
+      actions: {
+        closePopup,
+        handleCommandSelection,
+        handleModelPopupSubmit,
+        applyToggleSelection,
+        handleIntentFileSubmit,
+      },
     } = usePopupManager({
       currentModel,
       smartContextRoot,
@@ -170,6 +180,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       setCopyEnabled,
       setChatGptEnabled,
       setJsonOutputEnabled,
+      setIntentFilePath,
+      intentFilePath,
       polishEnabled,
       copyEnabled,
       chatGptEnabled,
@@ -177,6 +189,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     })
 
     const isPopupOpen = popupState !== null
+    const trimmedIntentFilePath = intentFilePath.trim()
+
+    const enhancedStatusChips = useMemo(() => {
+      const chips = [...statusChips]
+      if (trimmedIntentFilePath) {
+        chips.push('[intent:file]')
+        chips.push(`[file:${path.basename(trimmedIntentFilePath)}]`)
+      } else {
+        chips.push('[intent:text]')
+      }
+      return chips
+    }, [statusChips, trimmedIntentFilePath])
 
     useEffect(() => {
       if (!onPopupVisibilityChange) {
@@ -579,6 +603,13 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           return
         }
 
+        if (popupState.type === 'intent') {
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
         if (popupState.type === 'test') {
           if (key.escape) {
             closePopup()
@@ -674,7 +705,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
 
         const trimmed = value.trim()
-        if (!trimmed) {
+        const intentSource = resolveIntentSource(trimmed, intentFilePath)
+        if (intentSource.kind === 'empty') {
           setInputValue('')
           return
         }
@@ -683,10 +715,19 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           setInputValue('')
           return
         }
-        pushHistory(`> ${trimmed}`, 'user')
-        lastUserIntentRef.current = trimmed
+        if (intentSource.kind === 'file') {
+          pushHistory(`> [intent file] ${intentSource.intentFile}`, 'user')
+          if (trimmed.length > 0) {
+            pushHistory('Typed intent ignored because an intent file is active.', 'system')
+          }
+          setInputValue('')
+          void runGeneration({ intentFile: intentSource.intentFile })
+          return
+        }
+        pushHistory(`> ${intentSource.intent}`, 'user')
+        lastUserIntentRef.current = intentSource.intent
         setInputValue('')
-        void runGeneration(trimmed)
+        void runGeneration({ intent: intentSource.intent })
       },
       [
         handleCommandSelection,
@@ -698,6 +739,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         runGeneration,
         pushHistory,
         commandArgsRaw,
+        intentFilePath,
       ],
     )
 
@@ -772,6 +814,16 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 }
                 onSubmitDraft={handleAddUrl}
               />
+            ) : popupState.type === 'intent' ? (
+              <IntentFilePopup
+                draft={popupState.draft}
+                onDraftChange={(next) =>
+                  setPopupState((prev) =>
+                    prev?.type === 'intent' ? { ...prev, draft: next } : prev,
+                  )
+                }
+                onSubmitDraft={handleIntentFileSubmit}
+              />
             ) : popupState.type === 'test' ? (
               <TestPopup
                 draft={popupState.draft}
@@ -806,7 +858,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           onChange={handleInputChange}
           onSubmit={handleSubmit}
           isDisabled={isPopupOpen}
-          statusChips={statusChips}
+          statusChips={enhancedStatusChips}
         />
       </Box>
     )
