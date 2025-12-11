@@ -18,9 +18,10 @@ import { ModelPopup } from './components/popups/ModelPopup'
 import { SmartPopup } from './components/popups/SmartPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
-import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, TOGGLE_LABELS, POPUP_HEIGHTS } from './config'
+import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS } from './config'
 import { useCommandHistory } from './hooks/useCommandHistory'
 import { useGenerationPipeline } from './hooks/useGenerationPipeline'
+import { usePopupManager } from './hooks/usePopupManager'
 import type {
   CommandDescriptor,
   HistoryEntry,
@@ -84,7 +85,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const lastUserIntentRef = useRef<string | null>(null)
     const [inputValue, setInputValue] = useState('')
     const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
-    const [popupState, setPopupState] = useState<PopupState>(null)
     const [currentModel, setCurrentModel] = useState<ModelOption['id']>('gpt-4o-mini')
     const [polishEnabled, setPolishEnabled] = useState(false)
     const [copyEnabled, setCopyEnabled] = useState(false)
@@ -93,6 +93,19 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const [isTestCommandRunning, setIsTestCommandRunning] = useState(false)
     const [lastTestFile, setLastTestFile] = useState<string | null>(null)
     const suppressNextInputRef = useRef(false)
+
+    const pushHistoryRef = useRef<(content: string, kind?: HistoryEntry['kind']) => void>(() => {})
+    const pushHistoryProxy = useCallback(
+      (content: string, kind: HistoryEntry['kind'] = 'system') => {
+        pushHistoryRef.current(content, kind)
+      },
+      [],
+    )
+
+    const runTestsFromCommandRef = useRef<(value: string) => void>(() => {})
+    const runTestsFromCommandProxy = useCallback((value: string) => {
+      runTestsFromCommandRef.current(value)
+    }, [])
 
     useImperativeHandle(ref, () => ({
       suppressNextInput: () => {
@@ -119,6 +132,54 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const normalizedQuery = parsedCommand.keyword.toLowerCase()
     const commandArgsRaw = parsedCommand.args
+
+    const { isGenerating, runGeneration, runSeriesGeneration, statusChips } = useGenerationPipeline(
+      {
+        pushHistory: pushHistoryProxy,
+        files,
+        urls,
+        images,
+        videos,
+        smartContextEnabled,
+        smartContextRoot,
+        currentModel,
+        interactiveTransportPath,
+        terminalColumns,
+        polishEnabled,
+        jsonOutputEnabled,
+        copyEnabled,
+        chatGptEnabled,
+        isTestCommandRunning,
+      },
+    )
+
+    const {
+      popupState,
+      setPopupState,
+      actions: { closePopup, handleCommandSelection, handleModelPopupSubmit, applyToggleSelection },
+    } = usePopupManager({
+      currentModel,
+      smartContextRoot,
+      lastTestFile,
+      defaultTestFile: DEFAULT_TEST_FILE,
+      interactiveTransportPath,
+      isGenerating,
+      lastUserIntentRef,
+      pushHistory: pushHistoryProxy,
+      setInputValue,
+      runSeriesGeneration,
+      runTestsFromCommand: runTestsFromCommandProxy,
+      exitApp: exit,
+      setCurrentModel,
+      setPolishEnabled,
+      setCopyEnabled,
+      setChatGptEnabled,
+      setJsonOutputEnabled,
+      polishEnabled,
+      copyEnabled,
+      chatGptEnabled,
+      jsonOutputEnabled,
+    })
 
     const isPopupOpen = popupState !== null
 
@@ -153,8 +214,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       return filtered.length > 0 ? filtered : COMMAND_DESCRIPTORS
     }, [isCommandMode, normalizedQuery])
 
-    const isCommandMenuActive = isCommandMode && !isPopupOpen
     const visibleCommands = commandMatches
+    const isCommandMenuActive = isCommandMode && !isPopupOpen
     const menuHeight = isCommandMenuActive
       ? Math.min(COMMAND_MENU_HEIGHT, Math.max(visibleCommands.length, 1) + 2)
       : 0
@@ -171,27 +232,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       initialEntries: WELCOME_HISTORY,
       visibleRows: historyRows,
     })
-
-    const { isGenerating, runGeneration, runSeriesGeneration, statusChips } = useGenerationPipeline(
-      {
-        pushHistory,
-        files,
-        urls,
-        images,
-        videos,
-        smartContextEnabled,
-        smartContextRoot,
-        currentModel,
-        interactiveTransportPath,
-        terminalColumns,
-        polishEnabled,
-        jsonOutputEnabled,
-        copyEnabled,
-        chatGptEnabled,
-        isTestCommandRunning,
-      },
-    )
     const { offset: scrollOffset, scrollTo, scrollBy } = scroll
+
+    useEffect(() => {
+      pushHistoryRef.current = pushHistory
+    }, [pushHistory])
 
     useEffect(() => {
       setCommandSelectionIndex(0)
@@ -314,111 +359,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         ? visibleCommands[Math.min(commandSelectionIndex, visibleCommands.length - 1)]
         : undefined
 
-    const openModelPopup = useCallback(() => {
-      const defaultIndex = Math.max(
-        0,
-        MODEL_OPTIONS.findIndex((option) => option.id === currentModel),
-      )
-      setPopupState({ type: 'model', query: '', selectionIndex: defaultIndex })
-    }, [currentModel])
-
-    const openTogglePopup = useCallback(
-      (field: ToggleField) => {
-        const currentValue =
-          field === 'polish'
-            ? polishEnabled
-            : field === 'copy'
-              ? copyEnabled
-              : field === 'chatgpt'
-                ? chatGptEnabled
-                : jsonOutputEnabled
-        setPopupState({ type: 'toggle', field, selectionIndex: currentValue ? 0 : 1 })
-      },
-      [polishEnabled, copyEnabled, chatGptEnabled, jsonOutputEnabled],
-    )
-
-    const openFilePopup = useCallback(() => {
-      setPopupState({ type: 'file', draft: '', selectionIndex: 0 })
-    }, [])
-
-    const openUrlPopup = useCallback(() => {
-      setPopupState({ type: 'url', draft: '', selectionIndex: 0 })
-    }, [])
-
-    const openSmartPopup = useCallback(() => {
-      setPopupState({ type: 'smart', draft: smartContextRoot ?? '' })
-    }, [smartContextRoot])
-
-    const openTestPopup = useCallback(() => {
-      setPopupState({ type: 'test', draft: lastTestFile ?? DEFAULT_TEST_FILE })
-    }, [lastTestFile])
-
-    const closePopup = useCallback(() => {
-      setPopupState(null)
-    }, [])
-
-    const applyModelSelection = useCallback(
-      (option?: ModelOption) => {
-        if (!option) {
-          return
-        }
-        setCurrentModel(option.id)
-        pushHistory(`Model set to ${option.id}`)
-        setInputValue('')
-        setPopupState(null)
-      },
-      [pushHistory],
-    )
-
-    const handleModelPopupSubmit = useCallback(
-      (option?: ModelOption) => {
-        if (!option) {
-          applyModelSelection(undefined)
-          return
-        }
-        const nextOption = MODEL_OPTIONS.find((model) => model.id === option.id)
-        applyModelSelection(nextOption)
-      },
-      [applyModelSelection],
-    )
-
-    const applyToggleSelection = useCallback(
-      (field: ToggleField, value: boolean) => {
-        if (field === 'json' && value && interactiveTransportPath) {
-          pushHistory(
-            'JSON output cannot be enabled while interactive transport is active.',
-            'system',
-          )
-          setInputValue('')
-          setPopupState(null)
-          return
-        }
-        const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
-        if (field === 'polish') {
-          setPolishEnabled(value)
-        } else if (field === 'copy') {
-          setCopyEnabled(value)
-        } else if (field === 'chatgpt') {
-          setChatGptEnabled(value)
-        } else if (field === 'json') {
-          setJsonOutputEnabled(value)
-        }
-        pushHistory(message)
-        setInputValue('')
-        setPopupState(null)
-      },
-      [
-        interactiveTransportPath,
-        pushHistory,
-        setInputValue,
-        setPopupState,
-        setPolishEnabled,
-        setCopyEnabled,
-        setChatGptEnabled,
-        setJsonOutputEnabled,
-      ],
-    )
-
     const handleAddFile = useCallback(
       (value: string) => {
         const trimmed = value.trim()
@@ -498,6 +438,161 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       [setSmartRoot, pushHistory],
     )
 
+    useInput(
+      (input, key) => {
+        if (!popupState) {
+          return
+        }
+
+        if (popupState.type === 'model') {
+          const options = filterModelOptions(popupState.query)
+          if (key.upArrow && options.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'model'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex - 1 + options.length) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.downArrow && options.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'model'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex + 1) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.escape) {
+            closePopup()
+            return
+          }
+          if (key.return) {
+            handleModelPopupSubmit(options[popupState.selectionIndex])
+          }
+          return
+        }
+
+        if (popupState.type === 'toggle') {
+          const options = ['On', 'Off']
+          if (key.leftArrow || key.upArrow) {
+            setPopupState((prev) =>
+              prev?.type === 'toggle'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex - 1 + options.length) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.rightArrow || key.downArrow) {
+            setPopupState((prev) =>
+              prev?.type === 'toggle'
+                ? {
+                    ...prev,
+                    selectionIndex: (prev.selectionIndex + 1) % options.length,
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.escape) {
+            closePopup()
+            return
+          }
+          if (key.return) {
+            applyToggleSelection(popupState.field, popupState.selectionIndex === 0)
+          }
+          return
+        }
+
+        if (popupState.type === 'file') {
+          if (key.upArrow && files.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'file'
+                ? { ...prev, selectionIndex: Math.max(prev.selectionIndex - 1, 0) }
+                : prev,
+            )
+            return
+          }
+          if (key.downArrow && files.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'file'
+                ? {
+                    ...prev,
+                    selectionIndex: Math.min(prev.selectionIndex + 1, files.length - 1),
+                  }
+                : prev,
+            )
+            return
+          }
+          if ((key.delete || key.backspace) && files.length > 0) {
+            handleRemoveFile(popupState.selectionIndex)
+            return
+          }
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
+        if (popupState.type === 'url') {
+          if (key.upArrow && urls.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'url'
+                ? { ...prev, selectionIndex: Math.max(prev.selectionIndex - 1, 0) }
+                : prev,
+            )
+            return
+          }
+          if (key.downArrow && urls.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'url'
+                ? {
+                    ...prev,
+                    selectionIndex: Math.min(prev.selectionIndex + 1, urls.length - 1),
+                  }
+                : prev,
+            )
+            return
+          }
+          if ((key.delete || key.backspace) && urls.length > 0) {
+            handleRemoveUrl(popupState.selectionIndex)
+            return
+          }
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
+        if (popupState.type === 'smart') {
+          if (typeof input === 'string' && input.toLowerCase() === 't') {
+            handleSmartToggle(!smartContextEnabled)
+            return
+          }
+          if (key.escape) {
+            closePopup()
+            return
+          }
+          return
+        }
+
+        if (popupState.type === 'test') {
+          if (key.escape) {
+            closePopup()
+          }
+        }
+      },
+      { isActive: isPopupOpen },
+    )
+
     const runTestsFromCommand = useCallback(
       async (fileArg?: string) => {
         const normalized = fileArg?.trim() ?? ''
@@ -560,102 +655,9 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       [runTestsFromCommand],
     )
 
-    const handleCommandSelection = useCallback(
-      (commandId: CommandDescriptor['id'], argsRaw?: string) => {
-        if (commandId === 'model') {
-          openModelPopup()
-          return
-        }
-        if (commandId === 'polish' || commandId === 'copy' || commandId === 'chatgpt') {
-          openTogglePopup(commandId)
-          return
-        }
-        if (commandId === 'json') {
-          if (interactiveTransportPath) {
-            pushHistory(
-              'JSON output is unavailable while interactive transport is enabled.',
-              'system',
-            )
-            return
-          }
-          const normalized = argsRaw ? argsRaw.trim().toLowerCase() : ''
-          if (normalized === 'on' || normalized === 'off') {
-            const nextEnabled = normalized === 'on'
-
-            setJsonOutputEnabled(nextEnabled)
-            pushHistory(`JSON ${nextEnabled ? 'enabled' : 'disabled'}`)
-            setInputValue('')
-            return
-          }
-          openTogglePopup('json')
-          return
-        }
-        if (commandId === 'file') {
-          openFilePopup()
-          return
-        }
-        if (commandId === 'url') {
-          openUrlPopup()
-          return
-        }
-        if (commandId === 'smart') {
-          openSmartPopup()
-          return
-        }
-        if (commandId === 'exit') {
-          pushHistory('Exiting…', 'system')
-          setInputValue('')
-          exit()
-          return
-        }
-        if (commandId === 'series') {
-          if (isGenerating) {
-            pushHistory('Generation already running. Please wait.', 'system')
-            return
-          }
-          const trimmedArgs = argsRaw?.trim() ?? ''
-          const intentSource = trimmedArgs || lastUserIntentRef.current || ''
-          if (!intentSource) {
-            pushHistory(
-              'Series mode requires an intent. Use /series <intent> or submit an intent first.',
-              'system',
-            )
-            return
-          }
-          lastUserIntentRef.current = intentSource
-          pushHistory(`> /series ${intentSource}`, 'user')
-          setInputValue('')
-          void runSeriesGeneration(intentSource)
-          return
-        }
-        if (commandId === 'test') {
-          const trimmedArgs = argsRaw?.trim() ?? ''
-          if (trimmedArgs) {
-            void runTestsFromCommand(trimmedArgs)
-          } else {
-            openTestPopup()
-          }
-          return
-        }
-        pushHistory(`Selected ${commandId}`)
-      },
-      [
-        openModelPopup,
-        openTogglePopup,
-        openFilePopup,
-        openUrlPopup,
-        openSmartPopup,
-        runSeriesGeneration,
-        openTestPopup,
-        pushHistory,
-        runTestsFromCommand,
-        interactiveTransportPath,
-        setJsonOutputEnabled,
-        setInputValue,
-        isGenerating,
-        exit,
-      ],
-    )
+    useEffect(() => {
+      runTestsFromCommandRef.current = runTestsFromCommand
+    }, [runTestsFromCommand])
 
     const handleSubmit = useCallback(
       (value: string) => {
