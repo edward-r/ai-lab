@@ -31,7 +31,7 @@ import type {
   ToggleField,
 } from './types'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
-import { useContextDispatch, useContextState } from './context'
+import { useContextDispatch, useContextState } from './context-store'
 
 const APP_STATIC_ROWS = 7
 const INPUT_BAR_ROWS = 5

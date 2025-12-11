@@ -15,7 +15,7 @@ import {
 } from '../generate-command'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { formatTokenCount } from '../token-counter'
-import { useContextState } from './context'
+import { useContextState } from './context-store'
 import { ContextPanel, type ContextPanelFocus } from './ContextPanel'
 import { MediaPanel, type MediaPanelFocus } from './MediaPanel'
 
