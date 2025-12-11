@@ -769,18 +769,30 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       [
         interactiveTransportPath,
         pushHistory,
-        setJsonOutputEnabled,
         setInputValue,
         setPopupState,
         setPolishEnabled,
         setCopyEnabled,
         setChatGptEnabled,
-          exit,
-        ],
-      )
+        setJsonOutputEnabled,
+      ],
+    )
 
+    const handleAddFile = useCallback(
+      (value: string) => {
+        const trimmed = value.trim()
+        if (!trimmed) {
+          return
+        }
+        addFile(trimmed)
+        pushHistory(`Context file added: ${trimmed}`)
+        setPopupState((prev) =>
+          prev?.type === 'file'
+            ? { ...prev, draft: '', selectionIndex: Math.max(files.length, 0) }
+            : prev,
+        )
       },
-      [addFile, files.length, pushHistory],
+      [addFile, files.length, pushHistory, setPopupState],
     )
 
     const handleRemoveFile = useCallback(
@@ -809,7 +821,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
             : prev,
         )
       },
-      [addUrl, urls.length, pushHistory],
+      [addUrl, urls.length, pushHistory, setPopupState],
     )
 
     const handleRemoveUrl = useCallback(
