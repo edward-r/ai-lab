@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import TextInput from 'ink-text-input'
 
-import { useContextDispatch, useContextState } from './context'
+import { useContextDispatch, useContextState } from './context-store'
 
 export type MediaPanelFocus = 'images' | 'videos' | 'none'
 

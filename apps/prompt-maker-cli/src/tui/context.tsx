@@ -1,29 +1,5 @@
-import React, { createContext, useCallback, useContext, useState } from 'react'
-
-export type ContextSourceState = {
-  files: string[]
-  urls: string[]
-  images: string[]
-  videos: string[]
-  smartContextEnabled: boolean
-  smartContextRoot: string | null
-}
-
-type ContextDispatch = {
-  addFile: (value: string) => void
-  removeFile: (index: number) => void
-  addUrl: (value: string) => void
-  removeUrl: (index: number) => void
-  addImage: (value: string) => void
-  removeImage: (index: number) => void
-  addVideo: (value: string) => void
-  removeVideo: (index: number) => void
-  toggleSmartContext: () => void
-  setSmartRoot: (value: string) => void
-}
-
-const ContextStateContext = createContext<ContextSourceState | null>(null)
-const ContextDispatchContext = createContext<ContextDispatch | null>(null)
+import React, { useCallback, useState } from 'react'
+import { ContextDispatchContext, ContextStateContext } from './context-store'
 
 export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [files, setFiles] = useState<string[]>([])
@@ -94,20 +70,4 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
       </ContextDispatchContext.Provider>
     </ContextStateContext.Provider>
   )
-}
-
-export const useContextState = (): ContextSourceState => {
-  const context = useContext(ContextStateContext)
-  if (!context) {
-    throw new Error('useContextState must be used within ContextProvider')
-  }
-  return context
-}
-
-export const useContextDispatch = (): ContextDispatch => {
-  const context = useContext(ContextDispatchContext)
-  if (!context) {
-    throw new Error('useContextDispatch must be used within ContextProvider')
-  }
-  return context
 }
