@@ -1,14 +1,8 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 
-const TOGGLE_LABELS = {
-  polish: 'Polish',
-  copy: 'Copy',
-  chatgpt: 'ChatGPT',
-  json: 'JSON',
-} as const
-
-export type ToggleField = keyof typeof TOGGLE_LABELS
+import { TOGGLE_LABELS } from '../../config'
+import type { ToggleField } from '../../types'
 
 export type TogglePopupProps = {
   field: ToggleField

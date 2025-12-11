@@ -1,5 +1,5 @@
 import path from 'node:path'
-import React, {
+import {
   forwardRef,
   useCallback,
   useEffect,
@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import { Box, Text, useApp, useInput, useStdout } from 'ink'
+import { Box, useApp, useInput, useStdout } from 'ink'
 import wrapAnsi from 'wrap-ansi'
 
 import {
@@ -23,13 +23,20 @@ import {
 import { InputBar } from './components/core/InputBar'
 import { CommandMenu } from './components/core/CommandMenu'
 import { ScrollableOutput } from './components/core/ScrollableOutput'
-import type { HistoryEntry } from './components/core/ScrollableOutput'
 import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
-import type { ModelPopupOption } from './components/popups/ModelPopup'
 import { SmartPopup } from './components/popups/SmartPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
+import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, TOGGLE_LABELS, POPUP_HEIGHTS } from './config'
+import type {
+  CommandDescriptor,
+  HistoryEntry,
+  ModelOption,
+  PopupKind,
+  PopupState,
+  ToggleField,
+} from './types'
 import {
   generatePromptSeries,
   isGemini,
@@ -46,71 +53,9 @@ import { useContextDispatch, useContextState } from './context'
 const APP_STATIC_ROWS = 7
 const INPUT_BAR_ROWS = 5
 const COMMAND_SCREEN_STATIC_ROWS = INPUT_BAR_ROWS + 3
-const COMMAND_DESCRIPTORS = [
-  { id: 'model', label: 'Model', description: 'Switch the target LLM' },
-  { id: 'file', label: 'File', description: 'Attach file context' },
-  { id: 'url', label: 'URL', description: 'Add URL context' },
-  { id: 'smart', label: 'Smart Context', description: 'Toggle smart context root' },
-  { id: 'image', label: 'Image', description: 'Attach reference images' },
-  { id: 'video', label: 'Video', description: 'Attach reference videos' },
-  { id: 'polish', label: 'Polish', description: 'Enable prompt polishing' },
-  { id: 'series', label: 'Series', description: 'Generate atomic prompt series' },
-  { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
-  { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
-  { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
-  { id: 'test', label: 'Test', description: 'Run prompt tests (/test <file>)' },
-  { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
-] as const
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
-
-const MODEL_OPTIONS = [
-  { id: 'gpt-4o-mini', label: 'gpt-4o-mini', description: 'OpenAI general-purpose LLM' },
-  { id: 'gemini-1.5-pro', label: 'gemini-1.5-pro', description: 'Google Gemini multimodal' },
-] as const
-const MODEL_POPUP_HEIGHT = MODEL_OPTIONS.length + 5
-const TOGGLE_POPUP_HEIGHT = 6
-const LIST_POPUP_HEIGHT = 12
-const SMART_POPUP_HEIGHT = 9
-const TEST_POPUP_HEIGHT = 7
 const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
-
-const TOGGLE_LABELS = {
-  polish: 'Polish',
-  copy: 'Copy',
-  chatgpt: 'ChatGPT',
-  json: 'JSON',
-} as const
-
-const POPUP_HEIGHTS = {
-  model: MODEL_POPUP_HEIGHT,
-  toggle: TOGGLE_POPUP_HEIGHT,
-  file: LIST_POPUP_HEIGHT,
-  url: LIST_POPUP_HEIGHT,
-  smart: SMART_POPUP_HEIGHT,
-  test: TEST_POPUP_HEIGHT,
-} as const
-
-const WELCOME_LINES = [
-  'Welcome to the Prompt Maker command palette preview.',
-  'Type natural language requests or start a command with /.',
-  'Press Enter to log input; arrow keys scroll history.',
-]
-
-type CommandDescriptor = (typeof COMMAND_DESCRIPTORS)[number]
-type ModelOption = (typeof MODEL_OPTIONS)[number]
-type ToggleField = keyof typeof TOGGLE_LABELS
-
-type PopupKind = keyof typeof POPUP_HEIGHTS
-
-type PopupState =
-  | { type: 'model'; query: string; selectionIndex: number }
-  | { type: 'toggle'; field: ToggleField; selectionIndex: number }
-  | { type: 'file'; draft: string; selectionIndex: number }
-  | { type: 'url'; draft: string; selectionIndex: number }
-  | { type: 'smart'; draft: string }
-  | { type: 'test'; draft: string }
-  | null
 
 const filterModelOptions = (query: string): ModelOption[] => {
   const trimmed = query.trim().toLowerCase()
@@ -122,6 +67,12 @@ const filterModelOptions = (query: string): ModelOption[] => {
       option.id.toLowerCase().includes(trimmed) || option.label.toLowerCase().includes(trimmed),
   )
 }
+
+const WELCOME_LINES = [
+  'Welcome to the Prompt Maker command palette preview.',
+  'Type natural language requests or start a command with /.',
+  'Press Enter to log input; arrow keys scroll history.',
+]
 
 type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
@@ -425,7 +376,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     )
 
     const handleModelPopupSubmit = useCallback(
-      (option?: ModelPopupOption) => {
+      (option?: ModelOption) => {
         if (!option) {
           applyModelSelection(undefined)
           return

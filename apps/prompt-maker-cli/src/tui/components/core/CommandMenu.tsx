@@ -1,11 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 
-export type CommandDescriptor = {
-  id: string
-  label: string
-  description: string
-}
+import type { CommandDescriptor } from '../../types'
 
 export type CommandMenuProps = {
   commands: readonly CommandDescriptor[]

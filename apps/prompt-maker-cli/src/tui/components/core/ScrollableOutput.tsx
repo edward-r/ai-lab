@@ -1,11 +1,7 @@
 import React, { useMemo } from 'react'
 import { Box, Text } from 'ink'
 
-export type HistoryEntry = {
-  id: string
-  content: string
-  kind: 'user' | 'system' | 'progress'
-}
+import type { HistoryEntry } from '../../types'
 
 export type ScrollableOutputProps = {
   lines: readonly HistoryEntry[]

@@ -2,18 +2,14 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import TextInput from 'ink-text-input'
 
-export type ModelPopupOption = {
-  id: string
-  label: string
-  description: string
-}
+import type { ModelOption } from '../../types'
 
 export type ModelPopupProps = {
   query: string
-  options: readonly ModelPopupOption[]
+  options: readonly ModelOption[]
   selectedIndex: number
   onQueryChange: (value: string) => void
-  onSubmit: (option?: ModelPopupOption) => void
+  onSubmit: (option?: ModelOption) => void
 }
 
 export const ModelPopup: React.FC<ModelPopupProps> = ({
