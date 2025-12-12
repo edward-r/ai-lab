@@ -3,6 +3,7 @@ import path from 'node:path'
 import { useCallback, useState } from 'react'
 
 import { MODEL_OPTIONS, TOGGLE_LABELS } from '../config'
+import { discoverFileSuggestions } from '../file-suggestions'
 import type {
   CommandDescriptor,
   HistoryEntry,
@@ -115,8 +116,36 @@ export const usePopupManager = ({
   )
 
   const openFilePopup = useCallback(() => {
-    setPopupState({ type: 'file', draft: '', selectionIndex: 0 })
-  }, [])
+    setPopupState({
+      type: 'file',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+
+    const scan = async (): Promise<void> => {
+      try {
+        const suggestions = await discoverFileSuggestions({ cwd: process.cwd(), limit: 200 })
+        setPopupState((prev) =>
+          prev?.type === 'file'
+            ? {
+                ...prev,
+                suggestedItems: suggestions,
+                suggestedSelectionIndex: 0,
+                suggestedFocused: false,
+              }
+            : prev,
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+        pushHistory(`[file] Failed to scan workspace: ${message}`, 'system')
+      }
+    }
+
+    void scan()
+  }, [pushHistory])
 
   const openUrlPopup = useCallback(() => {
     setPopupState({ type: 'url', draft: '', selectionIndex: 0 })

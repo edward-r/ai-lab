@@ -23,6 +23,7 @@ import { TogglePopup } from './components/popups/TogglePopup'
 import { IntentFilePopup } from './components/popups/IntentFilePopup'
 import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS } from './config'
+import { filterFileSuggestions } from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
 import { useCommandHistory } from './hooks/useCommandHistory'
 import { useGenerationPipeline } from './hooks/useGenerationPipeline'
@@ -420,7 +421,13 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         pushHistory(`Context file added: ${trimmed}`)
         setPopupState((prev) =>
           prev?.type === 'file'
-            ? { ...prev, draft: '', selectionIndex: Math.max(files.length, 0) }
+            ? {
+                ...prev,
+                draft: '',
+                selectionIndex: Math.max(files.length, 0),
+                suggestedFocused: false,
+                suggestedSelectionIndex: 0,
+              }
             : prev,
         )
       },
@@ -488,6 +495,48 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       },
       [setSmartRoot, pushHistory],
     )
+
+    const filePopupDraft = popupState?.type === 'file' ? popupState.draft : ''
+    const filePopupSuggestedItems = popupState?.type === 'file' ? popupState.suggestedItems : []
+    const filePopupSuggestedFocused =
+      popupState?.type === 'file' ? popupState.suggestedFocused : false
+    const filePopupSuggestedSelectionIndex =
+      popupState?.type === 'file' ? popupState.suggestedSelectionIndex : 0
+
+    const filePopupSuggestions = useMemo(() => {
+      if (!filePopupSuggestedItems.length) {
+        return []
+      }
+      return filterFileSuggestions({
+        suggestions: filePopupSuggestedItems,
+        query: filePopupDraft,
+        exclude: files,
+      })
+    }, [filePopupDraft, filePopupSuggestedItems, files])
+
+    const filePopupSuggestionSelectionIndex = Math.min(
+      filePopupSuggestedSelectionIndex,
+      Math.max(filePopupSuggestions.length - 1, 0),
+    )
+
+    const filePopupSuggestionsFocused = filePopupSuggestedFocused && filePopupSuggestions.length > 0
+
+    useEffect(() => {
+      if (popupState?.type !== 'file') {
+        return
+      }
+      if (!filePopupSuggestedFocused) {
+        return
+      }
+      if (filePopupSuggestions.length > 0) {
+        return
+      }
+      setPopupState((prev) =>
+        prev?.type === 'file'
+          ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+          : prev,
+      )
+    }, [filePopupSuggestedFocused, filePopupSuggestions.length, popupState?.type, setPopupState])
 
     useInput(
       (input, key) => {
@@ -564,6 +613,103 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
 
         if (popupState.type === 'file') {
+          const hasSuggestions = filePopupSuggestions.length > 0
+          const effectiveSuggestedIndex = Math.min(
+            popupState.suggestedSelectionIndex,
+            Math.max(filePopupSuggestions.length - 1, 0),
+          )
+
+          if (key.escape) {
+            closePopup()
+            return
+          }
+
+          if (popupState.suggestedFocused && hasSuggestions) {
+            if (key.tab && !key.shift) {
+              setPopupState((prev) =>
+                prev?.type === 'file' ? { ...prev, suggestedFocused: false } : prev,
+              )
+              return
+            }
+            if (key.upArrow) {
+              if (effectiveSuggestedIndex === 0) {
+                setPopupState((prev) =>
+                  prev?.type === 'file'
+                    ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+                    : prev,
+                )
+                return
+              }
+              setPopupState((prev) =>
+                prev?.type === 'file'
+                  ? {
+                      ...prev,
+                      suggestedSelectionIndex: Math.max(prev.suggestedSelectionIndex - 1, 0),
+                    }
+                  : prev,
+              )
+              return
+            }
+            if (key.downArrow) {
+              setPopupState((prev) =>
+                prev?.type === 'file'
+                  ? {
+                      ...prev,
+                      suggestedSelectionIndex: Math.min(
+                        prev.suggestedSelectionIndex + 1,
+                        Math.max(filePopupSuggestions.length - 1, 0),
+                      ),
+                    }
+                  : prev,
+              )
+              return
+            }
+            if (key.return) {
+              const selection = filePopupSuggestions[effectiveSuggestedIndex]
+              setPopupState((prev) =>
+                prev?.type === 'file'
+                  ? {
+                      ...prev,
+                      draft: selection ?? prev.draft,
+                      suggestedFocused: false,
+                    }
+                  : prev,
+              )
+              return
+            }
+            return
+          }
+
+          if (key.tab && !key.shift && hasSuggestions) {
+            setPopupState((prev) =>
+              prev?.type === 'file'
+                ? {
+                    ...prev,
+                    suggestedFocused: true,
+                    suggestedSelectionIndex: 0,
+                  }
+                : prev,
+            )
+            return
+          }
+
+          if (
+            key.downArrow &&
+            hasSuggestions &&
+            (files.length === 0 || popupState.draft.trim().length > 0)
+          ) {
+            setPopupState((prev) =>
+              prev?.type === 'file'
+                ? {
+                    ...prev,
+                    suggestedFocused: true,
+                    suggestedSelectionIndex: 0,
+                  }
+                : prev,
+            )
+            return
+          }
+
           if (key.upArrow && files.length > 0) {
             setPopupState((prev) =>
               prev?.type === 'file'
@@ -586,9 +732,6 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           if ((key.delete || key.backspace) && files.length > 0) {
             handleRemoveFile(popupState.selectionIndex)
             return
-          }
-          if (key.escape) {
-            closePopup()
           }
           return
         }
@@ -838,9 +981,21 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 items={files}
                 selectedIndex={popupState.selectionIndex}
                 emptyLabel="No file globs added"
-                instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
+                instructions="Enter to add · Tab/↓ suggestions · ↑/↓ navigate · Del to remove · Esc to close"
+                suggestedItems={filePopupSuggestions}
+                suggestedSelectionIndex={filePopupSuggestionSelectionIndex}
+                suggestedFocused={filePopupSuggestionsFocused}
                 onDraftChange={(next) =>
-                  setPopupState((prev) => (prev?.type === 'file' ? { ...prev, draft: next } : prev))
+                  setPopupState((prev) =>
+                    prev?.type === 'file'
+                      ? {
+                          ...prev,
+                          draft: next,
+                          suggestedSelectionIndex: 0,
+                          suggestedFocused: false,
+                        }
+                      : prev,
+                  )
                 }
                 onSubmitDraft={handleAddFile}
               />
