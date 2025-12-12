@@ -145,25 +145,30 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const normalizedQuery = parsedCommand.keyword.toLowerCase()
     const commandArgsRaw = parsedCommand.args
 
-    const { isGenerating, runGeneration, runSeriesGeneration, statusChips } = useGenerationPipeline(
-      {
-        pushHistory: pushHistoryProxy,
-        files,
-        urls,
-        images,
-        videos,
-        smartContextEnabled,
-        smartContextRoot,
-        currentModel,
-        interactiveTransportPath,
-        terminalColumns,
-        polishEnabled,
-        jsonOutputEnabled,
-        copyEnabled,
-        chatGptEnabled,
-        isTestCommandRunning,
-      },
-    )
+    const {
+      isGenerating,
+      runGeneration,
+      runSeriesGeneration,
+      statusChips,
+      isAwaitingRefinement,
+      submitRefinement,
+    } = useGenerationPipeline({
+      pushHistory: pushHistoryProxy,
+      files,
+      urls,
+      images,
+      videos,
+      smartContextEnabled,
+      smartContextRoot,
+      currentModel,
+      interactiveTransportPath,
+      terminalColumns,
+      polishEnabled,
+      jsonOutputEnabled,
+      copyEnabled,
+      chatGptEnabled,
+      isTestCommandRunning,
+    })
 
     const {
       popupState,
@@ -869,6 +874,12 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const handleSubmit = useCallback(
       (value: string) => {
+        if (isAwaitingRefinement) {
+          submitRefinement(value)
+          setInputValue('')
+          return
+        }
+
         if (popupState) {
           return
         }
@@ -915,6 +926,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         handleCommandSelection,
         isCommandMenuActive,
         isCommandMode,
+        isAwaitingRefinement,
+        submitRefinement,
         popupState,
         selectedCommand,
         isGenerating,
@@ -1070,6 +1083,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           onSubmit={handleSubmit}
           isDisabled={isPopupOpen}
           statusChips={enhancedStatusChips}
+          placeholder={
+            isAwaitingRefinement
+              ? 'Describe refinement (or empty to finish)...'
+              : 'Describe your goal or type /command'
+          }
         />
       </Box>
     )

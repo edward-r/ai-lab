@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import wrapAnsi from 'wrap-ansi'
 
@@ -9,6 +9,7 @@ import {
   type GenerateArgs,
   type GeneratePipelineOptions,
   type GeneratePipelineResult,
+  type InteractiveDelegate,
   type StreamEventInput,
 } from '../../generate-command'
 import { generatePromptSeries, isGemini } from '../../prompt-generator-service'
@@ -59,6 +60,44 @@ export const useGenerationPipeline = ({
   const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
   const [statusMessage, setStatusMessage] = useState('Idle')
+  const [isAwaitingRefinement, setIsAwaitingRefinement] = useState(false)
+
+  type PendingRefinement = {
+    requestId: number
+    resolveText: (text: string) => void
+  }
+
+  const pendingRefinementRef = useRef<PendingRefinement | null>(null)
+  const refinementRequestIdRef = useRef(0)
+  const isGeneratingRef = useRef(false)
+
+  useEffect(() => {
+    isGeneratingRef.current = isGenerating
+  }, [isGenerating])
+
+  const submitRefinement = useCallback((text: string): void => {
+    const pending = pendingRefinementRef.current
+    if (!pending) {
+      return
+    }
+    pendingRefinementRef.current = null
+    setIsAwaitingRefinement(false)
+    pending.resolveText(text)
+  }, [])
+
+  useEffect(() => {
+    if (isGenerating) {
+      return
+    }
+    submitRefinement('')
+    setIsAwaitingRefinement(false)
+  }, [isGenerating, submitRefinement])
+
+  useEffect(() => {
+    return () => {
+      submitRefinement('')
+    }
+  }, [submitRefinement])
 
   useEffect(() => {
     if (!isGenerating) {
@@ -89,9 +128,20 @@ export const useGenerationPipeline = ({
         case 'generation.iteration.start':
           pushHistory(`Iteration ${event.iteration} started`, 'progress')
           return
-        case 'generation.iteration.complete':
-          pushHistory(`Iteration ${event.iteration} complete`, 'progress')
+        case 'generation.iteration.complete': {
+          pushHistory(`Iteration ${event.iteration} complete (${event.tokens} tokens)`, 'progress')
+          pushHistory(`Prompt (iteration ${event.iteration}):`, 'system')
+
+          const wrapWidth = Math.max(40, terminalColumns - 6)
+          event.prompt.split('\n').forEach((line) => {
+            const wrapped = wrapAnsi(line, wrapWidth, { trim: false, hard: true })
+            wrapped.split('\n').forEach((wrappedLine) => {
+              pushHistory(wrappedLine, 'system')
+            })
+          })
+
           return
+        }
         case 'context.telemetry': {
           const telemetry = event.telemetry
           pushHistory(
@@ -122,7 +172,62 @@ export const useGenerationPipeline = ({
           return
       }
     },
-    [pushHistory],
+    [pushHistory, terminalColumns],
+  )
+
+  const interactiveDelegate: InteractiveDelegate = useMemo(
+    () => ({
+      getNextAction: async ({ iteration }) => {
+        if (!isGeneratingRef.current) {
+          return { type: 'finish' }
+        }
+
+        refinementRequestIdRef.current += 1
+        const requestId = refinementRequestIdRef.current
+
+        if (pendingRefinementRef.current) {
+          submitRefinement('')
+        }
+
+        setIsAwaitingRefinement(true)
+        pushHistory(
+          `Refine the prompt above (iteration ${iteration}): describe changes or press Enter on empty line to finish.`,
+          'system',
+        )
+
+        try {
+          return await new Promise<{ type: 'refine'; instruction: string } | { type: 'finish' }>(
+            (resolve) => {
+              pendingRefinementRef.current = {
+                requestId,
+                resolveText: (submittedText: string) => {
+                  const trimmed = submittedText.trim()
+                  if (!isGeneratingRef.current) {
+                    resolve({ type: 'finish' })
+                    return
+                  }
+                  if (!trimmed) {
+                    pushHistory('Interactive refinement complete.', 'system')
+                    resolve({ type: 'finish' })
+                    return
+                  }
+                  pushHistory(`> [refine] ${trimmed}`, 'user')
+                  resolve({ type: 'refine', instruction: trimmed })
+                },
+              }
+            },
+          )
+        } finally {
+          if (pendingRefinementRef.current?.requestId === requestId) {
+            pendingRefinementRef.current = null
+          }
+          if (refinementRequestIdRef.current === requestId) {
+            setIsAwaitingRefinement(false)
+          }
+        }
+      },
+    }),
+    [pushHistory, submitRefinement],
   )
 
   const runGeneration = useCallback(
@@ -138,8 +243,11 @@ export const useGenerationPipeline = ({
       pushHistory('Starting generation…')
       try {
         const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
+        const usesTransportInteractive = Boolean(interactiveTransportPath)
+        const usesTuiInteractiveDelegate = !usesTransportInteractive && !jsonOutputEnabled
+
         const args: GenerateArgs = {
-          interactive: Boolean(interactiveTransportPath),
+          interactive: usesTransportInteractive || usesTuiInteractiveDelegate,
           copy: false,
           openChatGpt: false,
           polish: polishEnabled,
@@ -174,6 +282,7 @@ export const useGenerationPipeline = ({
 
         const options: GeneratePipelineOptions = {
           onStreamEvent: handleStreamEvent,
+          ...(usesTuiInteractiveDelegate ? { interactiveDelegate } : {}),
         }
 
         const result: GeneratePipelineResult = await runGeneratePipeline(args, options)
@@ -212,6 +321,7 @@ export const useGenerationPipeline = ({
         pushHistory(`Generation failed: ${message}`)
         setStatusMessage('Failed')
       } finally {
+        submitRefinement('')
         setIsGenerating(false)
       }
     },
@@ -230,6 +340,8 @@ export const useGenerationPipeline = ({
       interactiveTransportPath,
       terminalColumns,
       handleStreamEvent,
+      interactiveDelegate,
+      submitRefinement,
       pushHistory,
     ],
   )
@@ -381,5 +493,7 @@ export const useGenerationPipeline = ({
     runGeneration,
     runSeriesGeneration,
     statusChips,
+    isAwaitingRefinement,
+    submitRefinement,
   }
 }
