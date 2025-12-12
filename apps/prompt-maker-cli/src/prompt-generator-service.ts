@@ -100,25 +100,34 @@ export class PromptGeneratorService {
     const isRefinement = Boolean(request.previousPrompt && request.refinementInstruction)
     const systemContent = isRefinement ? REFINE_SYSTEM_PROMPT : GEN_SYSTEM_PROMPT
 
-    const userContent = isRefinement
-      ? await buildRefinementMessage(
-          request.previousPrompt!,
-          request.refinementInstruction!,
-          request.intent,
-          request.fileContext,
-          request.images,
-          request.videos,
-          request.metaInstructions,
-          request.onUploadStateChange,
-        )
-      : await buildInitialUserMessage(
-          request.intent,
-          request.fileContext,
-          request.images,
-          request.videos,
-          request.metaInstructions,
-          request.onUploadStateChange,
-        )
+    let userContent: MessageContent
+    if (isRefinement) {
+      const previousPrompt = request.previousPrompt
+      const refinementInstruction = request.refinementInstruction
+      if (!previousPrompt || !refinementInstruction) {
+        throw new Error('Refinement requests require previousPrompt and refinementInstruction.')
+      }
+
+      userContent = await buildRefinementMessage(
+        previousPrompt,
+        refinementInstruction,
+        request.intent,
+        request.fileContext,
+        request.images,
+        request.videos,
+        request.metaInstructions,
+        request.onUploadStateChange,
+      )
+    } else {
+      userContent = await buildInitialUserMessage(
+        request.intent,
+        request.fileContext,
+        request.images,
+        request.videos,
+        request.metaInstructions,
+        request.onUploadStateChange,
+      )
+    }
 
     const messages: Message[] = [
       { role: 'system', content: systemContent },
@@ -137,7 +146,7 @@ export class PromptGeneratorService {
       }
 
       return result.prompt
-    } catch (error) {
+    } catch {
       return rawResponse
     }
   }
@@ -164,7 +173,7 @@ export class PromptGeneratorService {
     let series: SeriesResponse
     try {
       series = parseLLMJson<SeriesResponse>(rawResponse)
-    } catch (error) {
+    } catch {
       throw new Error('LLM did not return valid SeriesResponse JSON.')
     }
 
@@ -413,7 +422,7 @@ const parseLLMJson = <T>(text: string): T => {
 
   try {
     return JSON.parse(cleaned) as T
-  } catch (error) {
+  } catch {
     console.warn('Failed to parse LLM JSON response. Falling back to raw text.')
     throw new Error('LLM did not return valid JSON.')
   }

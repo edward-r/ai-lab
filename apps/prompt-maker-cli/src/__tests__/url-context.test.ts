@@ -26,7 +26,10 @@ describe('resolveUrlContext', () => {
 
     expect(mockFetch).toHaveBeenCalledWith('https://example.com/page', expect.any(Object))
     expect(results).toHaveLength(1)
-    const file = results[0]!
+    const file = results[0]
+    if (!file) {
+      throw new Error('Expected resolveUrlContext to return one file')
+    }
     expect(file.path).toBe('url:https://example.com/page')
     expect(file.content.toLowerCase()).toContain('title')
     expect(file.content).toContain('Paragraph')

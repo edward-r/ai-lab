@@ -13,7 +13,7 @@ export const countTokens = (text: string): number => {
   if (!text) return 0
   try {
     return getEncoder().encode(text).length
-  } catch (error) {
+  } catch {
     console.warn('Token counting failed, defaulting to character heuristic.')
     return Math.ceil(text.length / 4)
   }
