@@ -5,6 +5,10 @@ import type { MutableRefObject } from 'react'
 import { usePopupManager } from '../tui/hooks/usePopupManager'
 import type { UsePopupManagerOptions } from '../tui/hooks/usePopupManager'
 
+jest.mock('../tui/file-suggestions', () => ({
+  discoverFileSuggestions: jest.fn(),
+}))
+
 const dom = new JSDOM('<!doctype html><html><body></body></html>')
 const globalScope = globalThis as typeof globalThis & {
   window: Window & typeof globalThis
@@ -49,6 +53,107 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
 
   return { ...defaults, ...overrides }
 }
+
+type Deferred<T> = {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (reason?: unknown) => void
+}
+
+const createDeferred = <T>(): Deferred<T> => {
+  let resolve: (value: T) => void = () => {}
+  let reject: (reason?: unknown) => void = () => {}
+
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+
+  return { promise, resolve, reject }
+}
+
+const fileSuggestions = jest.requireMock('../tui/file-suggestions') as {
+  discoverFileSuggestions: jest.Mock
+}
+
+describe('usePopupManager file popup', () => {
+  beforeEach(() => {
+    fileSuggestions.discoverFileSuggestions.mockReset()
+  })
+
+  it('initializes file popup with suggestion defaults', () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverFileSuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openFilePopup()
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'file',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('populates file popup suggestions after scanning', async () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverFileSuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openFilePopup()
+    })
+
+    await act(async () => {
+      deferred.resolve(['src/index.ts', 'README.md'])
+      await deferred.promise
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'file',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: ['src/index.ts', 'README.md'],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('logs a history entry when scanning fails', async () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverFileSuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openFilePopup()
+    })
+
+    await act(async () => {
+      deferred.reject(new Error('boom'))
+      try {
+        await deferred.promise
+      } catch {
+        // ignored
+      }
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith(
+      '[file] Failed to scan workspace: boom',
+      'system',
+    )
+  })
+})
 
 describe('usePopupManager quick toggles', () => {
   it('toggles polish without arguments', () => {

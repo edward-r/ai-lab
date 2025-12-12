@@ -34,7 +34,7 @@ export const TOGGLE_LABELS = {
 export const POPUP_HEIGHTS = {
   model: MODEL_OPTIONS.length + 5,
   toggle: 6,
-  file: 12,
+  file: 16,
   url: 12,
   smart: 9,
   test: 7,

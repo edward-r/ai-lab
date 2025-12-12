@@ -8,7 +8,14 @@ export type PopupKind = keyof typeof POPUP_HEIGHTS
 export type PopupState =
   | { type: 'model'; query: string; selectionIndex: number }
   | { type: 'toggle'; field: ToggleField; selectionIndex: number }
-  | { type: 'file'; draft: string; selectionIndex: number }
+  | {
+      type: 'file'
+      draft: string
+      selectionIndex: number
+      suggestedItems: string[]
+      suggestedSelectionIndex: number
+      suggestedFocused: boolean
+    }
   | { type: 'url'; draft: string; selectionIndex: number }
   | { type: 'smart'; draft: string }
   | { type: 'test'; draft: string }
