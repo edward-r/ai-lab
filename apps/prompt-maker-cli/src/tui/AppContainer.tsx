@@ -1,34 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { Box, Text, useApp, useInput } from 'ink'
-import type { Key } from 'ink'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Box, Text, useApp, useInput, useStdout } from 'ink'
 import cliCursor from 'cli-cursor'
 
 import { CommandScreen, type CommandScreenHandle } from './CommandScreen'
-import { TestRunnerScreen } from './TestRunnerScreen'
+import { TestRunnerScreen, type TestRunnerScreenHandle } from './TestRunnerScreen'
 import { ContextProvider } from './context'
-
-const toControlCharacter = (letter: string): string | null => {
-  if (!letter) {
-    return null
-  }
-  const normalized = letter.toLowerCase()
-  const code = normalized.charCodeAt(0)
-  if (code < 97 || code > 122) {
-    return null
-  }
-  return String.fromCharCode(code - 96)
-}
-
-const matchesControlKey = (input: string, key: Key, target: string): boolean => {
-  if (!target || !input) {
-    return false
-  }
-  if (key.ctrl && input.toLowerCase() === target.toLowerCase()) {
-    return true
-  }
-  const controlChar = toControlCharacter(target)
-  return controlChar ? input === controlChar : false
-}
+import { HelpOverlay } from './components/core/HelpOverlay'
+import { COMMAND_DESCRIPTORS } from './config'
+import { createHelpSections, estimateHelpOverlayHeight } from './help-config'
+import { resolveAppContainerKeyAction } from './app-container-keymap'
 
 export type AppContainerProps = {
   interactiveTransport?: string | undefined
@@ -36,11 +16,14 @@ export type AppContainerProps = {
 
 export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport }) => {
   const { exit } = useApp()
+  const { stdout } = useStdout()
   const [view, setView] = useState<'generate' | 'tests'>('generate')
   const [isPopupOpen, setIsPopupOpen] = useState(false)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [pendingCommandMenu, setPendingCommandMenu] = useState(false)
   const [commandMenuSignal, setCommandMenuSignal] = useState(0)
   const commandScreenRef = useRef<CommandScreenHandle | null>(null)
+  const testRunnerRef = useRef<TestRunnerScreenHandle | null>(null)
 
   useEffect(() => {
     if (!process.stdout.isTTY) {
@@ -72,33 +55,51 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
   }, [pendingCommandMenu, view])
 
   useInput((input, key) => {
-    const isControlKey = (target: string): boolean => matchesControlKey(input, key, target)
+    const action = resolveAppContainerKeyAction({
+      input,
+      key,
+      view,
+      isPopupOpen,
+      isHelpOpen,
+    })
 
-    if (isControlKey('c')) {
+    if (action.type === 'none') {
+      return
+    }
+
+    if (action.type === 'toggle-help') {
+      if (!isHelpOpen && action.nextIsHelpOpen) {
+        if (view === 'generate') {
+          commandScreenRef.current?.suppressNextInput()
+        } else {
+          testRunnerRef.current?.suppressNextInput()
+        }
+      }
+      setIsHelpOpen(action.nextIsHelpOpen)
+      return
+    }
+
+    if (action.type === 'exit') {
       if (view === 'generate') {
         commandScreenRef.current?.suppressNextInput()
       }
       exit()
       return
     }
-    if (key.escape) {
-      if (view === 'generate' && isPopupOpen) {
-        return
-      }
-      exit()
+
+    if (action.type === 'open-command-palette') {
+      commandScreenRef.current?.suppressNextInput()
+      setCommandMenuSignal((prev) => prev + 1)
       return
     }
-    if (isControlKey('g')) {
-      if (view === 'generate') {
-        commandScreenRef.current?.suppressNextInput()
-        setCommandMenuSignal((prev) => prev + 1)
-      } else {
-        setPendingCommandMenu(true)
-        setView('generate')
-      }
+
+    if (action.type === 'switch-to-generate-and-open-command-palette') {
+      setPendingCommandMenu(true)
+      setView('generate')
       return
     }
-    if (isControlKey('t')) {
+
+    if (action.type === 'switch-to-tests') {
       if (view === 'generate') {
         commandScreenRef.current?.suppressNextInput()
       }
@@ -106,14 +107,25 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
     }
   })
 
+  const terminalRows = stdout?.rows ?? 24
+  const helpMaxHeight = Math.max(10, terminalRows - 6)
+
+  const helpSections = useMemo(
+    () => createHelpSections({ commandDescriptors: COMMAND_DESCRIPTORS }),
+    [],
+  )
+  const helpIdealHeight = useMemo(() => estimateHelpOverlayHeight(helpSections), [helpSections])
+  const helpOverlayHeight = Math.min(helpIdealHeight, helpMaxHeight)
+  const helpReservedRows = isHelpOpen ? helpOverlayHeight + 1 : 0
+
   return (
     <ContextProvider>
       <Box flexDirection="column" paddingX={2} paddingY={1} height="100%">
         <Text color="cyanBright">Prompt Maker · Command Palette Preview</Text>
         <Text color="gray">
-          Ctrl+G → Command Palette · Ctrl+T → Test Runner · Ctrl+C/Esc to exit.
+          Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C/Esc to exit.
         </Text>
-        <Box flexDirection="column" flexGrow={1} height="100%" marginTop={1}>
+        <Box flexDirection="column" flexGrow={1} marginTop={1}>
           {view === 'generate' ? (
             <>
               <Text color="gray">
@@ -125,22 +137,29 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
                   appear in history.
                 </Text>
               ) : null}
-              <Box flexDirection="column" flexGrow={1} height="100%" marginTop={1}>
+              <Box flexDirection="column" flexGrow={1} marginTop={1}>
                 <CommandScreen
                   ref={commandScreenRef}
                   interactiveTransportPath={interactiveTransport}
                   onPopupVisibilityChange={setIsPopupOpen}
                   commandMenuSignal={commandMenuSignal}
+                  helpOpen={isHelpOpen}
+                  reservedRows={helpReservedRows}
                 />
               </Box>
             </>
           ) : (
             <>
               <Text color="gray">Enter a test file and press Enter to run suites.</Text>
-              <TestRunnerScreen />
+              <TestRunnerScreen ref={testRunnerRef} helpOpen={isHelpOpen} />
             </>
           )}
         </Box>
+        {isHelpOpen ? (
+          <Box marginTop={1}>
+            <HelpOverlay activeView={view} maxHeight={helpMaxHeight} />
+          </Box>
+        ) : null}
       </Box>
     </ContextProvider>
   )

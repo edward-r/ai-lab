@@ -53,6 +53,7 @@ const WELCOME_LINES = [
   'Welcome to the Prompt Maker command palette preview.',
   'Type natural language requests or start a command with /.',
   'Press Enter to log input; arrow keys scroll history.',
+  'Press ? anytime to view keyboard shortcuts.',
   'Use /intent to load intent text from a file (blank clears).',
   'Tip: Press Tab to open the Series intent popup.',
 ]
@@ -67,6 +68,8 @@ type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
   onPopupVisibilityChange?: (isOpen: boolean) => void
   commandMenuSignal?: number
+  helpOpen?: boolean
+  reservedRows?: number
 }
 
 export type CommandScreenHandle = {
@@ -74,7 +77,16 @@ export type CommandScreenHandle = {
 }
 
 export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>(
-  ({ interactiveTransportPath, onPopupVisibilityChange, commandMenuSignal }, ref) => {
+  (
+    {
+      interactiveTransportPath,
+      onPopupVisibilityChange,
+      commandMenuSignal,
+      helpOpen = false,
+      reservedRows = 0,
+    },
+    ref,
+  ) => {
     const { exit } = useApp()
     const { stdout } = useStdout()
     const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
@@ -96,6 +108,14 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const [isTestCommandRunning, setIsTestCommandRunning] = useState(false)
     const [lastTestFile, setLastTestFile] = useState<string | null>(null)
     const suppressNextInputRef = useRef(false)
+
+    const consumeSuppressedTextInputChange = useCallback((): boolean => {
+      if (!suppressNextInputRef.current) {
+        return false
+      }
+      suppressNextInputRef.current = false
+      return true
+    }, [])
 
     const pushHistoryRef = useRef<(content: string, kind?: HistoryEntry['kind']) => void>(() => {})
     const pushHistoryProxy = useCallback(
@@ -255,18 +275,31 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     }, [isCommandMode, normalizedQuery])
 
     const visibleCommands = commandMatches
-    const isCommandMenuActive = isCommandMode && !isPopupOpen
+    const isCommandMenuActive = isCommandMode && !isPopupOpen && !helpOpen
     const menuHeight = isCommandMenuActive
       ? Math.min(COMMAND_MENU_HEIGHT, Math.max(visibleCommands.length, 1) + 2)
       : 0
-    const overlayHeight = popupState ? POPUP_HEIGHTS[popupState.type as PopupKind] : menuHeight
+    const overlayHeight = helpOpen
+      ? 0
+      : popupState
+        ? POPUP_HEIGHTS[popupState.type as PopupKind]
+        : menuHeight
     const historyRows = useMemo(() => {
-      const overlaySpacingRows = popupState || isCommandMenuActive ? 1 : 0
+      const overlaySpacingRows = !helpOpen && (popupState || isCommandMenuActive) ? 1 : 0
       const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_STATIC_ROWS
       const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
-      const availableRows = terminalRows - overlayHeight - parentRows - overlaySpacingRows
+      const availableRows =
+        terminalRows - overlayHeight - parentRows - overlaySpacingRows - reservedRows
       return Math.max(1, availableRows)
-    }, [interactiveTransportPath, isCommandMenuActive, overlayHeight, popupState, terminalRows])
+    }, [
+      helpOpen,
+      interactiveTransportPath,
+      isCommandMenuActive,
+      overlayHeight,
+      popupState,
+      reservedRows,
+      terminalRows,
+    ])
 
     const { history, pushHistory, scroll } = useCommandHistory({
       initialEntries: WELCOME_HISTORY,
@@ -369,7 +402,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           scrollBy(historyRows)
         }
       },
-      { isActive: !isCommandMenuActive && !isPopupOpen },
+      { isActive: !isCommandMenuActive && !isPopupOpen && !helpOpen },
     )
 
     useInput(
@@ -391,7 +424,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           setInputValue('')
         }
       },
-      { isActive: isCommandMenuActive },
+      { isActive: isCommandMenuActive && !helpOpen },
     )
 
     useInput(
@@ -408,7 +441,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
         handleCommandSelection('series', inputValue)
       },
-      { isActive: !isPopupOpen },
+      { isActive: !isPopupOpen && !helpOpen },
     )
 
     const selectedCommand =
@@ -803,7 +836,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           }
         }
       },
-      { isActive: isPopupOpen },
+      { isActive: isPopupOpen && !helpOpen },
     )
 
     const runTestsFromCommand = useCallback(
@@ -940,11 +973,10 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const handleInputChange = useCallback(
       (next: string) => {
-        if (popupState) {
+        if (consumeSuppressedTextInputChange()) {
           return
         }
-        if (suppressNextInputRef.current) {
-          suppressNextInputRef.current = false
+        if (popupState) {
           return
         }
         setInputValue(next)
@@ -954,7 +986,88 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
         lastTypedIntentRef.current = next
       },
-      [popupState, setInputValue],
+      [consumeSuppressedTextInputChange, popupState, setInputValue],
+    )
+
+    const handleModelPopupQueryChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) =>
+          prev?.type === 'model' ? { ...prev, query: next, selectionIndex: 0 } : prev,
+        )
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleUrlPopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) => (prev?.type === 'url' ? { ...prev, draft: next } : prev))
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleFilePopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) =>
+          prev?.type === 'file'
+            ? {
+                ...prev,
+                draft: next,
+                suggestedSelectionIndex: 0,
+                suggestedFocused: false,
+              }
+            : prev,
+        )
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleIntentPopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) => (prev?.type === 'intent' ? { ...prev, draft: next } : prev))
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleSeriesPopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) => (prev?.type === 'series' ? { ...prev, draft: next } : prev))
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleTestPopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) => (prev?.type === 'test' ? { ...prev, draft: next } : prev))
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleSmartPopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) => (prev?.type === 'smart' ? { ...prev, draft: next } : prev))
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
     )
 
     const modelPopupOptions =
@@ -966,22 +1079,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         : 0
 
     return (
-      <Box flexDirection="column" flexGrow={1} height="100%" paddingX={1} paddingY={1}>
+      <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
         <Box flexDirection="column" flexGrow={1} height={historyRows} marginBottom={1}>
           <ScrollableOutput lines={history} visibleRows={historyRows} scrollOffset={scrollOffset} />
         </Box>
-        {popupState ? (
+        {popupState && !helpOpen ? (
           <Box marginBottom={1}>
             {popupState.type === 'model' ? (
               <ModelPopup
                 query={popupState.query}
                 options={modelPopupOptions}
                 selectedIndex={modelPopupSelection}
-                onQueryChange={(next) =>
-                  setPopupState((prev) =>
-                    prev?.type === 'model' ? { ...prev, query: next, selectionIndex: 0 } : prev,
-                  )
-                }
+                onQueryChange={handleModelPopupQueryChange}
                 onSubmit={handleModelPopupSubmit}
               />
             ) : popupState.type === 'toggle' ? (
@@ -998,18 +1107,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 suggestedItems={filePopupSuggestions}
                 suggestedSelectionIndex={filePopupSuggestionSelectionIndex}
                 suggestedFocused={filePopupSuggestionsFocused}
-                onDraftChange={(next) =>
-                  setPopupState((prev) =>
-                    prev?.type === 'file'
-                      ? {
-                          ...prev,
-                          draft: next,
-                          suggestedSelectionIndex: 0,
-                          suggestedFocused: false,
-                        }
-                      : prev,
-                  )
-                }
+                onDraftChange={handleFilePopupDraftChange}
                 onSubmitDraft={handleAddFile}
               />
             ) : popupState.type === 'url' ? (
@@ -1021,19 +1119,13 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 selectedIndex={popupState.selectionIndex}
                 emptyLabel="No URLs added"
                 instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
-                onDraftChange={(next) =>
-                  setPopupState((prev) => (prev?.type === 'url' ? { ...prev, draft: next } : prev))
-                }
+                onDraftChange={handleUrlPopupDraftChange}
                 onSubmitDraft={handleAddUrl}
               />
             ) : popupState.type === 'intent' ? (
               <IntentFilePopup
                 draft={popupState.draft}
-                onDraftChange={(next) =>
-                  setPopupState((prev) =>
-                    prev?.type === 'intent' ? { ...prev, draft: next } : prev,
-                  )
-                }
+                onDraftChange={handleIntentPopupDraftChange}
                 onSubmitDraft={handleIntentFileSubmit}
               />
             ) : popupState.type === 'series' ? (
@@ -1041,31 +1133,21 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 draft={popupState.draft}
                 hint={popupState.hint}
                 isRunning={isGenerating}
-                onDraftChange={(next) =>
-                  setPopupState((prev) =>
-                    prev?.type === 'series' ? { ...prev, draft: next } : prev,
-                  )
-                }
+                onDraftChange={handleSeriesPopupDraftChange}
                 onSubmitDraft={handleSeriesIntentSubmit}
               />
             ) : popupState.type === 'test' ? (
               <TestPopup
                 draft={popupState.draft}
                 isRunning={isTestCommandRunning}
-                onDraftChange={(next) =>
-                  setPopupState((prev) => (prev?.type === 'test' ? { ...prev, draft: next } : prev))
-                }
+                onDraftChange={handleTestPopupDraftChange}
                 onSubmitDraft={handleTestPopupSubmit}
               />
             ) : (
               <SmartPopup
                 enabled={smartContextEnabled}
                 draft={popupState.draft}
-                onDraftChange={(next) =>
-                  setPopupState((prev) =>
-                    prev?.type === 'smart' ? { ...prev, draft: next } : prev,
-                  )
-                }
+                onDraftChange={handleSmartPopupDraftChange}
                 onSubmitRoot={handleSmartRootSubmit}
               />
             )}
@@ -1081,7 +1163,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           value={inputValue}
           onChange={handleInputChange}
           onSubmit={handleSubmit}
-          isDisabled={isPopupOpen}
+          isDisabled={isPopupOpen || helpOpen}
           statusChips={enhancedStatusChips}
           placeholder={
             isAwaitingRefinement
