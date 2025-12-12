@@ -8,6 +8,7 @@ export type InputBarProps = {
   onSubmit: (value: string) => void
   isDisabled?: boolean
   statusChips: readonly string[]
+  placeholder?: string
 }
 
 export const InputBar: React.FC<InputBarProps> = ({
@@ -16,6 +17,7 @@ export const InputBar: React.FC<InputBarProps> = ({
   onSubmit,
   isDisabled = false,
   statusChips,
+  placeholder,
 }) => (
   <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
     <Text color="cyan">{statusChips.join(' ')}</Text>
@@ -26,7 +28,7 @@ export const InputBar: React.FC<InputBarProps> = ({
         value={value}
         onChange={onChange}
         onSubmit={onSubmit}
-        placeholder="Describe your goal or type /command"
+        placeholder={placeholder ?? 'Describe your goal or type /command'}
         focus={!isDisabled}
       />
     </Box>
