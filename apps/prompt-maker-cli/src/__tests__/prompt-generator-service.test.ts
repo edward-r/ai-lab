@@ -122,6 +122,25 @@ describe('PromptGeneratorService.generatePrompt', () => {
     expect(prompt).toBe('Result')
   })
 
+  it('includes meta instructions when provided', async () => {
+    const service = await buildService()
+    await service.generatePrompt({
+      intent: 'Do a thing',
+      model: 'gpt-4o-mini',
+      fileContext: [],
+      images: [],
+      videos: [],
+      metaInstructions: 'Be concise',
+    })
+    const call = (callLLM as jest.Mock).mock.calls[0][0]
+    const userMessage = call.find((msg: { role: string }) => msg.role === 'user')
+    const textPayload =
+      typeof userMessage.content === 'string'
+        ? userMessage.content
+        : (userMessage.content.find((part: { type: string }) => part.type === 'text')?.text ?? '')
+    expect(textPayload).toContain('Meta-Instructions:\nBe concise')
+  })
+
   it('handles refinement flows with previous prompt', async () => {
     const service = await buildService()
     await service.generatePrompt({

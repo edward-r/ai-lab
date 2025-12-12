@@ -20,12 +20,14 @@ export type PopupManagerActions = {
   openSmartPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
+  openInstructionsPopup: () => void
   openSeriesPopup: (initialDraft?: string, hintOverride?: string) => void
   closePopup: () => void
   handleCommandSelection: (commandId: CommandDescriptor['id'], argsRaw?: string) => void
   handleModelPopupSubmit: (option?: ModelOption) => void
   applyToggleSelection: (field: ToggleField, value: boolean) => void
   handleIntentFileSubmit: (value: string) => void
+  handleInstructionsSubmit: (value: string) => void
   handleSeriesIntentSubmit: (value: string) => void
 }
 
@@ -50,6 +52,8 @@ export type UsePopupManagerOptions = {
   setJsonOutputEnabled: (value: boolean) => void
   setIntentFilePath: (value: string) => void
   intentFilePath: string
+  metaInstructions: string
+  setMetaInstructions: (value: string) => void
   polishEnabled: boolean
   copyEnabled: boolean
   chatGptEnabled: boolean
@@ -81,6 +85,8 @@ export const usePopupManager = ({
   setJsonOutputEnabled,
   setIntentFilePath,
   intentFilePath,
+  metaInstructions,
+  setMetaInstructions,
   polishEnabled,
   copyEnabled,
   chatGptEnabled,
@@ -164,6 +170,10 @@ export const usePopupManager = ({
   const openIntentPopup = useCallback(() => {
     setPopupState({ type: 'intent', draft: intentFilePath })
   }, [intentFilePath])
+
+  const openInstructionsPopup = useCallback(() => {
+    setPopupState({ type: 'instructions', draft: metaInstructions })
+  }, [metaInstructions])
 
   const openSeriesPopup = useCallback(
     (initialDraft?: string, hintOverride?: string) => {
@@ -255,6 +265,17 @@ export const usePopupManager = ({
     [pushHistory, setInputValue, setIntentFilePath],
   )
 
+  const handleInstructionsSubmit = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      setMetaInstructions(trimmed)
+      pushHistory(trimmed ? `[instr] ${trimmed}` : '[instr] cleared')
+      setInputValue('')
+      setPopupState(null)
+    },
+    [pushHistory, setInputValue, setMetaInstructions],
+  )
+
   const handleSeriesIntentSubmit = useCallback(
     (value: string) => {
       const trimmed = value.trim()
@@ -344,6 +365,9 @@ export const usePopupManager = ({
           return
         case 'intent':
           openIntentPopup()
+          return
+        case 'instructions':
+          openInstructionsPopup()
           return
         case 'exit':
           pushHistory('Exiting…', 'system')
@@ -440,6 +464,7 @@ export const usePopupManager = ({
       openTestPopup,
       openTogglePopup,
       openUrlPopup,
+      openInstructionsPopup,
       polishEnabled,
       pushHistory,
       runTestsFromCommand,
@@ -460,12 +485,14 @@ export const usePopupManager = ({
       openSmartPopup,
       openTestPopup,
       openIntentPopup,
+      openInstructionsPopup,
       openSeriesPopup,
       closePopup,
       handleCommandSelection,
       handleModelPopupSubmit,
       applyToggleSelection,
       handleIntentFileSubmit,
+      handleInstructionsSubmit,
       handleSeriesIntentSubmit,
     },
   }

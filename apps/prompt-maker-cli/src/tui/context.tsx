@@ -8,6 +8,7 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [videos, setVideos] = useState<string[]>([])
   const [smartContextEnabled, setSmartContextEnabled] = useState(false)
   const [smartContextRoot, setSmartContextRoot] = useState<string | null>(null)
+  const [metaInstructions, setMetaInstructions] = useState('')
 
   const addEntry = useCallback(
     (value: string, setter: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -50,7 +51,15 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   return (
     <ContextStateContext.Provider
-      value={{ files, urls, images, videos, smartContextEnabled, smartContextRoot }}
+      value={{
+        files,
+        urls,
+        images,
+        videos,
+        smartContextEnabled,
+        smartContextRoot,
+        metaInstructions,
+      }}
     >
       <ContextDispatchContext.Provider
         value={{
@@ -64,6 +73,7 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
           removeVideo,
           toggleSmartContext,
           setSmartRoot,
+          setMetaInstructions,
         }}
       >
         {children}

@@ -21,6 +21,7 @@ import { SmartPopup } from './components/popups/SmartPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
 import { IntentFilePopup } from './components/popups/IntentFilePopup'
+import { InstructionsPopup } from './components/popups/InstructionsPopup'
 import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
 import { filterFileSuggestions } from './file-suggestions'
@@ -124,9 +125,17 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
   ) => {
     const { exit } = useApp()
     const { stdout } = useStdout()
-    const { files, urls, images, videos, smartContextEnabled, smartContextRoot } = useContextState()
-    const { addFile, removeFile, addUrl, removeUrl, toggleSmartContext, setSmartRoot } =
-      useContextDispatch()
+    const { files, urls, images, videos, smartContextEnabled, smartContextRoot, metaInstructions } =
+      useContextState()
+    const {
+      addFile,
+      removeFile,
+      addUrl,
+      removeUrl,
+      toggleSmartContext,
+      setSmartRoot,
+      setMetaInstructions,
+    } = useContextDispatch()
 
     const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
     const [terminalColumns, setTerminalColumns] = useState(stdout?.columns ?? 80)
@@ -236,6 +245,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const normalizedQuery = parsedCommand.keyword.toLowerCase()
     const commandArgsRaw = parsedCommand.args
 
+    const trimmedMetaInstructions = metaInstructions.trim()
+
     const {
       isGenerating,
       runGeneration,
@@ -254,6 +265,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       currentModel,
       interactiveTransportPath,
       terminalColumns,
+      metaInstructions: trimmedMetaInstructions,
       polishEnabled,
       jsonOutputEnabled,
       copyEnabled,
@@ -271,6 +283,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         handleModelPopupSubmit,
         applyToggleSelection,
         handleIntentFileSubmit,
+        handleInstructionsSubmit,
         handleSeriesIntentSubmit,
       },
     } = usePopupManager({
@@ -294,6 +307,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       setJsonOutputEnabled,
       setIntentFilePath,
       intentFilePath,
+      metaInstructions,
+      setMetaInstructions,
       polishEnabled,
       copyEnabled,
       chatGptEnabled,
@@ -323,8 +338,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       } else {
         chips.push('[intent:text]')
       }
+      if (trimmedMetaInstructions) {
+        chips.push('[instr:on]')
+      }
       return chips
-    }, [providerChips, statusChips, trimmedIntentFilePath])
+    }, [providerChips, statusChips, trimmedIntentFilePath, trimmedMetaInstructions])
 
     useEffect(() => {
       if (!onPopupVisibilityChange) {
@@ -349,11 +367,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       if (!normalizedQuery) {
         return COMMAND_DESCRIPTORS
       }
-      const filtered = COMMAND_DESCRIPTORS.filter(
-        (command) =>
-          command.id.startsWith(normalizedQuery) ||
-          command.label.toLowerCase().startsWith(normalizedQuery),
-      )
+      const filtered = COMMAND_DESCRIPTORS.filter((command) => {
+        if (command.id.startsWith(normalizedQuery)) {
+          return true
+        }
+        if (command.label.toLowerCase().startsWith(normalizedQuery)) {
+          return true
+        }
+        if ('aliases' in command && Array.isArray(command.aliases)) {
+          return command.aliases.some((alias) => alias.startsWith(normalizedQuery))
+        }
+        return false
+      })
       return filtered.length > 0 ? filtered : COMMAND_DESCRIPTORS
     }, [isCommandMode, normalizedQuery])
 
@@ -967,6 +992,13 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           return
         }
 
+        if (popupState.type === 'instructions') {
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
         if (popupState.type === 'series') {
           if (key.escape) {
             closePopup()
@@ -1194,6 +1226,16 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       [consumeSuppressedTextInputChange, setPopupState],
     )
 
+    const handleInstructionsPopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) => (prev?.type === 'instructions' ? { ...prev, draft: next } : prev))
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
     const handleTestPopupDraftChange = useCallback(
       (next: string) => {
         if (consumeSuppressedTextInputChange()) {
@@ -1272,6 +1314,12 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 draft={popupState.draft}
                 onDraftChange={handleIntentPopupDraftChange}
                 onSubmitDraft={handleIntentFileSubmit}
+              />
+            ) : popupState.type === 'instructions' ? (
+              <InstructionsPopup
+                draft={popupState.draft}
+                onDraftChange={handleInstructionsPopupDraftChange}
+                onSubmitDraft={handleInstructionsSubmit}
               />
             ) : popupState.type === 'series' ? (
               <SeriesIntentPopup

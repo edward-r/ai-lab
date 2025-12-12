@@ -117,6 +117,7 @@ export type UseGenerationPipelineOptions = {
   videos: string[]
   smartContextEnabled: boolean
   smartContextRoot: string | null
+  metaInstructions: string
   currentModel: string
   interactiveTransportPath?: string | undefined
   terminalColumns: number
@@ -136,6 +137,7 @@ export const useGenerationPipeline = ({
   videos,
   smartContextEnabled,
   smartContextRoot,
+  metaInstructions,
   currentModel,
   interactiveTransportPath,
   terminalColumns,
@@ -150,6 +152,7 @@ export const useGenerationPipeline = ({
   const [spinnerIndex, setSpinnerIndex] = useState(0)
   const [statusMessage, setStatusMessage] = useState('Idle')
   const [isAwaitingRefinement, setIsAwaitingRefinement] = useState(false)
+  const normalizedMetaInstructions = metaInstructions.trim()
 
   type PendingRefinement = {
     requestId: number
@@ -382,6 +385,9 @@ export const useGenerationPipeline = ({
           smartContext: smartContextEnabled,
           model: normalizedModel,
         }
+        if (normalizedMetaInstructions) {
+          args.metaInstructions = normalizedMetaInstructions
+        }
         if (trimmedIntentFile) {
           args.intentFile = trimmedIntentFile
         } else {
@@ -556,6 +562,7 @@ export const useGenerationPipeline = ({
           images: [...images],
           videos: [...videos],
           onUploadStateChange: handleUploadState,
+          ...(normalizedMetaInstructions ? { metaInstructions: normalizedMetaInstructions } : {}),
         }
 
         setStatusMessage('Series: generating…')
