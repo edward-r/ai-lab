@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import wrapAnsi from 'wrap-ansi'
@@ -21,6 +24,88 @@ import type { UploadStateChange } from '../../prompt-generator-service'
 import type { HistoryEntry } from '../types'
 
 const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
+
+const padTwoDigits = (value: number): string => value.toString().padStart(2, '0')
+
+const formatSeriesTimestamp = (date: Date = new Date()): string => {
+  const year = date.getFullYear().toString()
+  const month = padTwoDigits(date.getMonth() + 1)
+  const day = padTwoDigits(date.getDate())
+  const hours = padTwoDigits(date.getHours())
+  const minutes = padTwoDigits(date.getMinutes())
+  const seconds = padTwoDigits(date.getSeconds())
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`
+}
+
+const sanitizeForPathSegment = (value: string, fallback: string, maxLength?: number): string => {
+  const normalized = value.trim().toLowerCase()
+  const slug = normalized
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  const candidate = slug || fallback
+  if (!maxLength || candidate.length <= maxLength) {
+    return candidate
+  }
+
+  const truncated = candidate.slice(0, maxLength).replace(/-+$/g, '')
+  return truncated || fallback
+}
+
+const extractValidationSection = (content: string): string | null => {
+  const markerRegex = /^(?:#{1,6}\s*Validation\b.*|Validation\s*:.*)$/im
+  const match = markerRegex.exec(content)
+  if (!match) {
+    return null
+  }
+
+  return content.slice(match.index).trim()
+}
+
+type WriteSeriesArtifactsResult = {
+  writtenCount: number
+  errors: Array<{ fileName: string; message: string }>
+}
+
+const writeSeriesArtifacts = async (
+  seriesDir: string,
+  series: SeriesResponse,
+): Promise<WriteSeriesArtifactsResult> => {
+  const tasks: Array<{ fileName: string; content: string }> = []
+
+  tasks.push({ fileName: '00-overview.md', content: series.overviewPrompt })
+
+  series.atomicPrompts.forEach((step, index) => {
+    const stepNumber = index + 1
+    const stepPrefix = stepNumber.toString().padStart(2, '0')
+    const titleSlug = sanitizeForPathSegment(step.title, 'step', 60)
+    tasks.push({ fileName: `${stepPrefix}-${titleSlug}.md`, content: step.content })
+  })
+
+  const results = await Promise.allSettled(
+    tasks.map(async (task) => {
+      await fs.writeFile(path.join(seriesDir, task.fileName), task.content, 'utf8')
+      return task.fileName
+    }),
+  )
+
+  const errors: Array<{ fileName: string; message: string }> = []
+  let writtenCount = 0
+
+  results.forEach((result, index) => {
+    const fileName = tasks[index]?.fileName ?? 'unknown'
+    if (result.status === 'fulfilled') {
+      writtenCount += 1
+      return
+    }
+
+    const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
+    errors.push({ fileName, message })
+  })
+
+  return { writtenCount, errors }
+}
 
 export type UseGenerationPipelineOptions = {
   pushHistory: (content: string, kind?: HistoryEntry['kind']) => void
@@ -351,6 +436,21 @@ export const useGenerationPipeline = ({
       setIsGenerating(true)
       setStatusMessage('Series: resolving context…')
       pushHistory('[series] Starting series generation…', 'progress')
+
+      const seriesDir = path.join(
+        path.resolve(process.cwd(), 'generated', 'series'),
+        `${formatSeriesTimestamp()}-${sanitizeForPathSegment(intent, 'intent')}`,
+      )
+
+      let canWriteFiles = true
+      try {
+        await fs.mkdir(seriesDir, { recursive: true })
+      } catch (error) {
+        canWriteFiles = false
+        const message = error instanceof Error ? error.message : 'Unknown filesystem error.'
+        pushHistory(`[series] Failed to prepare output directory: ${message}`, 'progress')
+      }
+
       try {
         const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
         let targetModel = normalizedModel
@@ -424,12 +524,54 @@ export const useGenerationPipeline = ({
 
         setStatusMessage('Series: generating…')
         const series: SeriesResponse = await generatePromptSeries(request)
+
+        const totalPrompts = 1 + series.atomicPrompts.length
+        let writeResult: WriteSeriesArtifactsResult | null = null
+
+        if (canWriteFiles) {
+          try {
+            writeResult = await writeSeriesArtifacts(seriesDir, series)
+            writeResult.errors.forEach((entry) => {
+              pushHistory(
+                `[series] Failed to write ${entry.fileName}: ${entry.message}`,
+                'progress',
+              )
+            })
+          } catch (error) {
+            canWriteFiles = false
+            const message = error instanceof Error ? error.message : 'Unknown filesystem error.'
+            pushHistory(`[series] Failed to write series artifacts: ${message}`, 'progress')
+          }
+        }
+
         pushHistory('[series] Overview ready.', 'progress')
-        pushHistory(`[Overview] ${series.overviewPrompt}`, 'system')
+
         series.atomicPrompts.forEach((step, index) => {
           const stepNumber = index + 1
-          pushHistory(`[Step ${stepNumber}: ${step.title}] ${step.content}`, 'system')
+          const validationSection = extractValidationSection(step.content)
+
+          if (validationSection) {
+            pushHistory(
+              `[Step ${stepNumber}: ${step.title}] Validation section:\n${validationSection}`,
+              'system',
+            )
+            return
+          }
+
+          pushHistory(`[Step ${stepNumber}: ${step.title}] (no Validation section found)`, 'system')
         })
+
+        if (canWriteFiles) {
+          const relativeDir = path.relative(process.cwd(), seriesDir) || seriesDir
+          const writtenCount = writeResult?.writtenCount ?? 0
+          pushHistory(
+            `[Series] Saved ${writtenCount}/${totalPrompts} prompts to ${relativeDir}`,
+            'system',
+          )
+        } else {
+          pushHistory(`[Series] Generated ${totalPrompts} prompts (not saved)`, 'system')
+        }
+
         setStatusMessage('Series complete')
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown series generation error.'
