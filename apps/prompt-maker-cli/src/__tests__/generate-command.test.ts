@@ -250,11 +250,12 @@ describe('runGenerateCommand', () => {
 
   it('switches to gemini model when video assets provided', async () => {
     mockIsGemini.mockImplementation((model: string) => model.startsWith('gemini'))
+    mockLoadCliConfig.mockResolvedValueOnce(null)
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     await runGenerateCommand(['intent text', '--video', 'clip.mp4'])
     const call = promptService.generatePrompt.mock.calls[0][0]
-    expect(call.model).toBe('gemini-1.5-pro')
-    expect(warn).toHaveBeenCalledWith('Switching to Gemini 1.5 Pro to support video input.')
+    expect(call.model).toBe('gemini-3-pro-preview')
+    expect(warn).toHaveBeenCalledWith('Switching to Gemini 3 Pro (Preview) to support video input.')
     warn.mockRestore()
   })
 

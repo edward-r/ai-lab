@@ -2,9 +2,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { ModelDefinition, ModelProvider } from './model-providers'
+
 export type PromptGeneratorConfig = {
   defaultModel?: string
   defaultGeminiModel?: string
+  models?: ModelDefinition[]
 }
 
 export type PromptMakerCliConfig = {
@@ -160,6 +163,9 @@ const parseConfig = (raw: unknown): PromptMakerCliConfig => {
         'promptGenerator.defaultGeminiModel',
       )
     }
+    if (raw.promptGenerator.models !== undefined) {
+      promptGenerator.models = parsePromptGeneratorModels(raw.promptGenerator.models)
+    }
     config.promptGenerator = promptGenerator
   }
 
@@ -175,6 +181,92 @@ const parseConfig = (raw: unknown): PromptMakerCliConfig => {
   }
 
   return config
+}
+
+const parsePromptGeneratorModels = (value: unknown): ModelDefinition[] => {
+  if (!Array.isArray(value)) {
+    throw new Error('"promptGenerator.models" must be an array when provided.')
+  }
+  return value.map((entry, index) => parsePromptGeneratorModel(entry, index))
+}
+
+const parsePromptGeneratorModel = (value: unknown, index: number): ModelDefinition => {
+  if (!isRecord(value)) {
+    throw new Error(`promptGenerator.models[${index}] must be an object.`)
+  }
+  const id = expectString(value.id, `promptGenerator.models[${index}].id`).trim()
+  if (!id) {
+    throw new Error(`promptGenerator.models[${index}].id must not be empty.`)
+  }
+  const model: ModelDefinition = { id }
+  if (value.label !== undefined) {
+    const label = expectString(value.label, `promptGenerator.models[${index}].label`).trim()
+    if (label) {
+      model.label = label
+    }
+  }
+  if (value.provider !== undefined) {
+    model.provider = expectProvider(value.provider, `promptGenerator.models[${index}].provider`)
+  }
+  if (value.description !== undefined) {
+    const description = expectString(
+      value.description,
+      `promptGenerator.models[${index}].description`,
+    ).trim()
+    if (description) {
+      model.description = description
+    }
+  }
+  if (value.notes !== undefined) {
+    const notes = expectString(value.notes, `promptGenerator.models[${index}].notes`).trim()
+    if (notes) {
+      model.notes = notes
+    }
+  }
+  if (value.capabilities !== undefined) {
+    const capabilities = parseCapabilitiesField(
+      value.capabilities,
+      `promptGenerator.models[${index}].capabilities`,
+    )
+    if (capabilities.length > 0) {
+      model.capabilities = capabilities
+    }
+  }
+  if (value.default !== undefined) {
+    model.default = expectBoolean(value.default, `promptGenerator.models[${index}].default`)
+  }
+  return model
+}
+
+const parseCapabilitiesField = (value: unknown, label: string): string[] => {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized ? [normalized] : []
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((entry, idx) => expectString(entry, `${label}[${idx}]`).trim())
+      .filter((entry) => entry.length > 0)
+  }
+  throw new Error(`${label} must be a string or array of strings.`)
+}
+
+const expectBoolean = (value: unknown, label: string): boolean => {
+  if (typeof value !== 'boolean') {
+    throw new Error(`${label} must be a boolean.`)
+  }
+  return value
+}
+
+const expectProvider = (value: unknown, label: string): ModelProvider => {
+  if (typeof value !== 'string') {
+    throw new Error(`${label} must be one of openai, gemini, or other.`)
+  }
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'openai' || normalized === 'gemini' || normalized === 'other') {
+    return normalized as ModelProvider
+  }
+  throw new Error(`${label} must be one of openai, gemini, or other.`)
 }
 
 const expectString = (value: unknown, label: string): string => {

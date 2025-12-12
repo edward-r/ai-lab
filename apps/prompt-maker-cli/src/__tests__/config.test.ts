@@ -127,4 +127,47 @@ describe('config module', () => {
     fs.readFile.mockRejectedValue(enoent)
     await expect(resolveGeminiCredentials()).rejects.toThrow(/Missing Gemini credentials/)
   })
+
+  it('parses promptGenerator.models entries when provided', async () => {
+    const { loadCliConfig } = await importConfigModule()
+    const fs = getFsMock()
+    fs.readFile.mockReset()
+    fs.readFile.mockResolvedValueOnce(
+      JSON.stringify({
+        promptGenerator: {
+          models: [
+            {
+              id: 'custom-model',
+              label: 'Custom Model',
+              provider: 'gemini',
+              capabilities: 'multimodal',
+              notes: 'Use for long context',
+              default: true,
+            },
+          ],
+        },
+      }),
+    )
+    const config = await loadCliConfig()
+    expect(config?.promptGenerator?.models).toEqual([
+      {
+        id: 'custom-model',
+        label: 'Custom Model',
+        provider: 'gemini',
+        capabilities: ['multimodal'],
+        notes: 'Use for long context',
+        default: true,
+      },
+    ])
+  })
+
+  it('throws when promptGenerator.models is not an array', async () => {
+    const { loadCliConfig } = await importConfigModule()
+    const fs = getFsMock()
+    fs.readFile.mockReset()
+    fs.readFile.mockResolvedValueOnce(
+      JSON.stringify({ promptGenerator: { models: { id: 'bad' } } }),
+    )
+    await expect(loadCliConfig()).rejects.toThrow(/"promptGenerator\.models" must be an array/)
+  })
 })

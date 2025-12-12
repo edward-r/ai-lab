@@ -19,11 +19,6 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
 ] as const
 
-export const MODEL_OPTIONS = [
-  { id: 'gpt-4o-mini', label: 'gpt-4o-mini', description: 'OpenAI general-purpose LLM' },
-  { id: 'gemini-1.5-pro', label: 'gemini-1.5-pro', description: 'Google Gemini multimodal' },
-] as const
-
 export const TOGGLE_LABELS = {
   polish: 'Polish',
   copy: 'Copy',
@@ -32,7 +27,7 @@ export const TOGGLE_LABELS = {
 } as const
 
 export const POPUP_HEIGHTS = {
-  model: MODEL_OPTIONS.length + 5,
+  model: 12,
   toggle: 6,
   file: 16,
   url: 12,

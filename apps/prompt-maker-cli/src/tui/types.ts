@@ -1,9 +1,28 @@
-import type { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS, TOGGLE_LABELS } from './config'
+import type { ModelProvider } from '../model-providers'
+import type { COMMAND_DESCRIPTORS, POPUP_HEIGHTS, TOGGLE_LABELS } from './config'
 
 export type CommandDescriptor = (typeof COMMAND_DESCRIPTORS)[number]
-export type ModelOption = (typeof MODEL_OPTIONS)[number]
 export type ToggleField = keyof typeof TOGGLE_LABELS
 export type PopupKind = keyof typeof POPUP_HEIGHTS
+
+export type ModelOption = {
+  id: string
+  label: string
+  provider: ModelProvider
+  description: string
+  capabilities: string[]
+  default?: boolean
+  notes?: string
+  source: 'builtin' | 'config'
+}
+
+export type ProviderStatus = {
+  provider: ModelProvider
+  status: 'ok' | 'missing' | 'error'
+  message: string
+}
+
+export type ProviderStatusMap = Record<ModelProvider, ProviderStatus>
 
 export type PopupState =
   | { type: 'model'; query: string; selectionIndex: number }

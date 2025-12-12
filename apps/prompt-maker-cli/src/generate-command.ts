@@ -398,7 +398,7 @@ export const runGeneratePipeline = async (
 
     if (args.video.length > 0 && !isGemini(model)) {
       model = await resolveGeminiVideoModel()
-      console.warn('Switching to Gemini 1.5 Pro to support video input.')
+      console.warn('Switching to Gemini 3 Pro (Preview) to support video input.')
     }
 
     const contextTemplateDefinition = contextTemplateName
@@ -894,7 +894,7 @@ const resolveGeminiVideoModel = async (): Promise<string> => {
   if (configured && isGemini(configured)) {
     return configured
   }
-  return 'gemini-1.5-pro'
+  return 'gemini-3-pro-preview'
 }
 
 const resolveIntent = async (args: GenerateArgs): Promise<string> => {

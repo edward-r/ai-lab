@@ -24,7 +24,7 @@ Prompt Maker reads credentials and defaults from environment variables first, th
   "geminiBaseUrl": "https://generativelanguage.googleapis.com",
   "promptGenerator": {
     "defaultModel": "gpt-4o-mini",
-    "defaultGeminiModel": "gemini-1.5-pro"
+    "defaultGeminiModel": "gemini-3-pro-preview"
   }
 }
 ```
@@ -39,7 +39,7 @@ Model selection:
 
 - Generation defaults to `promptGenerator.defaultModel`, then `PROMPT_MAKER_GENERATE_MODEL`, then `gpt-4o-mini` (`apps/prompt-maker-cli/src/prompt-generator-service.ts:106`).
 - Polishing defaults to the generation model unless `PROMPT_MAKER_POLISH_MODEL` or `--polish-model` overrides it (`apps/prompt-maker-cli/src/generate-command.ts:169`).
-- Video automatically switches to `promptGenerator.defaultGeminiModel` or `gemini-1.5-pro` if a non-Gemini model was chosen (`apps/prompt-maker-cli/src/generate-command.ts:131` and `:354`).
+- Video automatically switches to `promptGenerator.defaultGeminiModel` or `gemini-3-pro-preview` if a non-Gemini model was chosen (`apps/prompt-maker-cli/src/generate-command.ts:131` and `:354`).
 
 ## Basic Usage: Generating a Prompt
 
@@ -85,7 +85,7 @@ Each readable match is embedded as `<file path="...">...</file>` inside the prom
 ### Video
 
 - Add `--video walkthrough.mp4` for Gemini models that support video (`apps/prompt-maker-cli/src/generate-command.ts:278`).
-- If you selected an OpenAI model, the CLI switches to `gemini-1.5-pro` (or your configured Gemini default) and logs a notice (`apps/prompt-maker-cli/src/generate-command.ts:131`).
+- If you selected an OpenAI model, the CLI switches to `gemini-3-pro-preview` (or your configured Gemini default) and logs a notice (`apps/prompt-maker-cli/src/generate-command.ts:131`).
 - Supported formats include `.mp4`, `.mov`, `.m4v`, `.webm`, `.avi`, `.mpeg`, `.mpg`, `.gif`; MIME detection lives in `inferVideoMimeType` (`apps/prompt-maker-cli/src/media-loader.ts:9`).
 - Videos are uploaded to the Gemini Files API, and the CLI polls until processing reaches `ACTIVE`, updating the spinner with an “Uploading…” label while transfers are in flight (`apps/prompt-maker-cli/src/media-loader.ts:24` and `apps/prompt-maker-cli/src/generate-command.ts:788`).
 

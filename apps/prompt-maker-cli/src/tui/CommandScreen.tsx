@@ -22,13 +22,28 @@ import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
 import { IntentFilePopup } from './components/popups/IntentFilePopup'
 import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
-import { COMMAND_DESCRIPTORS, MODEL_OPTIONS, POPUP_HEIGHTS } from './config'
+import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
 import { filterFileSuggestions } from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
 import { useCommandHistory } from './hooks/useCommandHistory'
 import { useGenerationPipeline } from './hooks/useGenerationPipeline'
 import { usePopupManager } from './hooks/usePopupManager'
-import type { HistoryEntry, ModelOption, PopupKind } from './types'
+import {
+  DEFAULT_MODEL_ID,
+  getBuiltInModelOptions,
+  getPreferredModelId,
+  loadModelOptions,
+} from './model-options'
+import { getLastSessionModel, setLastSessionModel } from './model-session'
+import { checkProviderStatus } from './provider-status'
+import type {
+  HistoryEntry,
+  ModelOption,
+  PopupKind,
+  ProviderStatus,
+  ProviderStatusMap,
+} from './types'
+import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context-store'
 
@@ -38,15 +53,22 @@ const COMMAND_SCREEN_STATIC_ROWS = INPUT_BAR_ROWS + 3
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
 
-const filterModelOptions = (query: string): ModelOption[] => {
+const filterModelOptions = (query: string, options: readonly ModelOption[]): ModelOption[] => {
   const trimmed = query.trim().toLowerCase()
   if (!trimmed) {
-    return [...MODEL_OPTIONS]
+    return [...options]
   }
-  return MODEL_OPTIONS.filter(
-    (option) =>
-      option.id.toLowerCase().includes(trimmed) || option.label.toLowerCase().includes(trimmed),
-  )
+  return options.filter((option) => {
+    const haystacks = [
+      option.id.toLowerCase(),
+      option.label.toLowerCase(),
+      option.provider,
+      option.description.toLowerCase(),
+      option.capabilities.join(' ').toLowerCase(),
+      option.notes?.toLowerCase() ?? '',
+    ]
+    return haystacks.some((value) => value.includes(trimmed))
+  })
 }
 
 const WELCOME_LINES = [
@@ -63,6 +85,16 @@ const WELCOME_HISTORY: HistoryEntry[] = WELCOME_LINES.map((line, index) => ({
   content: line,
   kind: 'system',
 }))
+
+const DEFAULT_PROVIDER_STATUSES: ProviderStatusMap = {
+  openai: { provider: 'openai', status: 'error', message: 'Status unavailable' },
+  gemini: { provider: 'gemini', status: 'error', message: 'Status unavailable' },
+  other: {
+    provider: 'other',
+    status: 'ok',
+    message: 'Custom provider (not validated)',
+  },
+}
 
 type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
@@ -99,7 +131,40 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const lastTypedIntentRef = useRef<string>('')
     const [inputValue, setInputValue] = useState('')
     const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
-    const [currentModel, setCurrentModel] = useState<ModelOption['id']>('gpt-4o-mini')
+    const builtInModelOptionsRef = useRef<ModelOption[]>(getBuiltInModelOptions())
+    const initialSessionModelRef = useRef<string | null>(getLastSessionModel())
+    const [modelOptions, setModelOptions] = useState<ModelOption[]>(builtInModelOptionsRef.current)
+    const [currentModel, setCurrentModelState] = useState<ModelOption['id']>(
+      initialSessionModelRef.current ?? builtInModelOptionsRef.current[0]?.id ?? DEFAULT_MODEL_ID,
+    )
+    const userSelectedModelRef = useRef(Boolean(initialSessionModelRef.current))
+    const [providerStatuses, setProviderStatuses] =
+      useState<ProviderStatusMap>(DEFAULT_PROVIDER_STATUSES)
+
+    const applyCurrentModel = useCallback((nextId: string, markUserSelection: boolean) => {
+      setCurrentModelState((prev) => (prev === nextId ? prev : nextId))
+      setLastSessionModel(nextId)
+      if (markUserSelection) {
+        userSelectedModelRef.current = true
+      }
+    }, [])
+
+    const selectModel = useCallback(
+      (nextId: string) => {
+        applyCurrentModel(nextId, true)
+      },
+      [applyCurrentModel],
+    )
+
+    const updateProviderStatus = useCallback((status: ProviderStatus) => {
+      setProviderStatuses((prev) => {
+        const current = prev[status.provider]
+        if (current && current.status === status.status && current.message === status.message) {
+          return prev
+        }
+        return { ...prev, [status.provider]: status }
+      })
+    }, [])
     const [intentFilePath, setIntentFilePath] = useState('')
     const [polishEnabled, setPolishEnabled] = useState(false)
     const [copyEnabled, setCopyEnabled] = useState(false)
@@ -188,6 +253,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       copyEnabled,
       chatGptEnabled,
       isTestCommandRunning,
+      onProviderStatusUpdate: updateProviderStatus,
     })
 
     const {
@@ -203,6 +269,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       },
     } = usePopupManager({
       currentModel,
+      modelOptions,
       smartContextRoot,
       lastTestFile,
       defaultTestFile: DEFAULT_TEST_FILE,
@@ -214,7 +281,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       runSeriesGeneration,
       runTestsFromCommand: runTestsFromCommandProxy,
       exitApp: exit,
-      setCurrentModel,
+      setCurrentModel: selectModel,
       setPolishEnabled,
       setCopyEnabled,
       setChatGptEnabled,
@@ -232,8 +299,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const isPopupOpen = popupState !== null
     const trimmedIntentFilePath = intentFilePath.trim()
 
+    const providerChips = useMemo(() => {
+      const providers: Array<keyof ProviderStatusMap> = ['openai', 'gemini']
+      return providers.map((provider) => {
+        const status = providerStatuses[provider]
+        const suffix =
+          status.status === 'ok' ? 'ok' : status.status === 'missing' ? 'missing-key' : 'error'
+        return `[${provider}:${suffix}]`
+      })
+    }, [providerStatuses])
+
     const enhancedStatusChips = useMemo(() => {
-      const chips = [...statusChips]
+      const chips = [...statusChips, ...providerChips]
       if (trimmedIntentFilePath) {
         chips.push('[intent:file]')
         chips.push(`[file:${path.basename(trimmedIntentFilePath)}]`)
@@ -241,7 +318,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         chips.push('[intent:text]')
       }
       return chips
-    }, [statusChips, trimmedIntentFilePath])
+    }, [providerChips, statusChips, trimmedIntentFilePath])
 
     useEffect(() => {
       if (!onPopupVisibilityChange) {
@@ -310,6 +387,67 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     useEffect(() => {
       pushHistoryRef.current = pushHistory
     }, [pushHistory])
+
+    useEffect(() => {
+      let cancelled = false
+      const providers: Array<keyof ProviderStatusMap> = ['openai', 'gemini']
+      const refreshStatuses = async (): Promise<void> => {
+        for (const provider of providers) {
+          try {
+            const status = await checkProviderStatus(provider)
+            if (cancelled) {
+              return
+            }
+            updateProviderStatus(status)
+          } catch (error) {
+            if (cancelled) {
+              return
+            }
+            const message = error instanceof Error ? error.message : 'Unknown provider error.'
+            updateProviderStatus({ provider, status: 'error', message })
+          }
+        }
+      }
+      void refreshStatuses()
+      return () => {
+        cancelled = true
+      }
+    }, [updateProviderStatus])
+
+    useEffect(() => {
+      let cancelled = false
+      const loadOptions = async (): Promise<void> => {
+        try {
+          const result = await loadModelOptions()
+          if (cancelled) {
+            return
+          }
+          setModelOptions(result.options)
+          if (result.warning) {
+            pushHistory(result.warning, 'system')
+          }
+          if (userSelectedModelRef.current) {
+            return
+          }
+          const resolvedDefault = await resolveDefaultGenerateModel().catch(() => null)
+          if (cancelled || userSelectedModelRef.current) {
+            return
+          }
+          const preferred = getPreferredModelId(result.options, resolvedDefault)
+          applyCurrentModel(preferred, false)
+        } catch (error) {
+          if (cancelled) {
+            return
+          }
+          const message = error instanceof Error ? error.message : 'Unknown model option error.'
+          pushHistory(`[model] Failed to load CLI models: ${message}`, 'system')
+        }
+      }
+      void loadOptions()
+      return () => {
+        cancelled = true
+      }
+    }, [applyCurrentModel, pushHistory])
 
     useEffect(() => {
       setCommandSelectionIndex(0)
@@ -583,7 +721,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
 
         if (popupState.type === 'model') {
-          const options = filterModelOptions(popupState.query)
+          const options = filterModelOptions(popupState.query, modelOptions)
           if (key.upArrow && options.length > 0) {
             setPopupState((prev) =>
               prev?.type === 'model'
@@ -1071,7 +1209,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     )
 
     const modelPopupOptions =
-      popupState?.type === 'model' ? filterModelOptions(popupState.query) : []
+      popupState?.type === 'model' ? filterModelOptions(popupState.query, modelOptions) : []
 
     const modelPopupSelection =
       popupState?.type === 'model'
@@ -1090,6 +1228,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 query={popupState.query}
                 options={modelPopupOptions}
                 selectedIndex={modelPopupSelection}
+                providerStatuses={providerStatuses}
                 onQueryChange={handleModelPopupQueryChange}
                 onSubmit={handleModelPopupSubmit}
               />

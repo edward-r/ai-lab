@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { useCallback, useState } from 'react'
 
-import { MODEL_OPTIONS, TOGGLE_LABELS } from '../config'
+import { TOGGLE_LABELS } from '../config'
 import { discoverFileSuggestions } from '../file-suggestions'
 import type {
   CommandDescriptor,
@@ -31,6 +31,7 @@ export type PopupManagerActions = {
 
 export type UsePopupManagerOptions = {
   currentModel: ModelOption['id']
+  modelOptions: readonly ModelOption[]
   smartContextRoot: string | null
   lastTestFile: string | null
   defaultTestFile: string
@@ -61,6 +62,7 @@ const JSON_INTERACTIVE_ERROR = 'JSON output is unavailable while interactive tra
 
 export const usePopupManager = ({
   currentModel,
+  modelOptions,
   smartContextRoot,
   lastTestFile,
   defaultTestFile,
@@ -95,10 +97,10 @@ export const usePopupManager = ({
   const openModelPopup = useCallback(() => {
     const defaultIndex = Math.max(
       0,
-      MODEL_OPTIONS.findIndex((option) => option.id === currentModel),
+      modelOptions.findIndex((option) => option.id === currentModel),
     )
     setPopupState({ type: 'model', query: '', selectionIndex: defaultIndex })
-  }, [currentModel])
+  }, [currentModel, modelOptions])
 
   const openTogglePopup = useCallback(
     (field: ToggleField) => {
@@ -197,12 +199,7 @@ export const usePopupManager = ({
 
   const handleModelPopupSubmit = useCallback(
     (option?: ModelOption) => {
-      if (!option) {
-        applyModelSelection(undefined)
-        return
-      }
-      const nextOption = MODEL_OPTIONS.find((model) => model.id === option.id)
-      applyModelSelection(nextOption)
+      applyModelSelection(option)
     },
     [applyModelSelection],
   )

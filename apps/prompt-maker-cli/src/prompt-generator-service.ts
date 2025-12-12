@@ -4,6 +4,7 @@ import { loadCliConfig, resolveGeminiCredentials, resolveOpenAiCredentials } fro
 import { formatContextForPrompt, type FileContext } from './file-context'
 import { resolveImageParts } from './image-loader'
 import { inferVideoMimeType, uploadFileForGemini } from './media-loader'
+import { isGeminiModelId } from './model-providers'
 
 const PROMPT_CONTRACT_REQUIREMENTS = `
 Prompt Contract Requirements:
@@ -64,8 +65,6 @@ Return strict JSON matching this schema (do not wrap in markdown fences):
 
 Do not perform the work yourself. Only return the JSON payload described above.
 `
-
-const GEMINI_MODEL_PREFIXES = ['gemini', 'gemma']
 
 export type UploadState = 'start' | 'finish'
 export type UploadDetail = { kind: 'image' | 'video'; filePath: string }
@@ -218,10 +217,7 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
   }
 }
 
-export const isGemini = (model: string): boolean => {
-  const normalized = model.trim().toLowerCase()
-  return GEMINI_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
-}
+export const isGemini = (model: string): boolean => isGeminiModelId(model)
 
 const buildInitialUserMessage = async (
   intent: string,

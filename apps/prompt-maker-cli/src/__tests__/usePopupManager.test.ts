@@ -4,6 +4,7 @@ import type { MutableRefObject } from 'react'
 
 import { usePopupManager } from '../tui/hooks/usePopupManager'
 import type { UsePopupManagerOptions } from '../tui/hooks/usePopupManager'
+import type { ModelOption } from '../tui/types'
 
 jest.mock('../tui/file-suggestions', () => ({
   discoverFileSuggestions: jest.fn(),
@@ -20,11 +21,23 @@ globalScope.window = dom.window
 globalScope.document = dom.window.document
 globalScope.navigator = dom.window.navigator
 
+const defaultModelOptions: ModelOption[] = [
+  {
+    id: 'gpt-4o-mini',
+    label: 'gpt-4o-mini',
+    provider: 'openai',
+    description: 'test',
+    capabilities: [],
+    source: 'builtin',
+  },
+]
+
 const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopupManagerOptions => {
   const baseRef: MutableRefObject<string | null> = { current: null }
 
   const defaults: UsePopupManagerOptions = {
     currentModel: 'gpt-4o-mini',
+    modelOptions: defaultModelOptions,
     smartContextRoot: null,
     lastTestFile: null,
     defaultTestFile: 'prompt.test.ts',

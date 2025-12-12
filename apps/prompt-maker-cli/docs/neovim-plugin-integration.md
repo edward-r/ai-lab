@@ -66,13 +66,13 @@ _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-m
 ## 7. Media Attachments
 
 - **Images** (`--image`): Accepts PNG/JPG/JPEG/WEBP/GIF up to 20 MB. Files are Base64 encoded into `@prompt-maker/core` image parts. Unsupported extensions or oversize files generate warnings and are skipped.
-- **Videos** (`--video`): Requires Gemini models. If any `--video` flag is present and the requested model is not Gemini, the CLI auto-switches to `gemini-1.5-pro` (or configured default). Uploads use Google’s Files API via `GoogleAIFileManager`, polling until `ACTIVE` or failing with a detailed error.
+- **Videos** (`--video`): Requires Gemini models. If any `--video` flag is present and the requested model is not Gemini, the CLI auto-switches to `gemini-3-pro-preview` (or configured default). Uploads use Google’s Files API via `GoogleAIFileManager`, polling until `ACTIVE` or failing with a detailed error.
 - **Upload telemetry**: `upload.state` events emit `start/finish` for each file; when spinners are visible the label swaps to “Uploading…” until transfers finish. Plugin integrations should reflect this to prevent users from closing buffers mid-upload.
 
 ## 8. Model Resolution & Credentials
 
 - **Default model**: `resolveDefaultGenerateModel` picks `promptGenerator.defaultModel`, `PROMPT_MAKER_GENERATE_MODEL`, or `gpt-4o-mini`.
-- **Gemini fallback**: `resolveGeminiVideoModel` prefers `promptGenerator.defaultGeminiModel`, otherwise `gemini-1.5-pro`.
+- **Gemini fallback**: `resolveGeminiVideoModel` prefers `promptGenerator.defaultGeminiModel`, otherwise `gemini-3-pro-preview`.
 - **Credential loading**: `ensureModelCredentials` pulls env vars first, then falls back to `~/.config/prompt-maker-cli/config.json`. Missing keys throw descriptive errors before API calls, so the plugin should capture stderr and surface the message.
 - **Polish model**: defaults to the generation model unless `--polish-model` or `PROMPT_MAKER_POLISH_MODEL` overrides it.
 
@@ -186,7 +186,7 @@ Config file example (`~/.config/prompt-maker-cli/config.json`):
   "geminiApiKey": "gk-…",
   "promptGenerator": {
     "defaultModel": "gemini-1.5-flash",
-    "defaultGeminiModel": "gemini-1.5-pro"
+    "defaultGeminiModel": "gemini-3-pro-preview"
   },
   "contextTemplates": {
     "nvim": "## NeoVim Prompt Buffer\n\n{{prompt}}",

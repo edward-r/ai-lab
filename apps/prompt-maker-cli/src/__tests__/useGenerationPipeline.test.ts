@@ -1,0 +1,160 @@
+import { act, renderHook } from '@testing-library/react'
+import { JSDOM } from 'jsdom'
+
+import { useGenerationPipeline } from '../tui/hooks/useGenerationPipeline'
+
+jest.mock('wrap-ansi', () => jest.fn((text: string) => text))
+
+jest.mock('../tui/provider-status', () => ({
+  checkModelProviderStatus: jest.fn(),
+}))
+
+jest.mock('../generate-command', () => ({
+  runGeneratePipeline: jest.fn().mockResolvedValue({
+    finalPrompt: 'Prompt',
+    model: 'gpt-4o-mini',
+    iterations: 1,
+    telemetry: null,
+    payload: {},
+  }),
+  maybeCopyToClipboard: jest.fn(),
+  maybeOpenChatGpt: jest.fn(),
+}))
+
+jest.mock('../prompt-generator-service', () => ({
+  generatePromptSeries: jest.fn().mockResolvedValue({
+    reasoning: 'r',
+    overviewPrompt: '# Overview',
+    atomicPrompts: [{ title: 'Step', content: 'Do a thing\n\nValidation: check' }],
+  }),
+  isGemini: jest.fn((model: string) => model.startsWith('gemini')),
+}))
+
+jest.mock('../file-context', () => ({ resolveFileContext: jest.fn().mockResolvedValue([]) }))
+jest.mock('../url-context', () => ({ resolveUrlContext: jest.fn().mockResolvedValue([]) }))
+jest.mock('../smart-context-service', () => ({
+  resolveSmartContextFiles: jest.fn().mockResolvedValue([]),
+}))
+jest.mock('node:fs/promises', () => ({ mkdir: jest.fn(), writeFile: jest.fn() }))
+
+const providerStatusModule = jest.requireMock('../tui/provider-status') as {
+  checkModelProviderStatus: jest.Mock
+}
+const generateCommandModule = jest.requireMock('../generate-command') as {
+  runGeneratePipeline: jest.Mock
+}
+const promptGeneratorModule = jest.requireMock('../prompt-generator-service') as {
+  generatePromptSeries: jest.Mock
+}
+
+const dom = new JSDOM('<!doctype html><html><body></body></html>')
+const globalEnv = globalThis as typeof globalThis & {
+  window: Window & typeof globalThis
+  document: Document
+  navigator: Navigator
+}
+globalEnv.window = dom.window as typeof globalEnv.window
+globalEnv.document = dom.window.document as Document
+globalEnv.navigator = dom.window.navigator
+
+describe('useGenerationPipeline', () => {
+  const baseOptions = {
+    files: [] as string[],
+    urls: [] as string[],
+    images: [] as string[],
+    videos: [] as string[],
+    smartContextEnabled: false,
+    smartContextRoot: null,
+    interactiveTransportPath: undefined as string | undefined,
+    terminalColumns: 80,
+    polishEnabled: false,
+    jsonOutputEnabled: false,
+    copyEnabled: false,
+    chatGptEnabled: false,
+    isTestCommandRunning: false,
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('aborts runGeneration when provider credentials are missing', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'missing',
+      message: 'OPENAI_API_KEY missing',
+    })
+    const pushHistory = jest.fn()
+    const onProviderStatusUpdate = jest.fn()
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+        onProviderStatusUpdate,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runGeneration({ intent: 'Do a thing' })
+    })
+
+    expect(pushHistory).toHaveBeenCalledWith(
+      'Generation aborted: OpenAI unavailable (OPENAI_API_KEY missing).',
+      'system',
+    )
+    expect(generateCommandModule.runGeneratePipeline).not.toHaveBeenCalled()
+    expect(onProviderStatusUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'openai', status: 'missing' }),
+    )
+  })
+
+  it('runs generation when provider check passes', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'ok',
+      message: 'ready',
+    })
+    const pushHistory = jest.fn()
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runGeneration({ intent: 'Ship it' })
+    })
+
+    expect(generateCommandModule.runGeneratePipeline).toHaveBeenCalled()
+  })
+
+  it('aborts series generation when provider is unavailable', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'gemini',
+      status: 'missing',
+      message: 'GEMINI_API_KEY missing',
+    })
+    const pushHistory = jest.fn()
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+        videos: ['clip.mp4'],
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runSeriesGeneration('Plan work')
+    })
+
+    expect(promptGeneratorModule.generatePromptSeries).not.toHaveBeenCalled()
+    expect(pushHistory).toHaveBeenCalledWith(
+      'Generation aborted: Gemini unavailable (GEMINI_API_KEY missing).',
+      'system',
+    )
+  })
+})

@@ -21,7 +21,9 @@ import { resolveFileContext } from '../../file-context'
 import { resolveSmartContextFiles } from '../../smart-context-service'
 import { resolveUrlContext } from '../../url-context'
 import type { UploadStateChange } from '../../prompt-generator-service'
-import type { HistoryEntry } from '../types'
+import { MODEL_PROVIDER_LABELS } from '../../model-providers'
+import { checkModelProviderStatus } from '../provider-status'
+import type { HistoryEntry, ProviderStatus } from '../types'
 
 const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
 
@@ -123,6 +125,7 @@ export type UseGenerationPipelineOptions = {
   copyEnabled: boolean
   chatGptEnabled: boolean
   isTestCommandRunning: boolean
+  onProviderStatusUpdate?: (status: ProviderStatus) => void
 }
 
 export const useGenerationPipeline = ({
@@ -141,6 +144,7 @@ export const useGenerationPipeline = ({
   copyEnabled,
   chatGptEnabled,
   isTestCommandRunning,
+  onProviderStatusUpdate,
 }: UseGenerationPipelineOptions) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
@@ -315,6 +319,29 @@ export const useGenerationPipeline = ({
     [pushHistory, submitRefinement],
   )
 
+  const ensureProviderReady = useCallback(
+    async (modelId: string): Promise<boolean> => {
+      try {
+        const status = await checkModelProviderStatus(modelId)
+        onProviderStatusUpdate?.(status)
+        if (status.status === 'ok') {
+          return true
+        }
+        const providerLabel = MODEL_PROVIDER_LABELS[status.provider]
+        pushHistory(
+          `Generation aborted: ${providerLabel} unavailable (${status.message}).`,
+          'system',
+        )
+        return false
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown provider check error.'
+        pushHistory(`Generation aborted: provider check failed (${message}).`, 'system')
+        return false
+      }
+    },
+    [onProviderStatusUpdate, pushHistory],
+  )
+
   const runGeneration = useCallback(
     async (intentInput: { intent?: string; intentFile?: string }) => {
       const trimmedIntent = intentInput.intent?.trim() ?? ''
@@ -323,12 +350,17 @@ export const useGenerationPipeline = ({
         pushHistory('No intent provided. Enter text or set an intent file.', 'system')
         return
       }
+      const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
+      const providerReady = await ensureProviderReady(normalizedModel)
+      if (!providerReady) {
+        return
+      }
       setIsGenerating(true)
       setStatusMessage('Preparing generation…')
       pushHistory('Starting generation…')
       try {
-        const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
         const usesTransportInteractive = Boolean(interactiveTransportPath)
+
         const usesTuiInteractiveDelegate = !usesTransportInteractive && !jsonOutputEnabled
 
         const args: GenerateArgs = {
@@ -428,11 +460,22 @@ export const useGenerationPipeline = ({
       interactiveDelegate,
       submitRefinement,
       pushHistory,
+      ensureProviderReady,
     ],
   )
 
   const runSeriesGeneration = useCallback(
     async (intent: string) => {
+      let targetModel = currentModel.trim() || 'gpt-4o-mini'
+      if (videos.length > 0 && !isGemini(targetModel)) {
+        targetModel = 'gemini-3-pro-preview'
+        pushHistory('[series] Switching to gemini-3-pro-preview for video support.', 'progress')
+      }
+      const providerReady = await ensureProviderReady(targetModel)
+      if (!providerReady) {
+        return
+      }
+
       setIsGenerating(true)
       setStatusMessage('Series: resolving context…')
       pushHistory('[series] Starting series generation…', 'progress')
@@ -452,13 +495,6 @@ export const useGenerationPipeline = ({
       }
 
       try {
-        const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
-        let targetModel = normalizedModel
-        if (videos.length > 0 && !isGemini(targetModel)) {
-          targetModel = 'gemini-1.5-pro'
-          pushHistory('[series] Switching to gemini-1.5-pro for video support.', 'progress')
-        }
-
         let resolvedContext = await resolveFileContext(Array.from(files) as string[])
         if (resolvedContext.length > 0) {
           pushHistory(
@@ -591,6 +627,7 @@ export const useGenerationPipeline = ({
       smartContextRoot,
       pushHistory,
       setStatusMessage,
+      ensureProviderReady,
     ],
   )
 

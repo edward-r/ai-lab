@@ -41,7 +41,7 @@
 ### Media Inputs
 
 - `--image <path>`: Attaches one or more images; they flow through to the prompt generator for multimodal models such as GPT-4o or Gemini.
-- `--video <path>`: Triggers the Gemini pipeline. `generate-command.ts` switches the model to `resolveGeminiVideoModel()` (default `gemini-1.5-pro`) if you didn’t already choose a Gemini target. Uploads run through `media-loader.ts`, which requires `GEMINI_API_KEY` and polls `GoogleAIFileManager` until the file becomes ACTIVE.
+- `--video <path>`: Triggers the Gemini pipeline. `generate-command.ts` switches the model to `resolveGeminiVideoModel()` (default `gemini-3-pro-preview`) if you didn’t already choose a Gemini target. Uploads run through `media-loader.ts`, which requires `GEMINI_API_KEY` and polls `GoogleAIFileManager` until the file becomes ACTIVE.
 
 ### Output Tailoring
 
@@ -1107,12 +1107,12 @@ You captured a sparring session and need a prompt that asks the model to analyze
 ```bash
 prompt-maker-cli "Break down this kali sparring clip—focus on timing windows, guard recovery, and footwork corrections." \
   --video media/kali-round3.mp4 \
-  --model gemini-1.5-pro \
+  --model gemini-3-pro-preview \
   --polish \
   --progress=false
 ```
 
 **Discussion**
-Passing `--video` causes `generate-command.ts` to call `resolveGeminiVideoModel()`, overriding non-Gemini choices with `gemini-1.5-pro` so the Files API can ingest your clip. The upload path (`media-loader.ts`) demands a readable file and `GEMINI_API_KEY`; the CLI shows upload progress via `upload.state` events. Gemini’s multimodal context pairs well with a polish pass to distill the final coaching checklist.
+Passing `--video` causes `generate-command.ts` to call `resolveGeminiVideoModel()`, overriding non-Gemini choices with `gemini-3-pro-preview` so the Files API can ingest your clip. The upload path (`media-loader.ts`) demands a readable file and `GEMINI_API_KEY`; the CLI shows upload progress via `upload.state` events. Gemini’s multimodal context pairs well with a polish pass to distill the final coaching checklist.
 
 ---
