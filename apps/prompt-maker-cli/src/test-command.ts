@@ -158,7 +158,7 @@ const runSingleTest = async ({
       const smartFiles = await resolveSmartContextFiles(
         test.intent,
         fileContext,
-        () => {},
+        () => undefined,
         test.smartContextRoot,
       )
       if (smartFiles.length > 0) {
@@ -228,9 +228,9 @@ const loadTestSuite = async (filePath: string): Promise<PromptTestSuite> => {
 const createTestProgressReporter = (total: number): TestProgressReporter => {
   if (total <= 0) {
     return {
-      startTest: () => {},
-      completeTest: () => {},
-      completeAll: () => {},
+      startTest: () => undefined,
+      completeTest: () => undefined,
+      completeAll: () => undefined,
     }
   }
 

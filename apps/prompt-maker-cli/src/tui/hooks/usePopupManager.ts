@@ -464,6 +464,7 @@ export const usePopupManager = ({
       openTestPopup,
       openTogglePopup,
       openUrlPopup,
+      openIntentPopup,
       openInstructionsPopup,
       polishEnabled,
       pushHistory,

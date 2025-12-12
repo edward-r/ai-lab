@@ -1812,7 +1812,7 @@ export class InteractiveTransport {
       }
 
       this.sendTransportError('Unknown interactive command.')
-    } catch (error) {
+    } catch {
       this.sendTransportError('Invalid command payload; expected JSON.')
     }
   }

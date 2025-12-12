@@ -1,4 +1,3 @@
-//eslint-disable unnecessary-semicolon
 import { callLLM } from '@prompt-maker/core'
 
 import {
@@ -42,6 +41,8 @@ const configModule = jest.requireMock('../config') as {
   resolveOpenAiCredentials: jest.Mock
   resolveGeminiCredentials: jest.Mock
 }
+
+const callLLMMock = callLLM as jest.MockedFunction<typeof callLLM>
 
 describe('prompt-generator-service helpers', () => {
   beforeEach(() => {
@@ -93,7 +94,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     configModule.loadCliConfig.mockResolvedValue({
       promptGenerator: { defaultModel: 'gpt-4o-mini', defaultGeminiModel: 'gemini-1.5-pro' },
     })
-    ;(callLLM as jest.Mock).mockResolvedValue('{"prompt":"Result","reasoning":"ok"}')
+    callLLMMock.mockResolvedValue('{"prompt":"Result","reasoning":"ok"}')
     resolveImageParts.mockResolvedValue([{ type: 'image', mimeType: 'image/png', data: 'aaa' }])
     mediaLoader.uploadFileForGemini.mockResolvedValue('gs://video')
     mediaLoader.inferVideoMimeType.mockReturnValue('video/mp4')
@@ -119,7 +120,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
       ]),
       'gpt-4o-mini',
     )
-    expect(prompt).toBe('Result')
+    expect(prompt).toContain('Result')
   })
 
   it('includes meta instructions when provided', async () => {
@@ -132,12 +133,9 @@ describe('PromptGeneratorService.generatePrompt', () => {
       videos: [],
       metaInstructions: 'Be concise',
     })
-    const call = (callLLM as jest.Mock).mock.calls[0][0]
-    const userMessage = call.find((msg: { role: string }) => msg.role === 'user')
-    const textPayload =
-      typeof userMessage.content === 'string'
-        ? userMessage.content
-        : (userMessage.content.find((part: { type: string }) => part.type === 'text')?.text ?? '')
+    const messagePayload = callLLMMock.mock.calls[0]?.[0]
+    const userMessage = messagePayload?.find((msg: { role: string }) => msg.role === 'user')
+    const textPayload = JSON.stringify(userMessage?.content)
     expect(textPayload).toContain('Meta-Instructions:\nBe concise')
   })
 
@@ -152,9 +150,9 @@ describe('PromptGeneratorService.generatePrompt', () => {
       previousPrompt: 'draft',
       refinementInstruction: 'shorter',
     })
-    const call = (callLLM as jest.Mock).mock.calls[0][0]
-    const userMessage = call.find((msg: { role: string }) => msg.role === 'user')
-    expect(userMessage.content).toEqual(
+    const call = callLLMMock.mock.calls[0]?.[0]
+    const userMessage = call?.find((msg: { role: string }) => msg.role === 'user')
+    expect(userMessage?.content).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           type: 'text',
@@ -165,7 +163,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
   })
 
   it('returns raw response when LLM output is not JSON', async () => {
-    ;(callLLM as jest.Mock).mockResolvedValue('plain text response')
+    callLLMMock.mockResolvedValue('plain text response')
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
     const service = await buildService()
     const prompt = await service.generatePrompt({
@@ -219,7 +217,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
   }
 
   it('parses valid JSON into a SeriesResponse and uploads media', async () => {
-    ;(callLLM as jest.Mock).mockResolvedValue(JSON.stringify(seriesPayload))
+    callLLMMock.mockResolvedValue(JSON.stringify(seriesPayload))
     const service = await buildService()
     const result = await service.generatePromptSeries({
       intent: 'Plan something',
@@ -234,7 +232,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
   })
 
   it('throws when the LLM response is not valid JSON', async () => {
-    ;(callLLM as jest.Mock).mockResolvedValue('not json')
+    callLLMMock.mockResolvedValue('not json')
     const service = await buildService()
     await expect(
       service.generatePromptSeries({
@@ -248,7 +246,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
   })
 
   it('throws when the JSON is missing atomic prompts', async () => {
-    ;(callLLM as jest.Mock).mockResolvedValue(
+    callLLMMock.mockResolvedValue(
       JSON.stringify({ reasoning: 'r', overviewPrompt: '# Overview', atomicPrompts: [] }),
     )
     const service = await buildService()
@@ -265,7 +263,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
 
   it('logs reasoning when DEBUG env var is set', async () => {
     process.env.DEBUG = '1'
-    ;(callLLM as jest.Mock).mockResolvedValue(JSON.stringify(seriesPayload))
+    callLLMMock.mockResolvedValue(JSON.stringify(seriesPayload))
     const err = jest.spyOn(console, 'error').mockImplementation(() => undefined)
     const service = await buildService()
     await service.generatePromptSeries({

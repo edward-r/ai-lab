@@ -80,8 +80,8 @@ type Deferred<T> = {
 }
 
 const createDeferred = <T>(): Deferred<T> => {
-  let resolve: (value: T) => void = () => {}
-  let reject: (reason?: unknown) => void = () => {}
+  let resolve: (value: T) => void = (_value) => undefined
+  let reject: (reason?: unknown) => void = (_reason) => undefined
 
   const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve

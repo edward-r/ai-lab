@@ -24,7 +24,7 @@ export const resolveFileContext = async (patterns: string[]): Promise<FileContex
     try {
       const content = await fs.readFile(filePath, 'utf8')
       results.push({ path: filePath, content })
-    } catch (error) {
+    } catch {
       console.warn(`Warning: Failed to read context file ${filePath}`)
     }
   }
