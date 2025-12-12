@@ -43,6 +43,7 @@ import type {
   ProviderStatus,
   ProviderStatusMap,
 } from './types'
+import type { ModelProvider } from '../model-providers'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context-store'
@@ -143,23 +144,26 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const [providerStatuses, setProviderStatuses] =
       useState<ProviderStatusMap>(DEFAULT_PROVIDER_STATUSES)
 
-    const applyCurrentModel = useCallback((nextId: string, markUserSelection: boolean) => {
-      setCurrentModelState((prev) => (prev === nextId ? prev : nextId))
-      setLastSessionModel(nextId)
-      if (markUserSelection) {
-        userSelectedModelRef.current = true
-      }
-    }, [])
+    const applyCurrentModel = useCallback(
+      (nextId: ModelOption['id'], markUserSelection: boolean) => {
+        setCurrentModelState((prev: ModelOption['id']) => (prev === nextId ? prev : nextId))
+        setLastSessionModel(nextId)
+        if (markUserSelection) {
+          userSelectedModelRef.current = true
+        }
+      },
+      [],
+    )
 
     const selectModel = useCallback(
-      (nextId: string) => {
+      (nextId: ModelOption['id']) => {
         applyCurrentModel(nextId, true)
       },
       [applyCurrentModel],
     )
 
     const updateProviderStatus = useCallback((status: ProviderStatus) => {
-      setProviderStatuses((prev) => {
+      setProviderStatuses((prev: ProviderStatusMap) => {
         const current = prev[status.provider]
         if (current && current.status === status.status && current.message === status.message) {
           return prev
@@ -302,7 +306,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const trimmedIntentFilePath = intentFilePath.trim()
 
     const providerChips = useMemo(() => {
-      const providers: Array<keyof ProviderStatusMap> = ['openai', 'gemini']
+      const providers: ModelProvider[] = ['openai', 'gemini']
       return providers.map((provider) => {
         const status = providerStatuses[provider]
         const suffix =
@@ -392,7 +396,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     useEffect(() => {
       let cancelled = false
-      const providers: Array<keyof ProviderStatusMap> = ['openai', 'gemini']
+      const providers: ModelProvider[] = ['openai', 'gemini']
       const refreshStatuses = async (): Promise<void> => {
         for (const provider of providers) {
           try {
