@@ -65,6 +65,7 @@ describe('useGenerationPipeline', () => {
     videos: [] as string[],
     smartContextEnabled: false,
     smartContextRoot: null,
+    metaInstructions: '',
     interactiveTransportPath: undefined as string | undefined,
     terminalColumns: 80,
     polishEnabled: false,
@@ -129,6 +130,32 @@ describe('useGenerationPipeline', () => {
     })
 
     expect(generateCommandModule.runGeneratePipeline).toHaveBeenCalled()
+  })
+
+  it('passes meta instructions to the generation pipeline', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'ok',
+      message: 'ready',
+    })
+    const pushHistory = jest.fn()
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+        metaInstructions: 'Be concise',
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runGeneration({ intent: 'Add feature' })
+    })
+
+    expect(generateCommandModule.runGeneratePipeline).toHaveBeenCalledWith(
+      expect.objectContaining({ metaInstructions: 'Be concise' }),
+      expect.any(Object),
+    )
   })
 
   it('aborts series generation when provider is unavailable', async () => {

@@ -1,6 +1,12 @@
 export const COMMAND_DESCRIPTORS = [
   { id: 'model', label: 'Model', description: 'Switch the target LLM' },
   { id: 'intent', label: 'Intent File', description: 'Use a file for the intent text' },
+  {
+    id: 'instructions',
+    label: 'Meta Instructions',
+    description: 'Add optional meta guidance (/meta)',
+    aliases: ['meta'] as const,
+  },
   { id: 'file', label: 'File', description: 'Attach file context' },
   { id: 'url', label: 'URL', description: 'Add URL context' },
   { id: 'smart', label: 'Smart Context', description: 'Toggle smart context root' },
@@ -34,5 +40,6 @@ export const POPUP_HEIGHTS = {
   smart: 9,
   test: 7,
   intent: 7,
+  instructions: 7,
   series: 8,
 } as const

@@ -7,6 +7,7 @@ export type ContextSourceState = {
   videos: string[]
   smartContextEnabled: boolean
   smartContextRoot: string | null
+  metaInstructions: string
 }
 
 export type ContextDispatch = {
@@ -20,6 +21,7 @@ export type ContextDispatch = {
   removeVideo: (index: number) => void
   toggleSmartContext: () => void
   setSmartRoot: (value: string) => void
+  setMetaInstructions: (value: string) => void
 }
 
 export const ContextStateContext = createContext<ContextSourceState | null>(null)

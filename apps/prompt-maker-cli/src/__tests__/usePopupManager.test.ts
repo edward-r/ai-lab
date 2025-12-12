@@ -60,6 +60,8 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
     setJsonOutputEnabled: jest.fn(),
     setIntentFilePath: jest.fn(),
     intentFilePath: '',
+    metaInstructions: '',
+    setMetaInstructions: jest.fn(),
     polishEnabled: false,
     copyEnabled: false,
     chatGptEnabled: false,
@@ -174,6 +176,28 @@ describe('usePopupManager file popup', () => {
       '[file] Failed to scan workspace: boom',
       'system',
     )
+  })
+})
+
+describe('usePopupManager instructions command', () => {
+  it('opens and saves meta instructions', () => {
+    const options = createOptions({ metaInstructions: 'Be friendly' })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('instructions')
+    })
+
+    expect(result.current.popupState).toEqual({ type: 'instructions', draft: 'Be friendly' })
+
+    act(() => {
+      result.current.actions.handleInstructionsSubmit('Focus on security')
+    })
+
+    expect(options.setMetaInstructions).toHaveBeenCalledWith('Focus on security')
+    expect(options.pushHistory).toHaveBeenCalledWith('[instr] Focus on security')
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
   })
 })
 

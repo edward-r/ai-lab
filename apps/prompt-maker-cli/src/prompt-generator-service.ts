@@ -76,6 +76,7 @@ export type PromptGenerationRequest = {
   fileContext: FileContext[]
   images: string[]
   videos: string[]
+  metaInstructions?: string
   previousPrompt?: string
   refinementInstruction?: string
   onUploadStateChange?: UploadStateChange
@@ -107,6 +108,7 @@ export class PromptGeneratorService {
           request.fileContext,
           request.images,
           request.videos,
+          request.metaInstructions,
           request.onUploadStateChange,
         )
       : await buildInitialUserMessage(
@@ -114,6 +116,7 @@ export class PromptGeneratorService {
           request.fileContext,
           request.images,
           request.videos,
+          request.metaInstructions,
           request.onUploadStateChange,
         )
 
@@ -147,6 +150,7 @@ export class PromptGeneratorService {
       request.fileContext,
       request.images,
       request.videos,
+      request.metaInstructions,
       request.onUploadStateChange,
     )
 
@@ -224,6 +228,7 @@ const buildInitialUserMessage = async (
   files: FileContext[],
   imagePaths: string[],
   videoPaths: string[],
+  metaInstructions?: string,
   onUploadStateChange?: UploadStateChange,
 ): Promise<MessageContent> => {
   const sections: string[] = []
@@ -233,6 +238,12 @@ const buildInitialUserMessage = async (
   }
 
   sections.push(`User Intent:\n${intent.trim()}`)
+
+  const trimmedInstructions = metaInstructions?.trim()
+  if (trimmedInstructions) {
+    sections.push(`Meta-Instructions:\n${trimmedInstructions}`)
+  }
+
   sections.push(
     [
       'Return the final structured prompt contract now.',
@@ -251,6 +262,7 @@ const buildRefinementMessage = async (
   files: FileContext[],
   imagePaths: string[],
   videoPaths: string[],
+  metaInstructions?: string,
   onUploadStateChange?: UploadStateChange,
 ): Promise<MessageContent> => {
   const sections: string[] = []
@@ -262,6 +274,12 @@ const buildRefinementMessage = async (
   sections.push(`Original Intent (for reference):\n${originalIntent}`)
   sections.push(`Current Prompt Draft:\n${previousPrompt}`)
   sections.push(`Refinement Instruction:\n${instruction}`)
+
+  const trimmedInstructions = metaInstructions?.trim()
+  if (trimmedInstructions) {
+    sections.push(`Meta-Instructions:\n${trimmedInstructions}`)
+  }
+
   sections.push(
     [
       'Return the fully updated prompt contract.',
@@ -278,6 +296,7 @@ const buildSeriesUserMessage = async (
   files: FileContext[],
   imagePaths: string[],
   videoPaths: string[],
+  metaInstructions?: string,
   onUploadStateChange?: UploadStateChange,
 ): Promise<MessageContent> => {
   const sections: string[] = []
@@ -287,6 +306,12 @@ const buildSeriesUserMessage = async (
   }
 
   sections.push(`User Intent:\n${intent.trim()}`)
+
+  const trimmedInstructions = metaInstructions?.trim()
+  if (trimmedInstructions) {
+    sections.push(`Meta-Instructions:\n${trimmedInstructions}`)
+  }
+
   sections.push(
     [
       'Task:',

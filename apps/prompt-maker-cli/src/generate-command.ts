@@ -101,6 +101,7 @@ export type GenerateArgs = {
   urls: string[]
   images: string[]
   video: string[]
+  metaInstructions?: string
   smartContext: boolean
   smartContextRoot?: string
   inlineIntentAfterInteractive?: boolean
@@ -118,6 +119,7 @@ type LoopContext = {
   fileContext: FileContext[]
   images: string[]
   videos: string[]
+  metaInstructions: string
 }
 
 type ContextPathSource = 'intent' | 'file' | 'url' | 'smart'
@@ -406,6 +408,7 @@ export const runGeneratePipeline = async (
       : null
 
     const refinements: string[] = []
+    const trimmedMetaInstructions = args.metaInstructions?.trim() ?? ''
     const streamDispatcher = createStreamDispatcher(args.stream, {
       ...(interactiveTransport ? { taps: [interactiveTransport.getEventWriter()] } : {}),
     })
@@ -563,7 +566,15 @@ export const runGeneratePipeline = async (
 
     const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
       service,
-      context: { intent, refinements, model, fileContext, images: args.images, videos: args.video },
+      context: {
+        intent,
+        refinements,
+        model,
+        fileContext,
+        images: args.images,
+        videos: args.video,
+        metaInstructions: trimmedMetaInstructions,
+      },
       telemetry,
       interactiveMode,
       interactiveTransport,
@@ -1145,6 +1156,10 @@ const generateAndMaybeDisplay = async (
     fileContext: context.fileContext,
     images: context.images,
     videos: context.videos,
+  }
+
+  if (context.metaInstructions) {
+    request.metaInstructions = context.metaInstructions
   }
 
   if (onUploadStateChange) {
