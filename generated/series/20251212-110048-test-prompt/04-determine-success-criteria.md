@@ -1,0 +1,1 @@
+Define the criteria that will be used to determine whether the testing objectives have been met.
