@@ -56,6 +56,8 @@ export type UsePopupManagerOptions = {
   syncTypedIntentRef: (intent: string) => void
 }
 
+const JSON_INTERACTIVE_ERROR = 'JSON output is unavailable while interactive transport is enabled.'
+
 export const usePopupManager = ({
   currentModel,
   smartContextRoot,
@@ -179,10 +181,7 @@ export const usePopupManager = ({
   const applyToggleSelection = useCallback(
     (field: ToggleField, value: boolean) => {
       if (field === 'json' && value && interactiveTransportPath) {
-        pushHistory(
-          'JSON output cannot be enabled while interactive transport is active.',
-          'system',
-        )
+        pushHistory(JSON_INTERACTIVE_ERROR, 'system')
         setInputValue('')
         setPopupState(null)
         return
@@ -244,29 +243,60 @@ export const usePopupManager = ({
 
   const handleCommandSelection = useCallback(
     (commandId: CommandDescriptor['id'], argsRaw?: string) => {
+      const trimmedArgs = argsRaw?.trim() ?? ''
+      const normalizedToggleArgs = trimmedArgs.toLowerCase()
       switch (commandId) {
         case 'model':
           openModelPopup()
           return
-        case 'polish':
-        case 'copy':
-        case 'chatgpt':
-          openTogglePopup(commandId)
-          return
-        case 'json': {
-          if (interactiveTransportPath) {
-            pushHistory(
-              'JSON output is unavailable while interactive transport is enabled.',
-              'system',
-            )
+        case 'polish': {
+          if (!trimmedArgs) {
+            applyToggleSelection('polish', !polishEnabled)
             return
           }
-          const normalized = argsRaw?.trim().toLowerCase() ?? ''
-          if (normalized === 'on' || normalized === 'off') {
-            const nextEnabled = normalized === 'on'
-            setJsonOutputEnabled(nextEnabled)
-            pushHistory(`JSON ${nextEnabled ? 'enabled' : 'disabled'}`)
+          if (normalizedToggleArgs === 'on' || normalizedToggleArgs === 'off') {
+            applyToggleSelection('polish', normalizedToggleArgs === 'on')
+            return
+          }
+          openTogglePopup('polish')
+          return
+        }
+        case 'copy': {
+          if (!trimmedArgs) {
+            applyToggleSelection('copy', !copyEnabled)
+            return
+          }
+          if (normalizedToggleArgs === 'on' || normalizedToggleArgs === 'off') {
+            applyToggleSelection('copy', normalizedToggleArgs === 'on')
+            return
+          }
+          openTogglePopup('copy')
+          return
+        }
+        case 'chatgpt': {
+          if (!trimmedArgs) {
+            applyToggleSelection('chatgpt', !chatGptEnabled)
+            return
+          }
+          if (normalizedToggleArgs === 'on' || normalizedToggleArgs === 'off') {
+            applyToggleSelection('chatgpt', normalizedToggleArgs === 'on')
+            return
+          }
+          openTogglePopup('chatgpt')
+          return
+        }
+        case 'json': {
+          if (interactiveTransportPath) {
+            pushHistory(JSON_INTERACTIVE_ERROR, 'system')
             setInputValue('')
+            return
+          }
+          if (!trimmedArgs) {
+            applyToggleSelection('json', !jsonOutputEnabled)
+            return
+          }
+          if (normalizedToggleArgs === 'on' || normalizedToggleArgs === 'off') {
+            applyToggleSelection('json', normalizedToggleArgs === 'on')
             return
           }
           openTogglePopup('json')
@@ -295,7 +325,6 @@ export const usePopupManager = ({
               pushHistory('Generation already running. Please wait.', 'system')
               return
             }
-            const trimmedArgs = argsRaw?.trim() ?? ''
             const latestTypedIntent = getLatestTypedIntent() ?? ''
             let initialDraft = trimmedArgs || latestTypedIntent || lastUserIntentRef.current || ''
             let hintOverride: string | undefined
@@ -333,7 +362,6 @@ export const usePopupManager = ({
           return
         }
         case 'test': {
-          const trimmedArgs = argsRaw?.trim() ?? ''
           if (trimmedArgs) {
             void runTestsFromCommand(trimmedArgs)
           } else {
@@ -346,10 +374,14 @@ export const usePopupManager = ({
       }
     },
     [
+      applyToggleSelection,
+      chatGptEnabled,
+      copyEnabled,
       exitApp,
       interactiveTransportPath,
       intentFilePath,
       isGenerating,
+      jsonOutputEnabled,
       lastUserIntentRef,
       openFilePopup,
       openModelPopup,
@@ -358,10 +390,10 @@ export const usePopupManager = ({
       openTestPopup,
       openTogglePopup,
       openUrlPopup,
+      polishEnabled,
       pushHistory,
       runTestsFromCommand,
       setInputValue,
-      setJsonOutputEnabled,
       getLatestTypedIntent,
       syncTypedIntentRef,
     ],
