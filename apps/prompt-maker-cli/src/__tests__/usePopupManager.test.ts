@@ -10,6 +10,10 @@ jest.mock('../tui/file-suggestions', () => ({
   discoverFileSuggestions: jest.fn(),
 }))
 
+jest.mock('node:fs/promises', () => ({
+  readFile: jest.fn(),
+}))
+
 const dom = new JSDOM('<!doctype html><html><body></body></html>')
 const globalScope = globalThis as typeof globalThis & {
   window: Window & typeof globalThis
@@ -88,6 +92,11 @@ const createDeferred = <T>(): Deferred<T> => {
 const fileSuggestions = jest.requireMock('../tui/file-suggestions') as {
   discoverFileSuggestions: jest.Mock
 }
+
+const getFsMock = () =>
+  jest.requireMock('node:fs/promises') as {
+    readFile: jest.MockedFunction<(file: string, encoding: string) => Promise<string>>
+  }
 
 describe('usePopupManager file popup', () => {
   beforeEach(() => {
@@ -168,6 +177,117 @@ describe('usePopupManager file popup', () => {
   })
 })
 
+describe('usePopupManager series command', () => {
+  beforeEach(() => {
+    const fs = getFsMock()
+    fs.readFile.mockReset()
+  })
+
+  it('prefills the series popup from command args', async () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    await act(async () => {
+      result.current.actions.handleCommandSelection('series', 'plan a feature')
+      await Promise.resolve()
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith(
+      '[series] Using provided text as intent draft.',
+      'system',
+    )
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toEqual({
+      type: 'series',
+      draft: 'plan a feature',
+      hint: 'Draft prefills from typed/last intent (or pass /series <intent>).',
+    })
+  })
+
+  it('prefills the series popup from typed intent', async () => {
+    const options = createOptions({ getLatestTypedIntent: jest.fn(() => 'typed intent') })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    await act(async () => {
+      result.current.actions.handleCommandSelection('series')
+      await Promise.resolve()
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith(
+      '[series] Using typed intent as draft.',
+      'system',
+    )
+    expect(result.current.popupState).toEqual({
+      type: 'series',
+      draft: 'typed intent',
+      hint: 'Draft prefills from typed/last intent (or pass /series <intent>).',
+    })
+  })
+
+  it('prefills the series popup from the last run intent', async () => {
+    const lastUserIntentRef: MutableRefObject<string | null> = { current: 'last intent' }
+    const options = createOptions({ lastUserIntentRef })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    await act(async () => {
+      result.current.actions.handleCommandSelection('series')
+      await Promise.resolve()
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith(
+      '[series] Reusing last intent as draft.',
+      'system',
+    )
+    expect(result.current.popupState).toEqual({
+      type: 'series',
+      draft: 'last intent',
+      hint: 'Draft prefills from typed/last intent (or pass /series <intent>).',
+    })
+  })
+
+  it('loads the series popup draft from an intent file when empty', async () => {
+    const fs = getFsMock()
+    fs.readFile.mockResolvedValueOnce('intent from file')
+
+    const options = createOptions({ intentFilePath: '/tmp/intent.md' })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    await act(async () => {
+      result.current.actions.handleCommandSelection('series')
+      await Promise.resolve()
+    })
+
+    expect(fs.readFile).toHaveBeenCalledWith('/tmp/intent.md', 'utf8')
+    expect(options.pushHistory).toHaveBeenCalledWith(
+      '[series] Loaded draft from intent file intent.md.',
+      'system',
+    )
+    expect(options.syncTypedIntentRef).toHaveBeenCalledWith('intent from file')
+    expect(result.current.popupState).toEqual({
+      type: 'series',
+      draft: 'intent from file',
+      hint: 'Loaded from intent file intent.md',
+    })
+  })
+})
+
+describe('usePopupManager test command', () => {
+  it('logs a hint when running /test with args', () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('test', 'prompt-tests.yaml')
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith(
+      '[tests] Running /test prompt-tests.yaml',
+      'system',
+    )
+    expect(options.runTestsFromCommand).toHaveBeenCalledWith('prompt-tests.yaml')
+  })
+})
+
 describe('usePopupManager quick toggles', () => {
   it('toggles polish without arguments', () => {
     const options = createOptions({ polishEnabled: false })
@@ -218,7 +338,7 @@ describe('usePopupManager quick toggles', () => {
     })
 
     expect(options.setJsonOutputEnabled).toHaveBeenCalledWith(true)
-    expect(options.pushHistory).toHaveBeenCalledWith('JSON enabled')
+    expect(options.pushHistory).toHaveBeenCalledWith('JSON enabled (payload shown in history)')
   })
 
   it('blocks json toggling when interactive transport is active', () => {

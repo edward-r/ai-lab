@@ -76,7 +76,9 @@ const WELCOME_LINES = [
   'Type natural language requests or start a command with /.',
   'Press Enter to log input; arrow keys scroll history.',
   'Press ? anytime to view keyboard shortcuts.',
-  'Use /intent to load intent text from a file (blank clears).',
+  'Series: /series opens a popup; it prefills from typed/last intent (or /intent file).',
+  'Tests: /test prompt-tests.yaml runs the prompt test suite.',
+  'JSON: /json on|off toggles prompt payload in history.',
   'Tip: Press Tab to open the Series intent popup.',
 ]
 

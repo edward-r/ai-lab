@@ -10,12 +10,12 @@ export const COMMAND_DESCRIPTORS = [
   {
     id: 'series',
     label: 'Series',
-    description: 'Generate atomic prompt series (Tab)',
+    description: 'Atomic prompt series (Tab) · prefilled from typed/last intent or intent file',
   },
   { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
-  { id: 'json', label: 'JSON', description: 'Emit JSON payload to stdout' },
-  { id: 'test', label: 'Test', description: 'Run prompt tests (/test <file>)' },
+  { id: 'json', label: 'JSON', description: 'Toggle JSON payload in history (/json on|off)' },
+  { id: 'test', label: 'Test', description: 'Run prompt tests (/test prompt-tests.yaml)' },
   { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
 ] as const
 

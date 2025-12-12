@@ -21,9 +21,12 @@ export const SeriesIntentPopup: React.FC<SeriesIntentPopupProps> = ({
     <Text color="cyanBright">Series Intent</Text>
     <Box flexDirection="column" marginTop={1}>
       {hint ? (
-        <Text color="gray">{hint}</Text>
+        <>
+          <Text color="gray">{hint}</Text>
+          <Text color="gray">Draft may come from typed text, last run, or the intent file.</Text>
+        </>
       ) : (
-        <Text color="gray">Enter or edit the intent for atomic prompt series.</Text>
+        <Text color="gray">Draft may come from typed text, last run, or the intent file.</Text>
       )}
       <TextInput
         value={draft}
