@@ -169,8 +169,8 @@ export const usePopupManager = ({
     (initialDraft?: string, hintOverride?: string) => {
       const trimmedIntentFile = intentFilePath.trim()
       const defaultHint = trimmedIntentFile
-        ? 'Intent file is active; /series only uses typed text.'
-        : 'Enter the intent to generate an atomic series.'
+        ? 'Draft prefills from typed/last intent; if empty, loads the intent file.'
+        : 'Draft prefills from typed/last intent (or pass /series <intent>).'
       setPopupState({
         type: 'series',
         draft: initialDraft ?? '',
@@ -212,7 +212,12 @@ export const usePopupManager = ({
         setPopupState(null)
         return
       }
-      const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
+      const message =
+        field === 'json'
+          ? value
+            ? 'JSON enabled (payload shown in history)'
+            : 'JSON disabled'
+          : `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
       if (field === 'polish') {
         setPolishEnabled(value)
       } else if (field === 'copy') {
@@ -351,9 +356,21 @@ export const usePopupManager = ({
               pushHistory('Generation already running. Please wait.', 'system')
               return
             }
-            const latestTypedIntent = getLatestTypedIntent() ?? ''
-            let initialDraft = trimmedArgs || latestTypedIntent || lastUserIntentRef.current || ''
+
+            const latestTypedIntent = getLatestTypedIntent()
+            const typedDraft = latestTypedIntent?.trim() ?? ''
+
+            let initialDraft = trimmedArgs || typedDraft || lastUserIntentRef.current || ''
             let hintOverride: string | undefined
+
+            if (trimmedArgs) {
+              pushHistory('[series] Using provided text as intent draft.', 'system')
+            } else if (typedDraft) {
+              pushHistory('[series] Using typed intent as draft.', 'system')
+            } else if (lastUserIntentRef.current) {
+              pushHistory('[series] Reusing last intent as draft.', 'system')
+            }
+
             if (!initialDraft) {
               const trimmedIntentFile = intentFilePath.trim()
               if (trimmedIntentFile) {
@@ -363,6 +380,7 @@ export const usePopupManager = ({
                   if (fileIntent) {
                     initialDraft = fileIntent
                     const fileLabel = path.basename(trimmedIntentFile)
+                    pushHistory(`[series] Loaded draft from intent file ${fileLabel}.`, 'system')
                     hintOverride = `Loaded from intent file ${fileLabel}`
                     syncTypedIntentRef(fileIntent)
                   } else {
@@ -381,6 +399,11 @@ export const usePopupManager = ({
                 }
               }
             }
+
+            if (!initialDraft) {
+              pushHistory('[series] No intent found; enter one in the popup.', 'system')
+            }
+
             openSeriesPopup(initialDraft, hintOverride)
             setInputValue('')
           }
@@ -389,6 +412,7 @@ export const usePopupManager = ({
         }
         case 'test': {
           if (trimmedArgs) {
+            pushHistory(`[tests] Running /test ${trimmedArgs}`, 'system')
             void runTestsFromCommand(trimmedArgs)
           } else {
             openTestPopup()
