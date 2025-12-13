@@ -1,10 +1,14 @@
 export const COMMAND_DESCRIPTORS = [
   { id: 'model', label: 'Model', description: 'Switch the target LLM' },
-  { id: 'intent', label: 'Intent File', description: 'Use a file for the intent text' },
+  {
+    id: 'intent',
+    label: 'Intent File',
+    description: 'Use a file for the intent text (/intent path/to/file.md)',
+  },
   {
     id: 'instructions',
     label: 'Meta Instructions',
-    description: 'Add optional meta guidance (/meta)',
+    description: 'Add optional meta guidance (/meta <text>)',
     aliases: ['meta'] as const,
   },
   { id: 'file', label: 'File', description: 'Attach file context' },
@@ -22,6 +26,7 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Toggle JSON payload in history (/json on|off)' },
   { id: 'tokens', label: 'Tokens', description: 'Show token usage breakdown (/tokens)' },
+  { id: 'history', label: 'History', description: 'Browse command/intent history (/history)' },
   { id: 'test', label: 'Test', description: 'Run prompt tests (/test prompt-tests.yaml)' },
   { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
 ] as const
@@ -38,6 +43,7 @@ export const POPUP_HEIGHTS = {
   toggle: 6,
   file: 16,
   url: 12,
+  history: 16,
   smart: 9,
   tokens: 16,
   test: 7,
