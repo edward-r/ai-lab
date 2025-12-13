@@ -15,7 +15,8 @@ import {
 import { Box, useApp, useInput, useStdout } from 'ink'
 import wrapAnsi from 'wrap-ansi'
 
-import { InputBar } from './components/core/InputBar'
+import { InputBar, estimateInputBarRows } from './components/core/InputBar'
+import type { DebugKeyEvent } from './components/core/MultilineTextInput'
 import { CommandMenu } from './components/core/CommandMenu'
 import { PastedSnippetCard } from './components/core/PastedSnippetCard'
 import { ScrollableOutput } from './components/core/ScrollableOutput'
@@ -68,8 +69,7 @@ import { useContextDispatch, useContextState } from './context-store'
 import { createTokenUsageStore } from './token-usage-store'
 
 const APP_STATIC_ROWS = 7
-const INPUT_BAR_ROWS = 6
-const COMMAND_SCREEN_STATIC_ROWS = INPUT_BAR_ROWS + 3
+const COMMAND_SCREEN_OVERHEAD_ROWS = 3
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
 
@@ -175,6 +175,16 @@ export const CommandScreen = memo(
       const [terminalColumns, setTerminalColumns] = useState(stdout?.columns ?? 80)
       const lastUserIntentRef = useRef<string | null>(null)
       const lastTypedIntentRef = useRef<string>('')
+      const debugKeysEnabled = useMemo(() => {
+        const value = process.env.PROMPT_MAKER_DEBUG_KEYS
+        if (!value) {
+          return false
+        }
+        const normalized = value.trim().toLowerCase()
+        return normalized !== '0' && normalized !== 'false'
+      }, [])
+      const [debugKeyLine, setDebugKeyLine] = useState<string | null>(null)
+
       const [inputValue, setInputValue] = useState('')
       const inputValueRef = useRef('')
       inputValueRef.current = inputValue
@@ -182,6 +192,7 @@ export const CommandScreen = memo(
       const pastedSnippetRef = useRef<PastedSnippet | null>(null)
       pastedSnippetRef.current = pastedSnippet
       const suppressTextInputDuringPasteRef = useRef(false)
+      const [isPasteActive, setIsPasteActive] = useState(false)
       const bracketedPasteStateRef = useRef<BracketedPasteState>(createBracketedPasteState())
       const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
       const builtInModelOptionsRef = useRef<ModelOption[]>(getBuiltInModelOptions())
@@ -212,6 +223,31 @@ export const CommandScreen = memo(
           applyCurrentModel(nextId, true)
         },
         [applyCurrentModel],
+      )
+
+      const formatDebugKeyEvent = useCallback((event: DebugKeyEvent): string => {
+        const codes = Array.from(event.input)
+          .map((character) => character.codePointAt(0) ?? 0)
+          .map((code) => `0x${code.toString(16).padStart(2, '0')}`)
+          .join(' ')
+
+        const activeFlags = (Object.entries(event.key) as Array<[string, unknown]>)
+          .filter(([, value]) => value === true)
+          .map(([name]) => name)
+          .join(',')
+
+        const safeInput = JSON.stringify(event.input)
+        return `dbg input=${safeInput} codes=[${codes}] key=[${activeFlags}]`
+      }, [])
+
+      const handleDebugKeyEvent = useCallback(
+        (event: DebugKeyEvent): void => {
+          if (!debugKeysEnabled) {
+            return
+          }
+          setDebugKeyLine(formatDebugKeyEvent(event))
+        },
+        [debugKeysEnabled, formatDebugKeyEvent],
       )
 
       const updateProviderStatus = useCallback((status: ProviderStatus) => {
@@ -497,15 +533,42 @@ export const CommandScreen = memo(
         : popupState
           ? POPUP_HEIGHTS[popupState.type as PopupKind]
           : menuHeight
+
+      const inputBarValue = pastedSnippet ? '' : inputValue
+      const inputBarHint = useMemo(() => {
+        if (isPopupOpen || helpOpen || !droppedFilePath) {
+          return undefined
+        }
+        return `Press Tab to add ${path.basename(droppedFilePath)} to context`
+      }, [droppedFilePath, helpOpen, isPopupOpen])
+
+      const inputBarDebugLine = useMemo(() => {
+        if (!debugKeysEnabled) {
+          return undefined
+        }
+        return debugKeyLine ?? 'dbg: press Backspace'
+      }, [debugKeyLine, debugKeysEnabled])
+
+      const inputBarRows = useMemo(
+        () =>
+          estimateInputBarRows({
+            value: inputBarValue,
+            hint: inputBarHint,
+            debugLine: inputBarDebugLine,
+          }),
+        [inputBarDebugLine, inputBarHint, inputBarValue],
+      )
+
       const historyRows = useMemo(() => {
         const overlaySpacingRows = !helpOpen && (popupState || isCommandMenuActive) ? 1 : 0
-        const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_STATIC_ROWS
+        const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_OVERHEAD_ROWS + inputBarRows
         const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
         const availableRows =
           terminalRows - overlayHeight - parentRows - overlaySpacingRows - reservedRows
         return Math.max(1, availableRows)
       }, [
         helpOpen,
+        inputBarRows,
         interactiveTransportPath,
         isCommandMenuActive,
         overlayHeight,
@@ -735,7 +798,13 @@ export const CommandScreen = memo(
 
           const result = consumeBracketedPasteChunk(bracketedPasteStateRef.current, input)
           bracketedPasteStateRef.current = result.state
-          suppressTextInputDuringPasteRef.current = result.state.isActive
+
+          const nextPasteActive = result.state.isActive
+          const prevPasteActive = suppressTextInputDuringPasteRef.current
+          suppressTextInputDuringPasteRef.current = nextPasteActive
+          if (prevPasteActive !== nextPasteActive) {
+            setIsPasteActive(nextPasteActive)
+          }
 
           if (result.completed.length === 0) {
             return
@@ -1909,16 +1978,15 @@ export const CommandScreen = memo(
           ) : null}
 
           <InputBar
-            value={pastedSnippet ? '' : inputValue}
+            value={inputBarValue}
             onChange={handleInputChange}
             onSubmit={handleSubmit}
             isDisabled={isPopupOpen || helpOpen || Boolean(pastedSnippet)}
+            isPasteActive={isPasteActive}
             statusChips={enhancedStatusChips}
-            hint={
-              !isPopupOpen && !helpOpen && droppedFilePath
-                ? `Press Tab to add ${path.basename(droppedFilePath)} to context`
-                : undefined
-            }
+            hint={inputBarHint}
+            debugLine={inputBarDebugLine}
+            onDebugKeyEvent={debugKeysEnabled ? handleDebugKeyEvent : undefined}
             placeholder={
               pastedSnippet
                 ? pastedSnippet.label
