@@ -18,6 +18,7 @@ export type PopupManagerActions = {
   openFilePopup: () => void
   openUrlPopup: () => void
   openSmartPopup: () => void
+  openTokensPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
   openInstructionsPopup: () => void
@@ -162,6 +163,10 @@ export const usePopupManager = ({
   const openSmartPopup = useCallback(() => {
     setPopupState({ type: 'smart', draft: smartContextRoot ?? '' })
   }, [smartContextRoot])
+
+  const openTokensPopup = useCallback(() => {
+    setPopupState({ type: 'tokens' })
+  }, [])
 
   const openTestPopup = useCallback(() => {
     setPopupState({ type: 'test', draft: lastTestFile ?? defaultTestFile })
@@ -363,6 +368,10 @@ export const usePopupManager = ({
         case 'smart':
           openSmartPopup()
           return
+        case 'tokens':
+          openTokensPopup()
+          setInputValue('')
+          return
         case 'intent':
           openIntentPopup()
           return
@@ -461,6 +470,7 @@ export const usePopupManager = ({
       openModelPopup,
       openSeriesPopup,
       openSmartPopup,
+      openTokensPopup,
       openTestPopup,
       openTogglePopup,
       openUrlPopup,
@@ -484,7 +494,9 @@ export const usePopupManager = ({
       openFilePopup,
       openUrlPopup,
       openSmartPopup,
+      openTokensPopup,
       openTestPopup,
+
       openIntentPopup,
       openInstructionsPopup,
       openSeriesPopup,

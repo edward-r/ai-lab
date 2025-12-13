@@ -18,6 +18,7 @@ import { ScrollableOutput } from './components/core/ScrollableOutput'
 import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
 import { SmartPopup } from './components/popups/SmartPopup'
+import { TokenUsagePopup } from './components/popups/TokenUsagePopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
 import { IntentFilePopup } from './components/popups/IntentFilePopup'
@@ -48,6 +49,7 @@ import type { ModelProvider } from '../model-providers'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context-store'
+import { createTokenUsageStore } from './token-usage-store'
 
 const APP_STATIC_ROWS = 7
 const INPUT_BAR_ROWS = 5
@@ -80,6 +82,7 @@ const WELCOME_LINES = [
   'Press ? anytime to view keyboard shortcuts.',
   'Series: /series opens a popup; it prefills from typed/last intent (or /intent file).',
   'Tests: /test prompt-tests.yaml runs the prompt test suite.',
+  'Tokens: /tokens shows token usage breakdown.',
   'JSON: /json on|off toggles prompt payload in history.',
   'Tip: Press Tab to open the Series intent popup.',
 ]
@@ -189,6 +192,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
     const [lastTestFile, setLastTestFile] = useState<string | null>(null)
     const suppressNextInputRef = useRef(false)
 
+    const tokenUsageStoreRef = useRef<ReturnType<typeof createTokenUsageStore> | null>(null)
+    if (!tokenUsageStoreRef.current) {
+      tokenUsageStoreRef.current = createTokenUsageStore()
+    }
+
     const consumeSuppressedTextInputChange = useCallback((): boolean => {
       if (!suppressNextInputRef.current) {
         return false
@@ -271,6 +279,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       copyEnabled,
       chatGptEnabled,
       isTestCommandRunning,
+      tokenUsageStore: tokenUsageStoreRef.current,
       onProviderStatusUpdate: updateProviderStatus,
     })
 
@@ -985,6 +994,13 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           return
         }
 
+        if (popupState.type === 'tokens') {
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
         if (popupState.type === 'intent') {
           if (key.escape) {
             closePopup()
@@ -1335,6 +1351,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 isRunning={isTestCommandRunning}
                 onDraftChange={handleTestPopupDraftChange}
                 onSubmitDraft={handleTestPopupSubmit}
+              />
+            ) : popupState.type === 'tokens' ? (
+              <TokenUsagePopup
+                run={tokenUsageStoreRef.current?.getLatestRun() ?? null}
+                breakdown={tokenUsageStoreRef.current?.getLatestBreakdown() ?? null}
               />
             ) : (
               <SmartPopup

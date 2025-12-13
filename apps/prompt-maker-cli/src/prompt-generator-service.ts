@@ -29,9 +29,9 @@ You must output a valid JSON object with exactly two keys:
 Do not output any text outside of this JSON object.
 `
 
-const GEN_SYSTEM_PROMPT = META_PROMPT
+export const GEN_SYSTEM_PROMPT = META_PROMPT
 
-const REFINE_SYSTEM_PROMPT = `
+export const REFINE_SYSTEM_PROMPT = `
 You are an expert Prompt Engineer refining an existing prompt based on user feedback. The result must remain a prompt contract for another assistant, never the finished work.
 ${PROMPT_CONTRACT_REQUIREMENTS}
 
@@ -43,7 +43,7 @@ You must output a valid JSON object with exactly two keys:
 Do not output any text outside of this JSON object.
 `
 
-const SERIES_SYSTEM_PROMPT = `
+export const SERIES_SYSTEM_PROMPT = `
 You are a Lead Architect Agent. Decompose the user's intent into a cohesive plan consisting of:
 - One overview prompt that frames the entire effort.
 - A sequence of atomic prompts that can be executed and tested independently.
@@ -93,8 +93,13 @@ export type SeriesResponse = {
   atomicPrompts: Array<{ title: string; content: string }>
 }
 
+export type PromptGenerationResult = {
+  prompt: string
+  reasoning?: string
+}
+
 export class PromptGeneratorService {
-  async generatePrompt(request: PromptGenerationRequest): Promise<string> {
+  async generatePromptDetailed(request: PromptGenerationRequest): Promise<PromptGenerationResult> {
     await ensureModelCredentials(request.model)
 
     const isRefinement = Boolean(request.previousPrompt && request.refinementInstruction)
@@ -145,10 +150,15 @@ export class PromptGeneratorService {
         console.error('--------------------\n')
       }
 
-      return result.prompt
+      return { prompt: result.prompt, ...(result.reasoning ? { reasoning: result.reasoning } : {}) }
     } catch {
-      return rawResponse
+      return { prompt: rawResponse }
     }
+  }
+
+  async generatePrompt(request: PromptGenerationRequest): Promise<string> {
+    const result = await this.generatePromptDetailed(request)
+    return result.prompt
   }
 
   async generatePromptSeries(request: PromptGenerationRequest): Promise<SeriesResponse> {

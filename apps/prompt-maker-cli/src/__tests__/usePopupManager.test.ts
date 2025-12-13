@@ -201,6 +201,20 @@ describe('usePopupManager instructions command', () => {
   })
 })
 
+describe('usePopupManager tokens command', () => {
+  it('opens the token usage popup', () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('tokens')
+    })
+
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toEqual({ type: 'tokens' })
+  })
+})
+
 describe('usePopupManager series command', () => {
   beforeEach(() => {
     const fs = getFsMock()

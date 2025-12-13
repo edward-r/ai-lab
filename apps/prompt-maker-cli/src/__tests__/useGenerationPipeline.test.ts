@@ -132,6 +132,52 @@ describe('useGenerationPipeline', () => {
     expect(generateCommandModule.runGeneratePipeline).toHaveBeenCalled()
   })
 
+  it('updates status chips with token telemetry', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'ok',
+      message: 'ready',
+    })
+    const pushHistory = jest.fn()
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runGeneration({ intent: 'Ship it' })
+    })
+
+    const optionsArg = generateCommandModule.runGeneratePipeline.mock.calls[0]?.[1] as unknown
+    const onStreamEvent =
+      typeof optionsArg === 'object' &&
+      optionsArg !== null &&
+      'onStreamEvent' in optionsArg &&
+      typeof (optionsArg as { onStreamEvent?: unknown }).onStreamEvent === 'function'
+        ? ((optionsArg as { onStreamEvent?: unknown }).onStreamEvent as (event: unknown) => void)
+        : null
+
+    expect(onStreamEvent).not.toBeNull()
+
+    await act(async () => {
+      onStreamEvent?.({
+        event: 'context.telemetry',
+        telemetry: {
+          files: [],
+          intentTokens: 200,
+          fileTokens: 300,
+          systemTokens: 700,
+          totalTokens: 1200,
+        },
+      })
+    })
+
+    expect(result.current.statusChips).toEqual(expect.arrayContaining(['[tokens:1.2k]']))
+  })
+
   it('passes meta instructions to the generation pipeline', async () => {
     providerStatusModule.checkModelProviderStatus.mockResolvedValue({
       provider: 'openai',

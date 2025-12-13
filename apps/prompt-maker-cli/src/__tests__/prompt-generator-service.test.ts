@@ -136,7 +136,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     const messagePayload = callLLMMock.mock.calls[0]?.[0]
     const userMessage = messagePayload?.find((msg: { role: string }) => msg.role === 'user')
     const textPayload = JSON.stringify(userMessage?.content)
-    expect(textPayload).toContain('Meta-Instructions:\nBe concise')
+    expect(textPayload).toContain('Meta-Instructions:\\nBe concise')
   })
 
   it('handles refinement flows with previous prompt', async () => {
