@@ -66,13 +66,19 @@ describe('paste-snippet', () => {
   })
 
   describe('detectPastedSnippetFromInputChange', () => {
-    it('detects multi-line pastes even with small deltas', () => {
-      const snippet = detectPastedSnippetFromInputChange('', 'a\nb')
-      expect(snippet?.lineCount).toBe(2)
+    it('ignores small multi-line edits', () => {
+      expect(detectPastedSnippetFromInputChange('a', 'a\nb')).toBeNull()
     })
 
     it('ignores small single-line edits', () => {
       expect(detectPastedSnippetFromInputChange('hello', 'hello there')).toBeNull()
+    })
+
+    it('detects a large multi-line paste', () => {
+      const large = `${'x'.repeat(90)}\n${'y'.repeat(10)}`
+      const snippet = detectPastedSnippetFromInputChange('', large)
+      expect(snippet?.lineCount).toBe(2)
+      expect(snippet?.charCount).toBe(101)
     })
 
     it('detects a large single-line paste', () => {

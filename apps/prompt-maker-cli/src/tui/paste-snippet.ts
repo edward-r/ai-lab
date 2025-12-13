@@ -121,17 +121,16 @@ export const detectPastedSnippetFromInputChange = (
   previousValue: string,
   nextValue: string,
 ): PastedSnippet | null => {
-  const hasNewline = /[\n\r]/.test(nextValue)
-  if (hasNewline) {
-    return createPastedSnippet(nextValue)
-  }
-
   const previousNormalized = normalizeLineEndings(previousValue)
   const nextNormalized = normalizeLineEndings(nextValue)
   const delta = nextNormalized.length - previousNormalized.length
 
   if (delta < MIN_PASTE_DELTA_CHARS) {
     return null
+  }
+
+  if (/[\n\r]/.test(nextNormalized)) {
+    return createPastedSnippet(nextNormalized)
   }
 
   if (nextNormalized.length < LARGE_SINGLE_LINE_CHARS) {
