@@ -142,6 +142,7 @@ export type UseGenerationPipelineOptions = {
   isTestCommandRunning: boolean
   onProviderStatusUpdate?: (status: ProviderStatus) => void
   tokenUsageStore?: TokenUsageStore
+  onReasoningUpdate?: (reasoning: string | null) => void
 }
 
 export const useGenerationPipeline = ({
@@ -163,6 +164,7 @@ export const useGenerationPipeline = ({
   isTestCommandRunning,
   onProviderStatusUpdate,
   tokenUsageStore,
+  onReasoningUpdate,
 }: UseGenerationPipelineOptions) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
@@ -402,6 +404,7 @@ export const useGenerationPipeline = ({
 
       activeRunIdRef.current = tokenUsageStore ? tokenUsageStore.startRun(normalizedModel) : null
       setLatestTelemetry(null)
+      onReasoningUpdate?.(null)
 
       setIsGenerating(true)
       setStatusMessage('Preparing generation…')
@@ -454,6 +457,7 @@ export const useGenerationPipeline = ({
         }
 
         const result: GeneratePipelineResult = await runGeneratePipeline(args, options)
+        onReasoningUpdate?.(result.reasoning ?? null)
         setStatusMessage('Finalizing prompt…')
         const iterationLabel = result.iterations ? ` · ${result.iterations} iterations` : ''
         pushHistory(`Final prompt (${result.model}${iterationLabel}):`, 'system')
@@ -492,6 +496,7 @@ export const useGenerationPipeline = ({
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown generation error.'
         pushHistory(`Generation failed: ${message}`)
+        onReasoningUpdate?.(null)
         setStatusMessage('Failed')
       } finally {
         submitRefinement('')
@@ -519,6 +524,7 @@ export const useGenerationPipeline = ({
       pushHistory,
       tokenUsageStore,
       ensureProviderReady,
+      onReasoningUpdate,
     ],
   )
 

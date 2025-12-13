@@ -39,6 +39,7 @@ export type PopupState =
   | { type: 'history'; draft: string; selectionIndex: number }
   | { type: 'smart'; draft: string }
   | { type: 'tokens' }
+  | { type: 'reasoning'; scrollOffset: number }
   | { type: 'test'; draft: string }
   | { type: 'intent'; draft: string }
   | { type: 'instructions'; draft: string }

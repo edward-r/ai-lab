@@ -20,6 +20,7 @@ export type PopupManagerActions = {
   openHistoryPopup: () => void
   openSmartPopup: () => void
   openTokensPopup: () => void
+  openReasoningPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
   openInstructionsPopup: () => void
@@ -171,6 +172,10 @@ export const usePopupManager = ({
 
   const openTokensPopup = useCallback(() => {
     setPopupState({ type: 'tokens' })
+  }, [])
+
+  const openReasoningPopup = useCallback(() => {
+    setPopupState({ type: 'reasoning', scrollOffset: 0 })
   }, [])
 
   const openTestPopup = useCallback(() => {
@@ -377,6 +382,10 @@ export const usePopupManager = ({
           openTokensPopup()
           setInputValue('')
           return
+        case 'reasoning':
+          openReasoningPopup()
+          setInputValue('')
+          return
         case 'history':
           openHistoryPopup()
           setInputValue('')
@@ -488,6 +497,7 @@ export const usePopupManager = ({
       openSeriesPopup,
       openSmartPopup,
       openTokensPopup,
+      openReasoningPopup,
       openTestPopup,
       openTogglePopup,
       handleIntentFileSubmit,
@@ -516,6 +526,7 @@ export const usePopupManager = ({
       openHistoryPopup,
       openSmartPopup,
       openTokensPopup,
+      openReasoningPopup,
       openTestPopup,
 
       openIntentPopup,
