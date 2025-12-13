@@ -17,6 +17,7 @@ import wrapAnsi from 'wrap-ansi'
 
 import { InputBar } from './components/core/InputBar'
 import { CommandMenu } from './components/core/CommandMenu'
+import { PastedSnippetCard } from './components/core/PastedSnippetCard'
 import { ScrollableOutput } from './components/core/ScrollableOutput'
 import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
@@ -32,6 +33,14 @@ import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
 import { parseAbsolutePathFromInput, isCommandInput } from './drag-drop-path'
 import { filterFileSuggestions } from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
+import {
+  consumeBracketedPasteChunk,
+  createBracketedPasteState,
+  createPastedSnippet,
+  detectPastedSnippetFromInputChange,
+  type BracketedPasteState,
+  type PastedSnippet,
+} from './paste-snippet'
 import { useCommandHistory } from './hooks/useCommandHistory'
 import { useDebouncedValue } from './hooks/useDebouncedValue'
 import { usePersistentCommandHistory } from './hooks/usePersistentCommandHistory'
@@ -167,6 +176,13 @@ export const CommandScreen = memo(
       const lastUserIntentRef = useRef<string | null>(null)
       const lastTypedIntentRef = useRef<string>('')
       const [inputValue, setInputValue] = useState('')
+      const inputValueRef = useRef('')
+      inputValueRef.current = inputValue
+      const [pastedSnippet, setPastedSnippet] = useState<PastedSnippet | null>(null)
+      const pastedSnippetRef = useRef<PastedSnippet | null>(null)
+      pastedSnippetRef.current = pastedSnippet
+      const suppressTextInputDuringPasteRef = useRef(false)
+      const bracketedPasteStateRef = useRef<BracketedPasteState>(createBracketedPasteState())
       const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
       const builtInModelOptionsRef = useRef<ModelOption[]>(getBuiltInModelOptions())
       const initialSessionModelRef = useRef<string | null>(getLastSessionModel())
@@ -230,6 +246,29 @@ export const CommandScreen = memo(
         suppressNextInputRef.current = false
         return true
       }, [])
+
+      const clearPastedSnippet = useCallback(() => {
+        setPastedSnippet(null)
+      }, [])
+
+      const applyPastedSnippet = useCallback(
+        (snippet: PastedSnippet): void => {
+          setPastedSnippet(snippet)
+          suppressNextInputRef.current = true
+          setInputValue('')
+          lastTypedIntentRef.current = ''
+        },
+        [setInputValue],
+      )
+
+      const appendInlinePaste = useCallback(
+        (raw: string): void => {
+          const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+          suppressNextInputRef.current = true
+          setInputValue((prev) => prev + normalized)
+        },
+        [setInputValue],
+      )
 
       const pushHistoryRef = useRef<(content: string, kind?: HistoryEntry['kind']) => void>(
         () => {},
@@ -635,9 +674,13 @@ export const CommandScreen = memo(
 
       useEffect(() => {
         if (!stdout) {
-          return
+          return undefined
         }
         stdout.write('\x1bc')
+        stdout.write('\x1b[?2004h')
+        return () => {
+          stdout.write('\x1b[?2004l')
+        }
       }, [stdout])
 
       useEffect(() => {
@@ -683,6 +726,33 @@ export const CommandScreen = memo(
           return prev
         })
       }, [files.length, urls.length])
+
+      useInput(
+        (input) => {
+          if (popupState || helpOpen) {
+            return
+          }
+
+          const result = consumeBracketedPasteChunk(bracketedPasteStateRef.current, input)
+          bracketedPasteStateRef.current = result.state
+          suppressTextInputDuringPasteRef.current = result.state.isActive
+
+          if (result.completed.length === 0) {
+            return
+          }
+
+          const latestPaste = result.completed[result.completed.length - 1] ?? ''
+          const snippet = createPastedSnippet(latestPaste)
+
+          if (snippet) {
+            applyPastedSnippet(snippet)
+            return
+          }
+
+          appendInlinePaste(latestPaste)
+        },
+        { isActive: !helpOpen },
+      )
 
       useInput(
         (_, key) => {
@@ -1522,6 +1592,30 @@ export const CommandScreen = memo(
         ],
       )
 
+      useInput(
+        (_input, key) => {
+          if (!pastedSnippetRef.current) {
+            return
+          }
+          if (popupState || helpOpen) {
+            return
+          }
+          if (key.escape) {
+            clearPastedSnippet()
+            return
+          }
+          if (key.return) {
+            const snippet = pastedSnippetRef.current
+            if (!snippet) {
+              return
+            }
+            clearPastedSnippet()
+            handleSubmit(snippet.text)
+          }
+        },
+        { isActive: Boolean(pastedSnippet) && !helpOpen },
+      )
+
       const handleInputChange = useCallback(
         (next: string) => {
           if (consumeSuppressedTextInputChange()) {
@@ -1530,13 +1624,23 @@ export const CommandScreen = memo(
           if (popupState) {
             return
           }
+          if (suppressTextInputDuringPasteRef.current) {
+            return
+          }
+
+          const snippet = detectPastedSnippetFromInputChange(inputValueRef.current, next)
+          if (snippet) {
+            applyPastedSnippet(snippet)
+            return
+          }
+
           setInputValue(next)
           if (isCommandInput(next, fs.existsSync)) {
             return
           }
           lastTypedIntentRef.current = next
         },
-        [consumeSuppressedTextInputChange, popupState, setInputValue],
+        [applyPastedSnippet, consumeSuppressedTextInputChange, popupState, setInputValue],
       )
 
       const handleModelPopupQueryChange = useCallback(
@@ -1797,11 +1901,18 @@ export const CommandScreen = memo(
               <CommandMenu commands={visibleCommands} selectedIndex={commandSelectionIndex} />
             </Box>
           ) : null}
+
+          {pastedSnippet && !isPopupOpen && !helpOpen ? (
+            <Box marginBottom={1} flexShrink={0}>
+              <PastedSnippetCard snippet={pastedSnippet} />
+            </Box>
+          ) : null}
+
           <InputBar
-            value={inputValue}
+            value={pastedSnippet ? '' : inputValue}
             onChange={handleInputChange}
             onSubmit={handleSubmit}
-            isDisabled={isPopupOpen || helpOpen}
+            isDisabled={isPopupOpen || helpOpen || Boolean(pastedSnippet)}
             statusChips={enhancedStatusChips}
             hint={
               !isPopupOpen && !helpOpen && droppedFilePath
@@ -1809,9 +1920,11 @@ export const CommandScreen = memo(
                 : undefined
             }
             placeholder={
-              isAwaitingRefinement
-                ? 'Describe refinement (or empty to finish)...'
-                : 'Describe your goal or type /command'
+              pastedSnippet
+                ? pastedSnippet.label
+                : isAwaitingRefinement
+                  ? 'Describe refinement (or empty to finish)...'
+                  : 'Describe your goal or type /command'
             }
           />
         </Box>
