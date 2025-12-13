@@ -23,6 +23,7 @@ import { resolveUrlContext } from '../../url-context'
 import type { UploadStateChange } from '../../prompt-generator-service'
 import { MODEL_PROVIDER_LABELS } from '../../model-providers'
 import { checkModelProviderStatus } from '../provider-status'
+import type { TokenUsageStore } from '../token-usage-store'
 import type { HistoryEntry, ProviderStatus } from '../types'
 
 const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
@@ -37,6 +38,19 @@ const formatSeriesTimestamp = (date: Date = new Date()): string => {
   const minutes = padTwoDigits(date.getMinutes())
   const seconds = padTwoDigits(date.getSeconds())
   return `${year}${month}${day}-${hours}${minutes}${seconds}`
+}
+
+const formatCompactTokens = (count: number): string => {
+  if (count < 1000) {
+    return String(count)
+  }
+  if (count < 10_000) {
+    return `${(count / 1000).toFixed(1)}k`
+  }
+  if (count < 1_000_000) {
+    return `${Math.round(count / 1000)}k`
+  }
+  return `${(count / 1_000_000).toFixed(1)}m`
 }
 
 const sanitizeForPathSegment = (value: string, fallback: string, maxLength?: number): string => {
@@ -127,6 +141,7 @@ export type UseGenerationPipelineOptions = {
   chatGptEnabled: boolean
   isTestCommandRunning: boolean
   onProviderStatusUpdate?: (status: ProviderStatus) => void
+  tokenUsageStore?: TokenUsageStore
 }
 
 export const useGenerationPipeline = ({
@@ -147,12 +162,18 @@ export const useGenerationPipeline = ({
   chatGptEnabled,
   isTestCommandRunning,
   onProviderStatusUpdate,
+  tokenUsageStore,
 }: UseGenerationPipelineOptions) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
   const [statusMessage, setStatusMessage] = useState('Idle')
   const [isAwaitingRefinement, setIsAwaitingRefinement] = useState(false)
+  const [latestTelemetry, setLatestTelemetry] = useState<
+    GeneratePipelineResult['telemetry'] | null
+  >(null)
   const normalizedMetaInstructions = metaInstructions.trim()
+
+  const activeRunIdRef = useRef<string | null>(null)
 
   type PendingRefinement = {
     requestId: number
@@ -221,7 +242,22 @@ export const useGenerationPipeline = ({
           pushHistory(`Iteration ${event.iteration} started`, 'progress')
           return
         case 'generation.iteration.complete': {
-          pushHistory(`Iteration ${event.iteration} complete (${event.tokens} tokens)`, 'progress')
+          const reasoningTokens = event.reasoningTokens ?? 0
+          const tokenLabel =
+            reasoningTokens > 0
+              ? ` (${event.tokens} prompt tokens · ${reasoningTokens} reasoning tokens)`
+              : ` (${event.tokens} tokens)`
+
+          const activeRunId = activeRunIdRef.current
+          if (activeRunId && tokenUsageStore) {
+            tokenUsageStore.recordIteration(activeRunId, {
+              iteration: event.iteration,
+              promptTokens: event.tokens,
+              reasoningTokens,
+            })
+          }
+
+          pushHistory(`Iteration ${event.iteration} complete${tokenLabel}`, 'progress')
           pushHistory(`Prompt (iteration ${event.iteration}):`, 'system')
 
           const wrapWidth = Math.max(40, terminalColumns - 6)
@@ -236,8 +272,13 @@ export const useGenerationPipeline = ({
         }
         case 'context.telemetry': {
           const telemetry = event.telemetry
+          setLatestTelemetry(telemetry)
+          const activeRunId = activeRunIdRef.current
+          if (activeRunId && tokenUsageStore) {
+            tokenUsageStore.recordTelemetry(activeRunId, telemetry)
+          }
           pushHistory(
-            `Telemetry · total ${telemetry.totalTokens} · intent ${telemetry.intentTokens} · files ${telemetry.fileTokens}`,
+            `Telemetry · total ${telemetry.totalTokens} · intent ${telemetry.intentTokens} · files ${telemetry.fileTokens} · system ${telemetry.systemTokens}`,
             'progress',
           )
           return
@@ -264,7 +305,7 @@ export const useGenerationPipeline = ({
           return
       }
     },
-    [pushHistory, terminalColumns],
+    [pushHistory, terminalColumns, tokenUsageStore],
   )
 
   const interactiveDelegate: InteractiveDelegate = useMemo(
@@ -358,6 +399,10 @@ export const useGenerationPipeline = ({
       if (!providerReady) {
         return
       }
+
+      activeRunIdRef.current = tokenUsageStore ? tokenUsageStore.startRun(normalizedModel) : null
+      setLatestTelemetry(null)
+
       setIsGenerating(true)
       setStatusMessage('Preparing generation…')
       pushHistory('Starting generation…')
@@ -414,8 +459,13 @@ export const useGenerationPipeline = ({
         pushHistory(`Final prompt (${result.model}${iterationLabel}):`, 'system')
         pushHistory(result.finalPrompt, 'system')
         if (result.telemetry) {
+          setLatestTelemetry(result.telemetry)
+          const activeRunId = activeRunIdRef.current
+          if (activeRunId && tokenUsageStore) {
+            tokenUsageStore.recordTelemetry(activeRunId, result.telemetry)
+          }
           pushHistory(
-            `Telemetry · total ${result.telemetry.totalTokens} · intent ${result.telemetry.intentTokens} · files ${result.telemetry.fileTokens}`,
+            `Telemetry · total ${result.telemetry.totalTokens} · intent ${result.telemetry.intentTokens} · files ${result.telemetry.fileTokens} · system ${result.telemetry.systemTokens}`,
             'system',
           )
         }
@@ -467,6 +517,7 @@ export const useGenerationPipeline = ({
       interactiveDelegate,
       submitRefinement,
       pushHistory,
+      tokenUsageStore,
       ensureProviderReady,
     ],
   )
@@ -645,6 +696,9 @@ export const useGenerationPipeline = ({
       ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${statusMessage}]`
       : `[status:${statusMessage}]`
     const chips = [statusChip, `[${currentModel}]`]
+    if (latestTelemetry) {
+      chips.push(`[tokens:${formatCompactTokens(latestTelemetry.totalTokens)}]`)
+    }
     chips.push(`[polish:${polishEnabled ? 'on' : 'off'}]`)
     chips.push(`[copy:${copyEnabled ? 'on' : 'off'}]`)
     chips.push(`[chatgpt:${chatGptEnabled ? 'on' : 'off'}]`)
@@ -663,7 +717,9 @@ export const useGenerationPipeline = ({
     spinnerIndex,
     statusMessage,
     currentModel,
+    latestTelemetry,
     polishEnabled,
+
     copyEnabled,
     chatGptEnabled,
     jsonOutputEnabled,

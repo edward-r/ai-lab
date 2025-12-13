@@ -21,6 +21,7 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Toggle JSON payload in history (/json on|off)' },
+  { id: 'tokens', label: 'Tokens', description: 'Show token usage breakdown (/tokens)' },
   { id: 'test', label: 'Test', description: 'Run prompt tests (/test prompt-tests.yaml)' },
   { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
 ] as const
@@ -38,6 +39,7 @@ export const POPUP_HEIGHTS = {
   file: 16,
   url: 12,
   smart: 9,
+  tokens: 16,
   test: 7,
   intent: 7,
   instructions: 7,

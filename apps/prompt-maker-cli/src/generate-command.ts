@@ -25,6 +25,7 @@ import { countTokens, formatTokenCount } from './token-counter'
 import {
   createPromptGeneratorService,
   ensureModelCredentials,
+  GEN_SYSTEM_PROMPT,
   isGemini,
   resolveDefaultGenerateModel,
   type PromptGenerationRequest,
@@ -200,6 +201,7 @@ type GenerationIterationCompleteEvent = StreamEventBase<
     iteration: number
     prompt: string
     tokens: number
+    reasoningTokens?: number
   }
 >
 type InteractiveMilestoneStreamEvent = StreamEventBase<
@@ -553,7 +555,7 @@ export const runGeneratePipeline = async (
 
     emitProgress('Resolving context', 'stop', 'generic')
 
-    const telemetry = buildTokenTelemetry(intent, fileContext)
+    const telemetry = buildTokenTelemetry(intent, fileContext, trimmedMetaInstructions)
     emitEvent({ event: 'context.telemetry', telemetry })
 
     emitProgress('Generating prompt', 'start', 'generate')
@@ -1182,21 +1184,35 @@ const generateAndMaybeDisplay = async (
     ...(context.latestRefinement ? { latestRefinement: context.latestRefinement } : {}),
   })
 
-  const prompt = await service.generatePrompt(request)
-  const outputTokens = countTokens(prompt)
+  const generator = service as unknown as {
+    generatePrompt: (request: PromptGenerationRequest) => Promise<string>
+    generatePromptDetailed?: (request: PromptGenerationRequest) => Promise<{
+      prompt: string
+      reasoning?: string
+    }>
+  }
+
+  const detailed =
+    typeof generator.generatePromptDetailed === 'function'
+      ? await generator.generatePromptDetailed(request)
+      : { prompt: await generator.generatePrompt(request) }
+
+  const outputTokens = countTokens(detailed.prompt)
+  const reasoningTokens = detailed.reasoning ? countTokens(detailed.reasoning) : 0
 
   stream.emit({
     event: 'generation.iteration.complete',
     iteration: context.iteration,
-    prompt,
+    prompt: detailed.prompt,
     tokens: outputTokens,
+    ...(reasoningTokens > 0 ? { reasoningTokens } : {}),
   })
 
   if (display) {
-    displayPrompt(prompt, context.iteration, outputTokens)
+    displayPrompt(detailed.prompt, context.iteration, outputTokens)
   }
 
-  return prompt
+  return detailed.prompt
 }
 
 const polishPrompt = async (
@@ -1235,21 +1251,30 @@ export type TokenTelemetry = {
   files: FileTokenSummary[]
   intentTokens: number
   fileTokens: number
+  systemTokens: number
   totalTokens: number
 }
 
-const buildTokenTelemetry = (intentText: string, files: FileContext[]): TokenTelemetry => {
+const buildTokenTelemetry = (
+  intentText: string,
+  files: FileContext[],
+  metaInstructions?: string,
+): TokenTelemetry => {
   const fileSummaries = files.map((file) => ({
     path: file.path,
     tokens: countTokens(file.content),
   }))
   const fileTokens = fileSummaries.reduce((acc, file) => acc + file.tokens, 0)
   const intentTokens = countTokens(intentText)
+  const metaTokens = metaInstructions?.trim() ? countTokens(metaInstructions) : 0
+  const systemTokens = countTokens(GEN_SYSTEM_PROMPT) + metaTokens
+
   return {
     files: fileSummaries,
     intentTokens,
     fileTokens,
-    totalTokens: intentTokens + fileTokens,
+    systemTokens,
+    totalTokens: intentTokens + fileTokens + systemTokens,
   }
 }
 
@@ -1257,12 +1282,14 @@ const displayTokenSummary = ({
   files,
   intentTokens,
   fileTokens,
+  systemTokens,
   totalTokens,
 }: TokenTelemetry): void => {
   const telemetryLines = [
     `${chalk.gray('Total')}: ${chalk.white(formatTokenCount(totalTokens))}`,
     `${chalk.gray('Intent')}: ${chalk.white(formatTokenCount(intentTokens))}`,
     `${chalk.gray('Files')}: ${chalk.white(formatTokenCount(fileTokens))}`,
+    `${chalk.gray('System')}: ${chalk.white(formatTokenCount(systemTokens))}`,
   ].join('\n')
 
   console.log('')
