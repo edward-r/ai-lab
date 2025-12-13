@@ -17,6 +17,7 @@ export type PopupManagerActions = {
   openTogglePopup: (field: ToggleField) => void
   openFilePopup: () => void
   openUrlPopup: () => void
+  openHistoryPopup: () => void
   openSmartPopup: () => void
   openTokensPopup: () => void
   openTestPopup: () => void
@@ -158,6 +159,10 @@ export const usePopupManager = ({
 
   const openUrlPopup = useCallback(() => {
     setPopupState({ type: 'url', draft: '', selectionIndex: 0 })
+  }, [])
+
+  const openHistoryPopup = useCallback(() => {
+    setPopupState({ type: 'history', draft: '', selectionIndex: 0 })
   }, [])
 
   const openSmartPopup = useCallback(() => {
@@ -372,10 +377,22 @@ export const usePopupManager = ({
           openTokensPopup()
           setInputValue('')
           return
+        case 'history':
+          openHistoryPopup()
+          setInputValue('')
+          return
         case 'intent':
+          if (trimmedArgs) {
+            handleIntentFileSubmit(trimmedArgs)
+            return
+          }
           openIntentPopup()
           return
         case 'instructions':
+          if (trimmedArgs) {
+            handleInstructionsSubmit(trimmedArgs)
+            return
+          }
           openInstructionsPopup()
           return
         case 'exit':
@@ -473,7 +490,10 @@ export const usePopupManager = ({
       openTokensPopup,
       openTestPopup,
       openTogglePopup,
+      handleIntentFileSubmit,
+      handleInstructionsSubmit,
       openUrlPopup,
+      openHistoryPopup,
       openIntentPopup,
       openInstructionsPopup,
       polishEnabled,
@@ -493,6 +513,7 @@ export const usePopupManager = ({
       openTogglePopup,
       openFilePopup,
       openUrlPopup,
+      openHistoryPopup,
       openSmartPopup,
       openTokensPopup,
       openTestPopup,

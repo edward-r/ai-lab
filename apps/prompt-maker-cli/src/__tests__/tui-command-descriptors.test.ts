@@ -11,7 +11,7 @@ describe('tui command descriptors', () => {
     expect(descriptor?.description).toMatch(/intent file/i)
   })
 
-  it('includes concrete examples for /test and /json', () => {
+  it('includes concrete examples for /test, /json, /history, /intent, and /meta', () => {
     const testDescriptor = getDescriptor('test')
     expect(testDescriptor).toBeDefined()
     expect(testDescriptor?.description).toContain('/test prompt-tests.yaml')
@@ -19,5 +19,17 @@ describe('tui command descriptors', () => {
     const jsonDescriptor = getDescriptor('json')
     expect(jsonDescriptor).toBeDefined()
     expect(jsonDescriptor?.description).toContain('/json on|off')
+
+    const historyDescriptor = getDescriptor('history')
+    expect(historyDescriptor).toBeDefined()
+    expect(historyDescriptor?.description).toContain('/history')
+
+    const intentDescriptor = getDescriptor('intent')
+    expect(intentDescriptor).toBeDefined()
+    expect(intentDescriptor?.description).toContain('/intent')
+
+    const metaDescriptor = getDescriptor('instructions')
+    expect(metaDescriptor).toBeDefined()
+    expect(metaDescriptor?.description).toContain('/meta <text>')
   })
 })

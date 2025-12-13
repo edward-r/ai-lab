@@ -28,6 +28,7 @@ import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
 import { filterFileSuggestions } from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
 import { useCommandHistory } from './hooks/useCommandHistory'
+import { usePersistentCommandHistory } from './hooks/usePersistentCommandHistory'
 import { useGenerationPipeline } from './hooks/useGenerationPipeline'
 import { usePopupManager } from './hooks/usePopupManager'
 import {
@@ -211,6 +212,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         pushHistoryRef.current(content, kind)
       },
       [],
+    )
+
+    const { entries: commandHistoryEntries, addEntry: addCommandHistoryEntry } =
+      usePersistentCommandHistory({
+        onError: (message) => {
+          pushHistoryProxy(`[history] ${message}`, 'system')
+        },
+      })
+
+    const commandHistoryValues = useMemo(
+      () => commandHistoryEntries.map((entry) => entry.value),
+      [commandHistoryEntries],
     )
 
     const runTestsFromCommandRef = useRef<(value: string) => void>(() => {})
@@ -617,6 +630,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           pushHistory('Generation already running. Please wait.', 'system')
           return
         }
+        const trimmedArgs = inputValue.trim()
+        addCommandHistoryEntry(`/series${trimmedArgs ? ` ${trimmedArgs}` : ''}`)
         handleCommandSelection('series', inputValue)
       },
       { isActive: !isPopupOpen && !helpOpen },
@@ -711,6 +726,30 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       },
       [setSmartRoot, pushHistory],
     )
+
+    const historyPopupDraft = popupState?.type === 'history' ? popupState.draft : ''
+
+    const historyPopupItems = useMemo(() => {
+      const trimmed = historyPopupDraft.trim().toLowerCase()
+      if (!trimmed) {
+        return commandHistoryValues
+      }
+      return commandHistoryValues.filter((value) => value.toLowerCase().includes(trimmed))
+    }, [commandHistoryValues, historyPopupDraft])
+
+    useEffect(() => {
+      if (popupState?.type !== 'history') {
+        return
+      }
+      setPopupState((prev) => {
+        if (prev?.type !== 'history') {
+          return prev
+        }
+        const maxIndex = Math.max(historyPopupItems.length - 1, 0)
+        const nextIndex = Math.min(prev.selectionIndex, maxIndex)
+        return prev.selectionIndex === nextIndex ? prev : { ...prev, selectionIndex: nextIndex }
+      })
+    }, [historyPopupItems.length, popupState?.type, setPopupState])
 
     const filePopupDraft = popupState?.type === 'file' ? popupState.draft : ''
     const filePopupSuggestedItems = popupState?.type === 'file' ? popupState.suggestedItems : []
@@ -982,6 +1021,32 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           return
         }
 
+        if (popupState.type === 'history') {
+          if (key.upArrow && historyPopupItems.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'history'
+                ? { ...prev, selectionIndex: Math.max(prev.selectionIndex - 1, 0) }
+                : prev,
+            )
+            return
+          }
+          if (key.downArrow && historyPopupItems.length > 0) {
+            setPopupState((prev) =>
+              prev?.type === 'history'
+                ? {
+                    ...prev,
+                    selectionIndex: Math.min(prev.selectionIndex + 1, historyPopupItems.length - 1),
+                  }
+                : prev,
+            )
+            return
+          }
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
         if (popupState.type === 'smart') {
           if (typeof input === 'string' && input.toLowerCase() === 't') {
             handleSmartToggle(!smartContextEnabled)
@@ -1088,9 +1153,11 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const handleTestPopupSubmit = useCallback(
       (value: string) => {
+        const trimmed = value.trim()
+        addCommandHistoryEntry(`/test${trimmed ? ` ${trimmed}` : ''}`)
         void runTestsFromCommand(value)
       },
-      [runTestsFromCommand],
+      [addCommandHistoryEntry, runTestsFromCommand],
     )
 
     useEffect(() => {
@@ -1111,6 +1178,8 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
         if (isCommandMenuActive) {
           if (selectedCommand) {
+            const trimmedArgs = commandArgsRaw.trim()
+            addCommandHistoryEntry(`/${selectedCommand.id}${trimmedArgs ? ` ${trimmedArgs}` : ''}`)
             handleCommandSelection(selectedCommand.id, commandArgsRaw)
           }
           setInputValue('')
@@ -1142,12 +1211,14 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
           void runGeneration({ intentFile: intentSource.intentFile })
           return
         }
+        addCommandHistoryEntry(intentSource.intent)
         pushHistory(`> ${intentSource.intent}`, 'user')
         lastUserIntentRef.current = intentSource.intent
         setInputValue('')
         void runGeneration({ intent: intentSource.intent })
       },
       [
+        addCommandHistoryEntry,
         handleCommandSelection,
         isCommandMenuActive,
         isCommandMode,
@@ -1201,6 +1272,47 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         setPopupState((prev) => (prev?.type === 'url' ? { ...prev, draft: next } : prev))
       },
       [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleHistoryPopupDraftChange = useCallback(
+      (next: string) => {
+        if (consumeSuppressedTextInputChange()) {
+          return
+        }
+        setPopupState((prev) =>
+          prev?.type === 'history' ? { ...prev, draft: next, selectionIndex: 0 } : prev,
+        )
+      },
+      [consumeSuppressedTextInputChange, setPopupState],
+    )
+
+    const handleHistoryPopupSubmit = useCallback(
+      (value: string) => {
+        if (popupState?.type !== 'history') {
+          return
+        }
+        const trimmed = value.trim()
+        const fallback = historyPopupItems[popupState.selectionIndex] ?? ''
+        const selection = trimmed || fallback
+        if (!selection.trim()) {
+          return
+        }
+        suppressNextInputRef.current = true
+        setInputValue(selection)
+        closePopup()
+      },
+      [closePopup, historyPopupItems, popupState, setInputValue],
+    )
+
+    const handleSeriesIntentSubmitWithHistory = useCallback(
+      (value: string) => {
+        const trimmed = value.trim()
+        if (trimmed) {
+          addCommandHistoryEntry(`/series ${trimmed}`)
+        }
+        handleSeriesIntentSubmit(value)
+      },
+      [addCommandHistoryEntry, handleSeriesIntentSubmit],
     )
 
     const handleFilePopupDraftChange = useCallback(
@@ -1324,6 +1436,18 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
                 instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
                 onDraftChange={handleUrlPopupDraftChange}
                 onSubmitDraft={handleAddUrl}
+              />
+            ) : popupState.type === 'history' ? (
+              <ListPopup
+                title="History"
+                placeholder="Search commands & intents"
+                draft={popupState.draft}
+                items={historyPopupItems}
+                selectedIndex={popupState.selectionIndex}
+                emptyLabel="No history saved"
+                instructions="Enter to reuse · ↑/↓ navigate · Esc to close"
+                onDraftChange={handleHistoryPopupDraftChange}
+                onSubmitDraft={handleHistoryPopupSubmit}
               />
             ) : popupState.type === 'intent' ? (
               <IntentFilePopup

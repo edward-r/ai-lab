@@ -199,6 +199,36 @@ describe('usePopupManager instructions command', () => {
     expect(options.setInputValue).toHaveBeenCalledWith('')
     expect(result.current.popupState).toBeNull()
   })
+
+  it('applies meta instructions from command args', () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('instructions', 'Focus on security')
+    })
+
+    expect(options.setMetaInstructions).toHaveBeenCalledWith('Focus on security')
+    expect(options.pushHistory).toHaveBeenCalledWith('[instr] Focus on security')
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
+  })
+})
+
+describe('usePopupManager intent command', () => {
+  it('applies intent file from command args', () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('intent', '/tmp/intent.md')
+    })
+
+    expect(options.setIntentFilePath).toHaveBeenCalledWith('/tmp/intent.md')
+    expect(options.pushHistory).toHaveBeenCalledWith('Intent file set to /tmp/intent.md')
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
+  })
 })
 
 describe('usePopupManager tokens command', () => {
