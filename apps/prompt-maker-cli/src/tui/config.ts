@@ -11,6 +11,11 @@ export const COMMAND_DESCRIPTORS = [
     description: 'Add optional meta guidance (/meta <text>)',
     aliases: ['meta'] as const,
   },
+  {
+    id: 'new',
+    label: 'New',
+    description: 'Reset session state (/new [--reuse])',
+  },
   { id: 'file', label: 'File', description: 'Attach file context' },
   { id: 'url', label: 'URL', description: 'Add URL context' },
   { id: 'smart', label: 'Smart Context', description: 'Toggle smart context root' },

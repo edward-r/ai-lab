@@ -77,6 +77,13 @@ describe('useGenerationPipeline', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    generateCommandModule.runGeneratePipeline.mockResolvedValue({
+      finalPrompt: 'Prompt',
+      model: 'gpt-4o-mini',
+      iterations: 1,
+      telemetry: null,
+      payload: {},
+    })
   })
 
   it('aborts runGeneration when provider credentials are missing', async () => {
@@ -117,11 +124,13 @@ describe('useGenerationPipeline', () => {
       message: 'ready',
     })
     const pushHistory = jest.fn()
+    const onLastGeneratedPromptUpdate = jest.fn()
     const { result } = renderHook(() =>
       useGenerationPipeline({
         ...baseOptions,
         pushHistory,
         currentModel: 'gpt-4o-mini',
+        onLastGeneratedPromptUpdate,
       }),
     )
 
@@ -130,6 +139,8 @@ describe('useGenerationPipeline', () => {
     })
 
     expect(generateCommandModule.runGeneratePipeline).toHaveBeenCalled()
+    expect(pushHistory).toHaveBeenCalledWith('Prompt', 'system')
+    expect(onLastGeneratedPromptUpdate).toHaveBeenCalledWith('Prompt')
   })
 
   it('updates status chips with token telemetry', async () => {

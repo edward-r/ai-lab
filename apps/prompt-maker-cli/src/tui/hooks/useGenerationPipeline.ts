@@ -143,6 +143,7 @@ export type UseGenerationPipelineOptions = {
   onProviderStatusUpdate?: (status: ProviderStatus) => void
   tokenUsageStore?: TokenUsageStore
   onReasoningUpdate?: (reasoning: string | null) => void
+  onLastGeneratedPromptUpdate?: (prompt: string) => void
 }
 
 export const useGenerationPipeline = ({
@@ -165,6 +166,7 @@ export const useGenerationPipeline = ({
   onProviderStatusUpdate,
   tokenUsageStore,
   onReasoningUpdate,
+  onLastGeneratedPromptUpdate,
 }: UseGenerationPipelineOptions) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
@@ -176,6 +178,13 @@ export const useGenerationPipeline = ({
   const normalizedMetaInstructions = metaInstructions.trim()
 
   const activeRunIdRef = useRef<string | null>(null)
+  const lastGeneratedPromptUpdateRef = useRef<((prompt: string) => void) | null>(
+    onLastGeneratedPromptUpdate ?? null,
+  )
+
+  useEffect(() => {
+    lastGeneratedPromptUpdateRef.current = onLastGeneratedPromptUpdate ?? null
+  }, [onLastGeneratedPromptUpdate])
 
   type PendingRefinement = {
     requestId: number
@@ -462,6 +471,7 @@ export const useGenerationPipeline = ({
         const iterationLabel = result.iterations ? ` · ${result.iterations} iterations` : ''
         pushHistory(`Final prompt (${result.model}${iterationLabel}):`, 'system')
         pushHistory(result.finalPrompt, 'system')
+        lastGeneratedPromptUpdateRef.current?.(result.finalPrompt)
         if (result.telemetry) {
           setLatestTelemetry(result.telemetry)
           const activeRunId = activeRunIdRef.current
