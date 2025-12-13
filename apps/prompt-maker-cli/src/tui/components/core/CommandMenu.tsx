@@ -1,4 +1,4 @@
-import React from 'react'
+import { memo } from 'react'
 import { Box, Text } from 'ink'
 
 import type { CommandDescriptor } from '../../types'
@@ -8,7 +8,7 @@ export type CommandMenuProps = {
   selectedIndex: number
 }
 
-export const CommandMenu: React.FC<CommandMenuProps> = ({ commands, selectedIndex }) => (
+export const CommandMenu = memo(({ commands, selectedIndex }: CommandMenuProps) => (
   <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1} paddingY={0}>
     <Text color="magentaBright">Commands</Text>
     {commands.map((command, index) => {
@@ -24,4 +24,6 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({ commands, selectedInde
       )
     })}
   </Box>
-)
+))
+
+CommandMenu.displayName = 'CommandMenu'

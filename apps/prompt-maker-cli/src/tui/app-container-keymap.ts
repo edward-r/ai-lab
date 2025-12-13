@@ -77,6 +77,12 @@ export const resolveAppContainerKeyAction = ({
     return { type: 'exit' }
   }
 
+  if (view === 'generate' && isPopupOpen) {
+    if (matchesControlKey(input, key, 'g') || matchesControlKey(input, key, 't')) {
+      return { type: 'none' }
+    }
+  }
+
   if (matchesControlKey(input, key, 'g')) {
     return view === 'generate'
       ? { type: 'open-command-palette' }

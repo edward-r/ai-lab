@@ -53,6 +53,30 @@ describe('resolveAppContainerKeyAction', () => {
     expect(action).toEqual({ type: 'none' })
   })
 
+  it('swallows Ctrl+G when a generate popup is open', () => {
+    const action = resolveAppContainerKeyAction({
+      input: 'g',
+      key: createKey({ ctrl: true }),
+      view: 'generate',
+      isPopupOpen: true,
+      isHelpOpen: false,
+    })
+
+    expect(action).toEqual({ type: 'none' })
+  })
+
+  it('swallows Ctrl+T when a generate popup is open', () => {
+    const action = resolveAppContainerKeyAction({
+      input: 't',
+      key: createKey({ ctrl: true }),
+      view: 'generate',
+      isPopupOpen: true,
+      isHelpOpen: false,
+    })
+
+    expect(action).toEqual({ type: 'none' })
+  })
+
   it('switches to generate and opens palette on Ctrl+G from tests', () => {
     const action = resolveAppContainerKeyAction({
       input: 'g',
