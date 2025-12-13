@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable react-hooks/exhaustive-deps */
+import fs from 'node:fs'
 import path from 'node:path'
 import {
   forwardRef,
@@ -28,6 +29,7 @@ import { IntentFilePopup } from './components/popups/IntentFilePopup'
 import { InstructionsPopup } from './components/popups/InstructionsPopup'
 import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
+import { parseAbsolutePathFromInput, isCommandInput } from './drag-drop-path'
 import { filterFileSuggestions } from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
 import { useCommandHistory } from './hooks/useCommandHistory'
@@ -57,7 +59,7 @@ import { useContextDispatch, useContextState } from './context-store'
 import { createTokenUsageStore } from './token-usage-store'
 
 const APP_STATIC_ROWS = 7
-const INPUT_BAR_ROWS = 5
+const INPUT_BAR_ROWS = 6
 const COMMAND_SCREEN_STATIC_ROWS = INPUT_BAR_ROWS + 3
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
@@ -90,6 +92,7 @@ const WELCOME_LINES = [
   'Tokens: /tokens shows token usage breakdown.',
   'Reasoning: /reasoning (or /why) shows last model reasoning.',
   'JSON: /json on|off toggles prompt payload in history.',
+  'Tip: Drag & drop a file path, then press Tab to add it to context.',
   'Tip: Press Tab to open the Series intent popup.',
 ]
 
@@ -271,7 +274,7 @@ export const CommandScreen = memo(
       }, [])
 
       const trimmedInput = inputValue.trimStart()
-      const isCommandMode = trimmedInput.startsWith('/')
+      const isCommandMode = isCommandInput(inputValue, fs.existsSync)
       const commandQuery = isCommandMode ? trimmedInput.slice(1).trimStart() : ''
       const parsedCommand = useMemo<{ keyword: string; args: string }>(() => {
         if (!commandQuery) {
@@ -291,6 +294,19 @@ export const CommandScreen = memo(
       const commandArgsRaw = parsedCommand.args
 
       const trimmedMetaInstructions = metaInstructions.trim()
+
+      const droppedFilePath = useMemo(() => {
+        const candidate = parseAbsolutePathFromInput(inputValue)
+        if (!candidate) {
+          return null
+        }
+        try {
+          const stats = fs.statSync(candidate)
+          return stats.isFile() ? candidate : null
+        } catch {
+          return null
+        }
+      }, [inputValue])
 
       const {
         isGenerating,
@@ -711,12 +727,34 @@ export const CommandScreen = memo(
         { isActive: isCommandMenuActive && !helpOpen },
       )
 
+      const addFileToContext = useCallback(
+        (value: string): void => {
+          const trimmed = value.trim()
+          if (!trimmed) {
+            return
+          }
+          if (files.includes(trimmed)) {
+            pushHistory(`Context file already added: ${trimmed}`)
+            return
+          }
+          addFile(trimmed)
+          pushHistory(`Context file added: ${trimmed}`)
+        },
+        [addFile, files, pushHistory],
+      )
+
       useInput(
         (_input, key) => {
           if (popupState || isCommandMenuActive || isCommandMode) {
             return
           }
           if (!key.tab || key.shift) {
+            return
+          }
+          if (droppedFilePath) {
+            addFileToContext(droppedFilePath)
+            suppressNextInputRef.current = true
+            setInputValue('')
             return
           }
           if (isGenerating) {
@@ -741,8 +779,7 @@ export const CommandScreen = memo(
           if (!trimmed) {
             return
           }
-          addFile(trimmed)
-          pushHistory(`Context file added: ${trimmed}`)
+          addFileToContext(trimmed)
           setPopupState((prev) =>
             prev?.type === 'file'
               ? {
@@ -755,8 +792,30 @@ export const CommandScreen = memo(
               : prev,
           )
         },
-        [addFile, files.length, pushHistory, setPopupState],
+        [addFileToContext, files.length, setPopupState],
       )
+
+      useEffect(() => {
+        if (popupState?.type !== 'file') {
+          return
+        }
+
+        const candidate = parseAbsolutePathFromInput(popupState.draft)
+        if (!candidate) {
+          return
+        }
+
+        try {
+          const stats = fs.statSync(candidate)
+          if (!stats.isFile()) {
+            return
+          }
+        } catch {
+          return
+        }
+
+        handleAddFile(candidate)
+      }, [handleAddFile, popupState])
 
       const handleRemoveFile = useCallback(
         (index: number) => {
@@ -1472,8 +1531,7 @@ export const CommandScreen = memo(
             return
           }
           setInputValue(next)
-          const trimmedStart = next.trimStart()
-          if (trimmedStart.startsWith('/')) {
+          if (isCommandInput(next, fs.existsSync)) {
             return
           }
           lastTypedIntentRef.current = next
@@ -1745,6 +1803,11 @@ export const CommandScreen = memo(
             onSubmit={handleSubmit}
             isDisabled={isPopupOpen || helpOpen}
             statusChips={enhancedStatusChips}
+            hint={
+              !isPopupOpen && !helpOpen && droppedFilePath
+                ? `Press Tab to add ${path.basename(droppedFilePath)} to context`
+                : undefined
+            }
             placeholder={
               isAwaitingRefinement
                 ? 'Describe refinement (or empty to finish)...'

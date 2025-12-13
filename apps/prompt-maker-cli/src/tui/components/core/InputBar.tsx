@@ -9,6 +9,7 @@ export type InputBarProps = {
   isDisabled?: boolean
   statusChips: readonly string[]
   placeholder?: string
+  hint?: string | undefined
 }
 
 export const InputBar: React.FC<InputBarProps> = ({
@@ -18,10 +19,12 @@ export const InputBar: React.FC<InputBarProps> = ({
   isDisabled = false,
   statusChips,
   placeholder,
+  hint,
 }) => (
   <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
     <Text color="cyan">{statusChips.join(' ')}</Text>
     <Text color="gray">Intent / Command</Text>
+    {hint ? <Text color="gray">{hint}</Text> : null}
     <Box>
       <Text color="cyan">› </Text>
       <TextInput
