@@ -245,6 +245,20 @@ describe('usePopupManager tokens command', () => {
   })
 })
 
+describe('usePopupManager reasoning command', () => {
+  it('opens the reasoning popup', () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('reasoning')
+    })
+
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toEqual({ type: 'reasoning', scrollOffset: 0 })
+  })
+})
+
 describe('usePopupManager series command', () => {
   beforeEach(() => {
     const fs = getFsMock()

@@ -134,6 +134,7 @@ export type GenerateJsonPayload = {
   intent: string
   model: string
   prompt: string
+  reasoning?: string
   refinements: string[]
   iterations: number
   interactive: boolean
@@ -150,6 +151,7 @@ export type GeneratePipelineResult = {
   payload: GenerateJsonPayload
   telemetry: TokenTelemetry
   generatedPrompt: string
+  reasoning?: string
   polishedPrompt?: string
   finalPrompt: string
   iterations: number
@@ -566,7 +568,11 @@ export const runGeneratePipeline = async (
       streamProxy,
     )
 
-    const { prompt: generatedPrompt, iterations } = await runGenerationWorkflow({
+    const {
+      prompt: generatedPrompt,
+      reasoning: generationReasoning,
+      iterations,
+    } = await runGenerationWorkflow({
       service,
       context: {
         intent,
@@ -616,6 +622,7 @@ export const runGeneratePipeline = async (
       intent,
       model,
       prompt: generatedPrompt,
+      ...(typeof generationReasoning === 'string' ? { reasoning: generationReasoning } : {}),
       refinements: [...refinements],
       iterations,
       interactive: interactiveMode !== 'none',
@@ -640,6 +647,7 @@ export const runGeneratePipeline = async (
       payload,
       telemetry,
       generatedPrompt,
+      ...(typeof generationReasoning === 'string' ? { reasoning: generationReasoning } : {}),
       finalPrompt: finalArtifact,
       iterations,
       model,
@@ -1007,9 +1015,10 @@ const runGenerationWorkflow = async ({
   display: boolean
   stream: StreamDispatcher
   onUploadStateChange?: UploadStateChange
-}): Promise<{ prompt: string; iterations: number }> => {
+}): Promise<{ prompt: string; reasoning?: string; iterations: number }> => {
   let iteration = 0
   let currentPrompt = ''
+  let currentReasoning: string | undefined
 
   if (display) {
     displayTokenSummary(telemetry)
@@ -1018,7 +1027,7 @@ const runGenerationWorkflow = async ({
   const inputTokens = telemetry.totalTokens
 
   iteration += 1
-  currentPrompt = await generateAndMaybeDisplay(
+  const initialGeneration = await generateAndMaybeDisplay(
     service,
     { ...context, iteration },
     display,
@@ -1027,6 +1036,8 @@ const runGenerationWorkflow = async ({
     interactiveMode !== 'none',
     onUploadStateChange,
   )
+  currentPrompt = initialGeneration.prompt
+  currentReasoning = initialGeneration.reasoning
 
   if (interactiveMode !== 'none') {
     stream.emit({ event: 'interactive.state', phase: 'start', iteration })
@@ -1047,7 +1058,7 @@ const runGenerationWorkflow = async ({
         stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
         context.refinements.push(instruction)
         iteration += 1
-        currentPrompt = await generateAndMaybeDisplay(
+        const refinementGeneration = await generateAndMaybeDisplay(
           service,
           {
             ...context,
@@ -1061,6 +1072,8 @@ const runGenerationWorkflow = async ({
           true,
           onUploadStateChange,
         )
+        currentPrompt = refinementGeneration.prompt
+        currentReasoning = refinementGeneration.reasoning
 
         stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
       }
@@ -1079,7 +1092,7 @@ const runGenerationWorkflow = async ({
         stream.emit({ event: 'interactive.state', phase: 'refine', iteration })
         context.refinements.push(refinement)
         iteration += 1
-        currentPrompt = await generateAndMaybeDisplay(
+        const refinementGeneration = await generateAndMaybeDisplay(
           service,
           {
             ...context,
@@ -1093,6 +1106,8 @@ const runGenerationWorkflow = async ({
           true,
           onUploadStateChange,
         )
+        currentPrompt = refinementGeneration.prompt
+        currentReasoning = refinementGeneration.reasoning
 
         stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
       }
@@ -1114,7 +1129,7 @@ const runGenerationWorkflow = async ({
 
         context.refinements.push(refinement)
         iteration += 1
-        currentPrompt = await generateAndMaybeDisplay(
+        const refinementGeneration = await generateAndMaybeDisplay(
           service,
           {
             ...context,
@@ -1128,6 +1143,8 @@ const runGenerationWorkflow = async ({
           true,
           onUploadStateChange,
         )
+        currentPrompt = refinementGeneration.prompt
+        currentReasoning = refinementGeneration.reasoning
 
         stream.emit({ event: 'interactive.state', phase: 'prompt', iteration })
       }
@@ -1136,7 +1153,11 @@ const runGenerationWorkflow = async ({
     stream.emit({ event: 'interactive.state', phase: 'complete', iteration })
   }
 
-  return { prompt: currentPrompt, iterations: iteration }
+  return {
+    prompt: currentPrompt,
+    ...(typeof currentReasoning === 'string' ? { reasoning: currentReasoning } : {}),
+    iterations: iteration,
+  }
 }
 
 const generateAndMaybeDisplay = async (
@@ -1151,7 +1172,7 @@ const generateAndMaybeDisplay = async (
   inputTokens: number,
   interactive: boolean,
   onUploadStateChange?: UploadStateChange,
-): Promise<string> => {
+): Promise<{ prompt: string; reasoning?: string }> => {
   const request: PromptGenerationRequest = {
     intent: context.intent,
     model: context.model,
@@ -1212,7 +1233,10 @@ const generateAndMaybeDisplay = async (
     displayPrompt(detailed.prompt, context.iteration, outputTokens)
   }
 
-  return detailed.prompt
+  return {
+    prompt: detailed.prompt,
+    ...(typeof detailed.reasoning === 'string' ? { reasoning: detailed.reasoning } : {}),
+  }
 }
 
 const polishPrompt = async (

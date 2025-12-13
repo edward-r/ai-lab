@@ -9,6 +9,7 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [smartContextEnabled, setSmartContextEnabled] = useState(false)
   const [smartContextRoot, setSmartContextRoot] = useState<string | null>(null)
   const [metaInstructions, setMetaInstructions] = useState('')
+  const [lastReasoning, setLastReasoning] = useState<string | null>(null)
 
   const addEntry = useCallback(
     (value: string, setter: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -59,6 +60,7 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
         smartContextEnabled,
         smartContextRoot,
         metaInstructions,
+        lastReasoning,
       }}
     >
       <ContextDispatchContext.Provider
@@ -74,6 +76,7 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
           toggleSmartContext,
           setSmartRoot,
           setMetaInstructions,
+          setLastReasoning,
         }}
       >
         {children}

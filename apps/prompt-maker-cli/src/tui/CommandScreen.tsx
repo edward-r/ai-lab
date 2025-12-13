@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import { Box, useApp, useInput, useStdout } from 'ink'
+import wrapAnsi from 'wrap-ansi'
 
 import { InputBar } from './components/core/InputBar'
 import { CommandMenu } from './components/core/CommandMenu'
@@ -19,6 +20,7 @@ import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
 import { SmartPopup } from './components/popups/SmartPopup'
 import { TokenUsagePopup } from './components/popups/TokenUsagePopup'
+import { ReasoningPopup } from './components/popups/ReasoningPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
 import { IntentFilePopup } from './components/popups/IntentFilePopup'
@@ -84,6 +86,7 @@ const WELCOME_LINES = [
   'Series: /series opens a popup; it prefills from typed/last intent (or /intent file).',
   'Tests: /test prompt-tests.yaml runs the prompt test suite.',
   'Tokens: /tokens shows token usage breakdown.',
+  'Reasoning: /reasoning (or /why) shows last model reasoning.',
   'JSON: /json on|off toggles prompt payload in history.',
   'Tip: Press Tab to open the Series intent popup.',
 ]
@@ -129,8 +132,16 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
   ) => {
     const { exit } = useApp()
     const { stdout } = useStdout()
-    const { files, urls, images, videos, smartContextEnabled, smartContextRoot, metaInstructions } =
-      useContextState()
+    const {
+      files,
+      urls,
+      images,
+      videos,
+      smartContextEnabled,
+      smartContextRoot,
+      metaInstructions,
+      lastReasoning,
+    } = useContextState()
     const {
       addFile,
       removeFile,
@@ -139,6 +150,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       toggleSmartContext,
       setSmartRoot,
       setMetaInstructions,
+      setLastReasoning,
     } = useContextDispatch()
 
     const [terminalRows, setTerminalRows] = useState(stdout?.rows ?? 24)
@@ -294,6 +306,7 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
       isTestCommandRunning,
       tokenUsageStore: tokenUsageStoreRef.current,
       onProviderStatusUpdate: updateProviderStatus,
+      onReasoningUpdate: setLastReasoning,
     })
 
     const {
@@ -776,6 +789,33 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
 
     const filePopupSuggestionsFocused = filePopupSuggestedFocused && filePopupSuggestions.length > 0
 
+    const reasoningPopupVisibleRows = Math.max(1, POPUP_HEIGHTS.reasoning - 5)
+
+    const reasoningPopupLines = useMemo(() => {
+      const reasoning = lastReasoning?.trim() ?? ''
+      if (!reasoning) {
+        return []
+      }
+
+      const entries: HistoryEntry[] = []
+      const wrapWidth = Math.max(40, terminalColumns - 6)
+      let entryIndex = 0
+
+      reasoning.split('\n').forEach((line) => {
+        const wrapped = wrapAnsi(line, wrapWidth, { trim: false, hard: true })
+        wrapped.split('\n').forEach((wrappedLine) => {
+          entries.push({
+            id: `reasoning-${entryIndex}`,
+            content: wrappedLine,
+            kind: 'system',
+          })
+          entryIndex += 1
+        })
+      })
+
+      return entries
+    }, [lastReasoning, terminalColumns])
+
     useEffect(() => {
       if (popupState?.type !== 'file') {
         return
@@ -1060,6 +1100,60 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
         }
 
         if (popupState.type === 'tokens') {
+          if (key.escape) {
+            closePopup()
+          }
+          return
+        }
+
+        if (popupState.type === 'reasoning') {
+          const maxOffset = Math.max(0, reasoningPopupLines.length - reasoningPopupVisibleRows)
+
+          if (key.upArrow) {
+            setPopupState((prev) =>
+              prev?.type === 'reasoning'
+                ? { ...prev, scrollOffset: Math.max(prev.scrollOffset - 1, 0) }
+                : prev,
+            )
+            return
+          }
+
+          if (key.downArrow) {
+            setPopupState((prev) =>
+              prev?.type === 'reasoning'
+                ? { ...prev, scrollOffset: Math.min(prev.scrollOffset + 1, maxOffset) }
+                : prev,
+            )
+            return
+          }
+
+          if (key.pageUp) {
+            setPopupState((prev) =>
+              prev?.type === 'reasoning'
+                ? {
+                    ...prev,
+                    scrollOffset: Math.max(prev.scrollOffset - reasoningPopupVisibleRows, 0),
+                  }
+                : prev,
+            )
+            return
+          }
+
+          if (key.pageDown) {
+            setPopupState((prev) =>
+              prev?.type === 'reasoning'
+                ? {
+                    ...prev,
+                    scrollOffset: Math.min(
+                      prev.scrollOffset + reasoningPopupVisibleRows,
+                      maxOffset,
+                    ),
+                  }
+                : prev,
+            )
+            return
+          }
+
           if (key.escape) {
             closePopup()
           }
@@ -1480,6 +1574,12 @@ export const CommandScreen = forwardRef<CommandScreenHandle, CommandScreenProps>
               <TokenUsagePopup
                 run={tokenUsageStoreRef.current?.getLatestRun() ?? null}
                 breakdown={tokenUsageStoreRef.current?.getLatestBreakdown() ?? null}
+              />
+            ) : popupState.type === 'reasoning' ? (
+              <ReasoningPopup
+                lines={reasoningPopupLines}
+                visibleRows={reasoningPopupVisibleRows}
+                scrollOffset={popupState.scrollOffset}
               />
             ) : (
               <SmartPopup
