@@ -9,6 +9,7 @@ export type ContextSourceState = {
   smartContextRoot: string | null
   metaInstructions: string
   lastReasoning: string | null
+  lastGeneratedPrompt: string | null
 }
 
 export type ContextDispatch = {
@@ -24,6 +25,8 @@ export type ContextDispatch = {
   setSmartRoot: (value: string) => void
   setMetaInstructions: (value: string) => void
   setLastReasoning: (value: string | null) => void
+  setLastGeneratedPrompt: (value: string | null) => void
+  resetContext: () => void
 }
 
 export const ContextStateContext = createContext<ContextSourceState | null>(null)

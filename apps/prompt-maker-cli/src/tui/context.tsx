@@ -10,6 +10,7 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [smartContextRoot, setSmartContextRoot] = useState<string | null>(null)
   const [metaInstructions, setMetaInstructions] = useState('')
   const [lastReasoning, setLastReasoning] = useState<string | null>(null)
+  const [lastGeneratedPrompt, setLastGeneratedPrompt] = useState<string | null>(null)
 
   const addEntry = useCallback(
     (value: string, setter: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -50,6 +51,17 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSmartContextRoot(trimmed.length > 0 ? trimmed : null)
   }, [])
 
+  const resetContext = useCallback(() => {
+    setFiles([])
+    setUrls([])
+    setImages([])
+    setVideos([])
+    setSmartContextEnabled(false)
+    setSmartContextRoot(null)
+    setMetaInstructions('')
+    setLastReasoning(null)
+  }, [])
+
   return (
     <ContextStateContext.Provider
       value={{
@@ -61,6 +73,7 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
         smartContextRoot,
         metaInstructions,
         lastReasoning,
+        lastGeneratedPrompt,
       }}
     >
       <ContextDispatchContext.Provider
@@ -77,6 +90,8 @@ export const ContextProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setSmartRoot,
           setMetaInstructions,
           setLastReasoning,
+          setLastGeneratedPrompt,
+          resetContext,
         }}
       >
         {children}
