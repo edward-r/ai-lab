@@ -4,7 +4,6 @@ export type AppContainerView = 'generate' | 'tests'
 
 export type AppContainerKeyAction =
   | { type: 'none' }
-  | { type: 'exit' }
   | { type: 'toggle-help'; nextIsHelpOpen: boolean }
   | { type: 'open-command-palette' }
   | { type: 'switch-to-tests' }
@@ -66,15 +65,8 @@ export const resolveAppContainerKeyAction = ({
     return { type: 'toggle-help', nextIsHelpOpen: true }
   }
 
-  if (matchesControlKey(input, key, 'c')) {
-    return { type: 'exit' }
-  }
-
   if (key.escape) {
-    if (view === 'generate' && isPopupOpen) {
-      return { type: 'none' }
-    }
-    return { type: 'exit' }
+    return { type: 'none' }
   }
 
   if (view === 'generate' && isPopupOpen) {

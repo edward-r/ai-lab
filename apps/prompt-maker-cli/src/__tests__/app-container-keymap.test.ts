@@ -41,7 +41,7 @@ describe('resolveAppContainerKeyAction', () => {
     expect(action).toEqual({ type: 'none' })
   })
 
-  it('does not exit on Esc when a generate popup is open', () => {
+  it('does nothing on Esc when a generate popup is open', () => {
     const action = resolveAppContainerKeyAction({
       input: '',
       key: createKey({ escape: true }),
@@ -71,6 +71,30 @@ describe('resolveAppContainerKeyAction', () => {
       key: createKey({ ctrl: true }),
       view: 'generate',
       isPopupOpen: true,
+      isHelpOpen: false,
+    })
+
+    expect(action).toEqual({ type: 'none' })
+  })
+
+  it('does nothing on Esc when no popup is open', () => {
+    const action = resolveAppContainerKeyAction({
+      input: '',
+      key: createKey({ escape: true }),
+      view: 'generate',
+      isPopupOpen: false,
+      isHelpOpen: false,
+    })
+
+    expect(action).toEqual({ type: 'none' })
+  })
+
+  it('does nothing on Ctrl+C', () => {
+    const action = resolveAppContainerKeyAction({
+      input: 'c',
+      key: createKey({ ctrl: true }),
+      view: 'generate',
+      isPopupOpen: false,
       isHelpOpen: false,
     })
 

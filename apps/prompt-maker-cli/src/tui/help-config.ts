@@ -50,7 +50,8 @@ export const createHelpSections = ({ commandDescriptors }: HelpConfigOptions): H
         'Ctrl+G: Generate + open command palette',
         'Ctrl+T: Switch to Test Runner',
         '?: Toggle this help overlay',
-        "Ctrl+C / Esc: Exit (Esc won't exit while a popup is open)",
+        '/exit: Exit application',
+        'Esc: Close the active overlay (never exits)',
       ],
     },
     {

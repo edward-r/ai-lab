@@ -1,0 +1,2 @@
+This is context file A.
+It exists to test file glob ingestion.

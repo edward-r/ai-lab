@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Text, useApp, useInput, useStdout } from 'ink'
+import { Box, Text, useInput, useStdout } from 'ink'
 import cliCursor from 'cli-cursor'
 
 import { CommandScreen, type CommandScreenHandle } from './CommandScreen'
@@ -15,7 +15,6 @@ export type AppContainerProps = {
 }
 
 export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport }) => {
-  const { exit } = useApp()
   const { stdout } = useStdout()
   const [view, setView] = useState<'generate' | 'tests'>('generate')
   const [isPopupOpen, setIsPopupOpen] = useState(false)
@@ -79,14 +78,6 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
       return
     }
 
-    if (action.type === 'exit') {
-      if (view === 'generate') {
-        commandScreenRef.current?.suppressNextInput()
-      }
-      exit()
-      return
-    }
-
     if (action.type === 'open-command-palette') {
       commandScreenRef.current?.suppressNextInput()
       setCommandMenuSignal((prev) => prev + 1)
@@ -123,7 +114,7 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
       <Box flexDirection="column" paddingX={2} paddingY={1} height="100%">
         <Text color="cyanBright">Prompt Maker · Command Palette Preview</Text>
         <Text color="gray">
-          Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C/Esc to exit.
+          Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · /exit → Exit
         </Text>
         <Box flexDirection="column" flexGrow={1} marginTop={1}>
           {view === 'generate' ? (
