@@ -123,7 +123,7 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
       <Box flexDirection="column" paddingX={2} paddingY={1} height="100%">
         <Text color="cyanBright">Prompt Maker · Command Palette Preview</Text>
         <Text color="gray">
-          Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C/Esc to exit.
+          Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C or /exit to exit.
         </Text>
         <Box flexDirection="column" flexGrow={1} marginTop={1}>
           {view === 'generate' ? (

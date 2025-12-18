@@ -71,10 +71,7 @@ export const resolveAppContainerKeyAction = ({
   }
 
   if (key.escape) {
-    if (view === 'generate' && isPopupOpen) {
-      return { type: 'none' }
-    }
-    return { type: 'exit' }
+    return { type: 'none' }
   }
 
   if (view === 'generate' && isPopupOpen) {
