@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
-import TextInput from 'ink-text-input'
 
+import { SingleLineTextInput } from './components/core/SingleLineTextInput'
+import { isBackspaceKey } from './components/core/text-input-keys'
 import { useContextDispatch, useContextState } from './context-store'
 
 export type MediaPanelFocus = 'images' | 'videos' | 'none'
@@ -41,7 +42,7 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
     setSelectedVideo((prev) => Math.min(prev, Math.max(videos.length - 1, 0)))
   }, [videos.length])
 
-  useInput((_input, key) => {
+  useInput((input, key) => {
     const imagesFocused = focus === 'images'
     const videosFocused = focus === 'videos'
 
@@ -54,7 +55,7 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
         setSelectedImage((prev) => Math.min(prev + 1, images.length - 1))
         return
       }
-      if (key.delete || key.backspace) {
+      if (key.delete || isBackspaceKey(input, key)) {
         removeImage(selectedImage)
         return
       }
@@ -69,7 +70,7 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
         setSelectedVideo((prev) => Math.min(prev + 1, videos.length - 1))
         return
       }
-      if (key.delete || key.backspace) {
+      if (key.delete || isBackspaceKey(input, key)) {
         removeVideo(selectedVideo)
         return
       }
@@ -79,7 +80,7 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1} paddingY={0}>
       <SectionHeader label="Images" focused={focus === 'images'} />
-      <TextInput
+      <SingleLineTextInput
         value={imageDraft}
         onChange={setImageDraft}
         placeholder="assets/example.png"
@@ -106,7 +107,7 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
 
       <Box flexDirection="column" marginTop={1}>
         <SectionHeader label="Videos" focused={focus === 'videos'} />
-        <TextInput
+        <SingleLineTextInput
           value={videoDraft}
           onChange={setVideoDraft}
           placeholder="assets/demo.mp4"

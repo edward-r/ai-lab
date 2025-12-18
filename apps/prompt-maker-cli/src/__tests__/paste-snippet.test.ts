@@ -52,16 +52,17 @@ describe('paste-snippet', () => {
   })
 
   describe('createPastedSnippet', () => {
-    it('returns null for a short single-line string', () => {
+    it('returns null for text below the threshold', () => {
       expect(createPastedSnippet('hello world')).toBeNull()
+      expect(createPastedSnippet('line1\nline2\nline3')).toBeNull()
     })
 
-    it('returns a snippet for multi-line text', () => {
-      const snippet = createPastedSnippet('line1\nline2\nline3')
+    it('returns a snippet for text above the threshold', () => {
+      const raw = `${'x'.repeat(80)}\nline2\nline3`
+      const snippet = createPastedSnippet(raw)
       expect(snippet).not.toBeNull()
       expect(snippet?.lineCount).toBe(3)
       expect(snippet?.label).toBe('[Pasted ~3 lines]')
-      expect(snippet?.previewLines).toEqual(['line1', 'line2', 'line3'])
     })
   })
 
@@ -76,16 +77,20 @@ describe('paste-snippet', () => {
 
     it('detects a large multi-line paste', () => {
       const large = `${'x'.repeat(90)}\n${'y'.repeat(10)}`
-      const snippet = detectPastedSnippetFromInputChange('', large)
-      expect(snippet?.lineCount).toBe(2)
-      expect(snippet?.charCount).toBe(101)
+      const detection = detectPastedSnippetFromInputChange('', large)
+      expect(detection).not.toBeNull()
+      expect(detection?.snippet.lineCount).toBe(2)
+      expect(detection?.snippet.charCount).toBe(101)
+      expect(detection?.range).toEqual({ start: 0, end: large.length })
     })
 
     it('detects a large single-line paste', () => {
       const large = 'x'.repeat(500)
-      const snippet = detectPastedSnippetFromInputChange('', large)
-      expect(snippet?.charCount).toBe(500)
-      expect(snippet?.lineCount).toBe(1)
+      const detection = detectPastedSnippetFromInputChange('', large)
+      expect(detection).not.toBeNull()
+      expect(detection?.snippet.charCount).toBe(500)
+      expect(detection?.snippet.lineCount).toBe(1)
+      expect(detection?.range).toEqual({ start: 0, end: large.length })
     })
   })
 })

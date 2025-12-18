@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import TextInput from 'ink-text-input'
+
+import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 const MAX_VISIBLE_LIST_ITEMS = 6
 const MAX_VISIBLE_SUGGESTIONS = 4
@@ -56,7 +57,7 @@ export const ListPopup: React.FC<ListPopupProps> = ({
       <Text color="blueBright">{title}</Text>
       <Box flexDirection="column" marginTop={1}>
         <Text color="gray">Add new</Text>
-        <TextInput
+        <SingleLineTextInput
           value={draft}
           onChange={onDraftChange}
           placeholder={placeholder}

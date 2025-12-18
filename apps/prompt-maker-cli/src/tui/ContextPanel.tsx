@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
-import TextInput from 'ink-text-input'
 
+import { SingleLineTextInput } from './components/core/SingleLineTextInput'
+import { isBackspaceKey } from './components/core/text-input-keys'
 import { useContextDispatch, useContextState } from './context-store'
 
 export type ContextPanelFocus = 'files' | 'urls' | 'smart' | 'none'
@@ -61,7 +62,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
         setSelectedFile((prev) => Math.min(prev + 1, files.length - 1))
         return
       }
-      if (key.delete || key.backspace) {
+      if (key.delete || isBackspaceKey(input, key)) {
         removeFile(selectedFile)
         return
       }
@@ -76,7 +77,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
         setSelectedUrl((prev) => Math.min(prev + 1, urls.length - 1))
         return
       }
-      if (key.delete || key.backspace) {
+      if (key.delete || isBackspaceKey(input, key)) {
         removeUrl(selectedUrl)
         return
       }
@@ -97,7 +98,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
       <SectionHeader label="File Context" focused={focus === 'files'} />
-      <TextInput
+      <SingleLineTextInput
         value={fileDraft}
         onChange={setFileDraft}
         placeholder="src/**/*.ts"
@@ -124,7 +125,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
 
       <Box flexDirection="column" marginTop={1}>
         <SectionHeader label="URLs" focused={focus === 'urls'} />
-        <TextInput
+        <SingleLineTextInput
           value={urlDraft}
           onChange={setUrlDraft}
           placeholder="https://github.com/..."
@@ -154,7 +155,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
         <SectionHeader label="Smart Context" focused={focus === 'smart'} />
         <Text>Status: {smartContextEnabled ? 'enabled' : 'disabled'} (press "s" to toggle)</Text>
         <Text>Root override (Enter to apply):</Text>
-        <TextInput
+        <SingleLineTextInput
           value={smartRootDraft}
           onChange={setSmartRootDraft}
           focus={focus === 'smart'}

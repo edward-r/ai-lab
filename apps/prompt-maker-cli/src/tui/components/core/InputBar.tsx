@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 
 import { MultilineTextInput, type DebugKeyEvent } from './MultilineTextInput'
+import type { TokenLabelLookup } from './tokenized-text'
 import { getLineCount } from './multiline-text-buffer'
 
 export type InputBarProps = {
@@ -14,6 +15,7 @@ export type InputBarProps = {
   placeholder?: string
   hint?: string | undefined
   debugLine?: string | undefined
+  tokenLabel?: TokenLabelLookup | undefined
   onDebugKeyEvent?: ((event: DebugKeyEvent) => void) | undefined
 }
 
@@ -44,6 +46,7 @@ export const InputBar: React.FC<InputBarProps> = ({
   placeholder,
   hint,
   debugLine,
+  tokenLabel,
   onDebugKeyEvent,
 }) => (
   <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
@@ -59,6 +62,7 @@ export const InputBar: React.FC<InputBarProps> = ({
       focus={!isDisabled}
       isDisabled={isDisabled}
       isPasteActive={isPasteActive}
+      tokenLabel={tokenLabel}
       onDebugKeyEvent={onDebugKeyEvent}
     />
   </Box>

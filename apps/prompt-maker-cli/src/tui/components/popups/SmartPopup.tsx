@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import TextInput from 'ink-text-input'
+
+import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 export type SmartPopupProps = {
   enabled: boolean
@@ -22,7 +23,7 @@ export const SmartPopup: React.FC<SmartPopupProps> = ({
     </Box>
     <Box flexDirection="column" marginTop={1}>
       <Text color="gray">Root override (Enter to apply; empty to clear)</Text>
-      <TextInput
+      <SingleLineTextInput
         value={draft}
         onChange={onDraftChange}
         onSubmit={() => onSubmitRoot(draft)}

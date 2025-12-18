@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import TextInput from 'ink-text-input'
+
+import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 export type InstructionsPopupProps = {
   draft: string
@@ -17,7 +18,7 @@ export const InstructionsPopup: React.FC<InstructionsPopupProps> = ({
     <Text color="cyanBright">Meta Instructions</Text>
     <Box flexDirection="column" marginTop={1}>
       <Text color="gray">Add optional guidance (blank clears; Enter applies)</Text>
-      <TextInput
+      <SingleLineTextInput
         value={draft}
         onChange={onDraftChange}
         onSubmit={() => onSubmitDraft(draft)}

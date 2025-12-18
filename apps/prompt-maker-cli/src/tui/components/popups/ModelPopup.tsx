@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import TextInput from 'ink-text-input'
+
+import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 import { MODEL_PROVIDER_LABELS } from '../../../model-providers'
 import type { ModelOption, ProviderStatusMap } from '../../types'
@@ -67,7 +68,7 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
       <Text color="cyanBright">Select Model</Text>
       <Box flexDirection="column" marginTop={1}>
         <Text color="gray">Search</Text>
-        <TextInput
+        <SingleLineTextInput
           value={query}
           onChange={onQueryChange}
           onSubmit={() => onSubmit(selectedOption)}

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import TextInput from 'ink-text-input'
+
+import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 export type IntentFilePopupProps = {
   draft: string
@@ -17,7 +18,7 @@ export const IntentFilePopup: React.FC<IntentFilePopupProps> = ({
     <Text color="cyanBright">Intent File</Text>
     <Box flexDirection="column" marginTop={1}>
       <Text color="gray">Enter a file path (blank clears; Enter to apply)</Text>
-      <TextInput
+      <SingleLineTextInput
         value={draft}
         onChange={onDraftChange}
         onSubmit={() => onSubmitDraft(draft)}

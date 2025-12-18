@@ -17,8 +17,8 @@ import wrapAnsi from 'wrap-ansi'
 
 import { InputBar, estimateInputBarRows } from './components/core/InputBar'
 import type { DebugKeyEvent } from './components/core/MultilineTextInput'
+import { isBackspaceKey } from './components/core/text-input-keys'
 import { CommandMenu } from './components/core/CommandMenu'
-import { PastedSnippetCard } from './components/core/PastedSnippetCard'
 import { ScrollableOutput } from './components/core/ScrollableOutput'
 import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
@@ -188,9 +188,12 @@ export const CommandScreen = memo(
       const [inputValue, setInputValue] = useState('')
       const inputValueRef = useRef('')
       inputValueRef.current = inputValue
-      const [pastedSnippet, setPastedSnippet] = useState<PastedSnippet | null>(null)
-      const pastedSnippetRef = useRef<PastedSnippet | null>(null)
-      pastedSnippetRef.current = pastedSnippet
+
+      const PASTE_TOKEN_START = 0xe000
+      const PASTE_TOKEN_END = 0xf8ff
+      const pastedSnippetTokensRef = useRef<Map<string, PastedSnippet>>(new Map())
+      const nextPasteTokenRef = useRef(PASTE_TOKEN_START)
+
       const suppressTextInputDuringPasteRef = useRef(false)
       const [isPasteActive, setIsPasteActive] = useState(false)
       const bracketedPasteStateRef = useRef<BracketedPasteState>(createBracketedPasteState())
@@ -283,27 +286,106 @@ export const CommandScreen = memo(
         return true
       }, [])
 
-      const clearPastedSnippet = useCallback(() => {
-        setPastedSnippet(null)
+      const dropMissingPasteTokens = useCallback((previous: string, next: string): void => {
+        const map = pastedSnippetTokensRef.current
+        if (map.size === 0) {
+          return
+        }
+
+        const previousTokens = new Set(Array.from(previous).filter((token) => map.has(token)))
+        if (previousTokens.size === 0) {
+          return
+        }
+
+        const nextTokens = new Set(Array.from(next).filter((token) => map.has(token)))
+        for (const token of previousTokens) {
+          if (!nextTokens.has(token)) {
+            map.delete(token)
+          }
+        }
       }, [])
 
-      const applyPastedSnippet = useCallback(
-        (snippet: PastedSnippet): void => {
-          setPastedSnippet(snippet)
-          suppressNextInputRef.current = true
-          setInputValue('')
-          lastTypedIntentRef.current = ''
-        },
-        [setInputValue],
-      )
+      const resetPasteTokens = useCallback((): void => {
+        pastedSnippetTokensRef.current.clear()
+        nextPasteTokenRef.current = PASTE_TOKEN_START
+      }, [])
+
+      useEffect(() => {
+        if (inputValue.length > 0) {
+          return
+        }
+        resetPasteTokens()
+      }, [inputValue.length, resetPasteTokens])
+
+      const tokenLabel = useCallback((token: string) => {
+        return pastedSnippetTokensRef.current.get(token)?.label ?? null
+      }, [])
+
+      const allocatePasteToken = useCallback((): string => {
+        const map = pastedSnippetTokensRef.current
+        let nextCodePoint = nextPasteTokenRef.current
+
+        while (nextCodePoint <= PASTE_TOKEN_END) {
+          const token = String.fromCharCode(nextCodePoint)
+          nextCodePoint += 1
+          if (!map.has(token)) {
+            nextPasteTokenRef.current = nextCodePoint
+            return token
+          }
+        }
+
+        resetPasteTokens()
+        const fallback = String.fromCharCode(PASTE_TOKEN_START)
+        nextPasteTokenRef.current = PASTE_TOKEN_START + 1
+        return fallback
+      }, [resetPasteTokens])
+
+      const expandPasteTokens = useCallback((value: string): string => {
+        const map = pastedSnippetTokensRef.current
+        if (map.size === 0) {
+          return value
+        }
+
+        let expanded = ''
+        for (const character of value) {
+          const snippet = map.get(character)
+          expanded += snippet ? snippet.text : character
+        }
+        return expanded
+      }, [])
+
+      const updateLastTypedIntent = useCallback((next: string): void => {
+        if (isCommandInput(next, fs.existsSync)) {
+          return
+        }
+        lastTypedIntentRef.current = next
+      }, [])
 
       const appendInlinePaste = useCallback(
         (raw: string): void => {
           const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+          const snippet = createPastedSnippet(normalized)
+
           suppressNextInputRef.current = true
-          setInputValue((prev) => prev + normalized)
+
+          if (snippet) {
+            const token = allocatePasteToken()
+            pastedSnippetTokensRef.current.set(token, snippet)
+            setInputValue((prev) => {
+              const next = prev + token
+              updateLastTypedIntent(next)
+              return next
+            })
+            return
+          }
+
+          setInputValue((prev) => {
+            const next = prev + normalized
+            updateLastTypedIntent(next)
+            return next
+          })
         },
-        [setInputValue],
+        [allocatePasteToken, updateLastTypedIntent],
       )
 
       const pushHistoryRef = useRef<(content: string, kind?: HistoryEntry['kind']) => void>(
@@ -534,7 +616,7 @@ export const CommandScreen = memo(
           ? POPUP_HEIGHTS[popupState.type as PopupKind]
           : menuHeight
 
-      const inputBarValue = pastedSnippet ? '' : inputValue
+      const inputBarValue = inputValue
       const inputBarHint = useMemo(() => {
         if (isPopupOpen || helpOpen || !droppedFilePath) {
           return undefined
@@ -811,13 +893,6 @@ export const CommandScreen = memo(
           }
 
           const latestPaste = result.completed[result.completed.length - 1] ?? ''
-          const snippet = createPastedSnippet(latestPaste)
-
-          if (snippet) {
-            applyPastedSnippet(snippet)
-            return
-          }
-
           appendInlinePaste(latestPaste)
         },
         { isActive: !helpOpen },
@@ -1320,7 +1395,7 @@ export const CommandScreen = memo(
               )
               return
             }
-            if ((key.delete || key.backspace) && files.length > 0) {
+            if ((key.delete || isBackspaceKey(input, key)) && files.length > 0) {
               handleRemoveFile(popupState.selectionIndex)
               return
             }
@@ -1347,7 +1422,7 @@ export const CommandScreen = memo(
               )
               return
             }
-            if ((key.delete || key.backspace) && urls.length > 0) {
+            if ((key.delete || isBackspaceKey(input, key)) && urls.length > 0) {
               handleRemoveUrl(popupState.selectionIndex)
               return
             }
@@ -1559,14 +1634,16 @@ export const CommandScreen = memo(
 
       const handleSubmit = useCallback(
         (value: string) => {
+          const expandedValue = expandPasteTokens(value)
+
           if (isAwaitingRefinement) {
-            submitRefinement(value)
+            submitRefinement(expandedValue)
             setInputValue('')
             return
           }
 
           if (isAwaitingNewReuse) {
-            const response = value.trim().toLowerCase()
+            const response = expandedValue.trim().toLowerCase()
             if (response === 'y' || response === 'yes') {
               const prompt = pendingNewReusePromptRef.current
               pendingNewReusePromptRef.current = null
@@ -1618,7 +1695,7 @@ export const CommandScreen = memo(
             return
           }
 
-          const trimmed = value.trim()
+          const trimmed = expandedValue.trim()
           const intentSource = resolveIntentSource(trimmed, intentFilePath)
           if (intentSource.kind === 'empty') {
             setInputValue('')
@@ -1650,6 +1727,7 @@ export const CommandScreen = memo(
           isCommandMenuActive,
           isCommandMode,
           isAwaitingRefinement,
+          expandPasteTokens,
           submitRefinement,
           popupState,
           selectedCommand,
@@ -1659,30 +1737,6 @@ export const CommandScreen = memo(
           commandArgsRaw,
           intentFilePath,
         ],
-      )
-
-      useInput(
-        (_input, key) => {
-          if (!pastedSnippetRef.current) {
-            return
-          }
-          if (popupState || helpOpen) {
-            return
-          }
-          if (key.escape) {
-            clearPastedSnippet()
-            return
-          }
-          if (key.return) {
-            const snippet = pastedSnippetRef.current
-            if (!snippet) {
-              return
-            }
-            clearPastedSnippet()
-            handleSubmit(snippet.text)
-          }
-        },
-        { isActive: Boolean(pastedSnippet) && !helpOpen },
       )
 
       const handleInputChange = useCallback(
@@ -1697,19 +1751,37 @@ export const CommandScreen = memo(
             return
           }
 
-          const snippet = detectPastedSnippetFromInputChange(inputValueRef.current, next)
-          if (snippet) {
-            applyPastedSnippet(snippet)
+          const previous = inputValueRef.current
+          const detection = detectPastedSnippetFromInputChange(previous, next)
+
+          if (detection) {
+            const token = allocatePasteToken()
+            pastedSnippetTokensRef.current.set(token, detection.snippet)
+
+            const replaced =
+              detection.normalizedNextValue.slice(0, detection.range.start) +
+              token +
+              detection.normalizedNextValue.slice(detection.range.end)
+
+            dropMissingPasteTokens(previous, replaced)
+            setInputValue(replaced)
+            updateLastTypedIntent(replaced)
             return
           }
 
-          setInputValue(next)
-          if (isCommandInput(next, fs.existsSync)) {
-            return
-          }
-          lastTypedIntentRef.current = next
+          const normalized = next.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+          dropMissingPasteTokens(previous, normalized)
+          setInputValue(normalized)
+          updateLastTypedIntent(normalized)
         },
-        [applyPastedSnippet, consumeSuppressedTextInputChange, popupState, setInputValue],
+        [
+          allocatePasteToken,
+          consumeSuppressedTextInputChange,
+          dropMissingPasteTokens,
+          popupState,
+          setInputValue,
+          updateLastTypedIntent,
+        ],
       )
 
       const handleModelPopupQueryChange = useCallback(
@@ -1971,28 +2043,21 @@ export const CommandScreen = memo(
             </Box>
           ) : null}
 
-          {pastedSnippet && !isPopupOpen && !helpOpen ? (
-            <Box marginBottom={1} flexShrink={0}>
-              <PastedSnippetCard snippet={pastedSnippet} />
-            </Box>
-          ) : null}
-
           <InputBar
             value={inputBarValue}
             onChange={handleInputChange}
             onSubmit={handleSubmit}
-            isDisabled={isPopupOpen || helpOpen || Boolean(pastedSnippet)}
+            isDisabled={isPopupOpen || helpOpen}
             isPasteActive={isPasteActive}
             statusChips={enhancedStatusChips}
             hint={inputBarHint}
             debugLine={inputBarDebugLine}
+            tokenLabel={tokenLabel}
             onDebugKeyEvent={debugKeysEnabled ? handleDebugKeyEvent : undefined}
             placeholder={
-              pastedSnippet
-                ? pastedSnippet.label
-                : isAwaitingRefinement
-                  ? 'Describe refinement (or empty to finish)...'
-                  : 'Describe your goal or type /command'
+              isAwaitingRefinement
+                ? 'Describe refinement (or empty to finish)...'
+                : 'Describe your goal or type /command'
             }
           />
         </Box>

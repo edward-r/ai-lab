@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import TextInput from 'ink-text-input'
+
+import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 export type TestPopupProps = {
   draft: string
@@ -19,7 +20,7 @@ export const TestPopup: React.FC<TestPopupProps> = ({
     <Text color="cyanBright">Prompt Tests</Text>
     <Box flexDirection="column" marginTop={1}>
       <Text color="gray">Suite path (Enter to run; blank uses prompt-tests.yaml)</Text>
-      <TextInput
+      <SingleLineTextInput
         value={draft}
         onChange={onDraftChange}
         onSubmit={() => onSubmitDraft(draft)}
