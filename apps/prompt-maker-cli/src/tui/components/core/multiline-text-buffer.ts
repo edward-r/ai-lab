@@ -1,3 +1,5 @@
+import { stripBracketedPasteControlSequences } from './bracketed-paste'
+
 export type MultilineTextBufferState = {
   value: string
   cursor: number
@@ -40,15 +42,16 @@ export const insertText = (
   state: MultilineTextBufferState,
   text: string,
 ): MultilineTextBufferState => {
-  if (!text) {
+  const sanitized = stripBracketedPasteControlSequences(text)
+  if (!sanitized) {
     return state
   }
 
   const cursor = clampCursor(state.cursor, state.value)
-  const nextValue = state.value.slice(0, cursor) + text + state.value.slice(cursor)
+  const nextValue = state.value.slice(0, cursor) + sanitized + state.value.slice(cursor)
   return {
     value: nextValue,
-    cursor: cursor + text.length,
+    cursor: cursor + sanitized.length,
   }
 }
 

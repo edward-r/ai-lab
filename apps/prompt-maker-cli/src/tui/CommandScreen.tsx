@@ -17,6 +17,7 @@ import wrapAnsi from 'wrap-ansi'
 
 import { InputBar, estimateInputBarRows } from './components/core/InputBar'
 import type { DebugKeyEvent } from './components/core/MultilineTextInput'
+import { stripBracketedPasteControlSequences } from './components/core/bracketed-paste'
 import { isBackspaceKey } from './components/core/text-input-keys'
 import { CommandMenu } from './components/core/CommandMenu'
 import { ScrollableOutput } from './components/core/ScrollableOutput'
@@ -363,7 +364,12 @@ export const CommandScreen = memo(
 
       const appendInlinePaste = useCallback(
         (raw: string): void => {
-          const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+          const normalized = stripBracketedPasteControlSequences(
+            raw
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n')
+              .replace(/\u0000/g, ''),
+          )
           const snippet = createPastedSnippet(normalized)
 
           suppressNextInputRef.current = true
@@ -1752,7 +1758,13 @@ export const CommandScreen = memo(
           }
 
           const previous = inputValueRef.current
-          const detection = detectPastedSnippetFromInputChange(previous, next)
+          const normalizedNext = stripBracketedPasteControlSequences(
+            next
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n')
+              .replace(/\u0000/g, ''),
+          )
+          const detection = detectPastedSnippetFromInputChange(previous, normalizedNext)
 
           if (detection) {
             const token = allocatePasteToken()
@@ -1769,10 +1781,9 @@ export const CommandScreen = memo(
             return
           }
 
-          const normalized = next.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-          dropMissingPasteTokens(previous, normalized)
-          setInputValue(normalized)
-          updateLastTypedIntent(normalized)
+          dropMissingPasteTokens(previous, normalizedNext)
+          setInputValue(normalizedNext)
+          updateLastTypedIntent(normalizedNext)
         },
         [
           allocatePasteToken,
@@ -1781,6 +1792,7 @@ export const CommandScreen = memo(
           popupState,
           setInputValue,
           updateLastTypedIntent,
+          stripBracketedPasteControlSequences,
         ],
       )
 

@@ -1,3 +1,5 @@
+import { stripBracketedPasteControlSequences } from './components/core/bracketed-paste'
+
 export const BRACKETED_PASTE_START = '[200~'
 export const BRACKETED_PASTE_END = '[201~'
 
@@ -78,8 +80,13 @@ export type PastedSnippet = {
   readonly previewLines: readonly string[]
 }
 
-const normalizeLineEndings = (value: string): string =>
-  value.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+const normalizeLineEndings = (value: string): string => {
+  const normalized = value
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\u0000/g, '')
+  return stripBracketedPasteControlSequences(normalized)
+}
 
 const countLines = (value: string): number => {
   const trimmed = value.trimEnd()
@@ -93,7 +100,7 @@ export const formatPastedSnippetLabel = (lineCount: number): string =>
   `[Pasted ~${lineCount} ${lineCount === 1 ? 'line' : 'lines'}]`
 
 export const createPastedSnippet = (raw: string): PastedSnippet | null => {
-  const normalized = normalizeLineEndings(raw).replace(/\u0000/g, '')
+  const normalized = normalizeLineEndings(raw)
   const text = normalized.trimEnd()
   const lineCount = countLines(text)
   const charCount = text.length

@@ -64,6 +64,18 @@ describe('paste-snippet', () => {
       expect(snippet?.lineCount).toBe(3)
       expect(snippet?.label).toBe('[Pasted ~3 lines]')
     })
+
+    it('strips bracketed paste markers from snippet text', () => {
+      const rawWithEsc = `\u001b[200~${'x'.repeat(80)}\u001b[201~`
+      const snippetWithEsc = createPastedSnippet(rawWithEsc)
+      expect(snippetWithEsc).not.toBeNull()
+      expect(snippetWithEsc?.text).toBe('x'.repeat(80))
+
+      const rawNoEsc = `[200~${'x'.repeat(80)}[201~`
+      const snippetNoEsc = createPastedSnippet(rawNoEsc)
+      expect(snippetNoEsc).not.toBeNull()
+      expect(snippetNoEsc?.text).toBe('x'.repeat(80))
+    })
   })
 
   describe('detectPastedSnippetFromInputChange', () => {
