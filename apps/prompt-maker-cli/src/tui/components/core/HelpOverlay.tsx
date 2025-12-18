@@ -1,8 +1,14 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 
 import { COMMAND_DESCRIPTORS } from '../../config'
 import { createHelpSections, estimateHelpOverlayHeight } from '../../help-config'
+import {
+  clampHelpOverlayScrollOffset,
+  getHelpOverlayContentRows,
+  getHelpOverlayMaxScroll,
+  scrollHelpOverlayBy,
+} from './help-overlay-scroll'
 
 export type HelpOverlayProps = {
   activeView: 'generate' | 'tests'
@@ -33,36 +39,46 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ activeView, maxHeight 
     return lines
   }, [sections])
 
-  const contentRows = Math.max(1, height - 4)
-  const maxScroll = Math.max(0, contentLines.length - contentRows)
+  const contentRows = getHelpOverlayContentRows(height)
+  const maxScroll = getHelpOverlayMaxScroll(contentLines.length, contentRows)
   const [scrollOffset, setScrollOffset] = useState(0)
+
+  useEffect(() => {
+    setScrollOffset((prev) => clampHelpOverlayScrollOffset(prev, contentLines.length, contentRows))
+  }, [contentLines.length, contentRows])
 
   useInput((_, key) => {
     if (key.upArrow) {
-      setScrollOffset((prev) => Math.max(0, prev - 1))
+      setScrollOffset((prev) => scrollHelpOverlayBy(prev, -1, contentLines.length, contentRows))
       return
     }
     if (key.downArrow) {
-      setScrollOffset((prev) => Math.min(maxScroll, prev + 1))
+      setScrollOffset((prev) => scrollHelpOverlayBy(prev, 1, contentLines.length, contentRows))
       return
     }
     if (key.pageUp) {
-      setScrollOffset((prev) => Math.max(0, prev - contentRows))
+      setScrollOffset((prev) =>
+        scrollHelpOverlayBy(prev, -contentRows, contentLines.length, contentRows),
+      )
       return
     }
     if (key.pageDown) {
-      setScrollOffset((prev) => Math.min(maxScroll, prev + contentRows))
+      setScrollOffset((prev) =>
+        scrollHelpOverlayBy(prev, contentRows, contentLines.length, contentRows),
+      )
     }
   })
 
+  const clampedOffset = clampHelpOverlayScrollOffset(scrollOffset, contentLines.length, contentRows)
+
   const visibleLines = useMemo(
-    () => contentLines.slice(scrollOffset, scrollOffset + contentRows),
-    [contentLines, contentRows, scrollOffset],
+    () => contentLines.slice(clampedOffset, clampedOffset + contentRows),
+    [clampedOffset, contentLines, contentRows],
   )
 
   const showScrollHint = maxScroll > 0
   const scrollLabel = showScrollHint
-    ? `↑/↓ scroll (${scrollOffset + 1}-${Math.min(scrollOffset + contentRows, contentLines.length)}/${contentLines.length})`
+    ? `↑/↓ scroll (${clampedOffset + 1}-${Math.min(clampedOffset + contentRows, contentLines.length)}/${contentLines.length})`
     : ''
 
   return (
