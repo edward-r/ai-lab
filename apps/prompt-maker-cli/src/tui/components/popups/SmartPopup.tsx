@@ -19,7 +19,7 @@ export const SmartPopup: React.FC<SmartPopupProps> = ({
   <Box flexDirection="column" borderStyle="round" borderColor="green" paddingX={1} paddingY={0}>
     <Text color="greenBright">Smart Context</Text>
     <Box marginTop={1}>
-      <Text color="white">Status: {enabled ? 'enabled' : 'disabled'} (press T to toggle)</Text>
+      <Text color="white">Status: {enabled ? 'enabled' : 'disabled'} (press Ctrl+T to toggle)</Text>
     </Box>
     <Box flexDirection="column" marginTop={1}>
       <Text color="gray">Root override (Enter to apply; empty to clear)</Text>
@@ -32,7 +32,7 @@ export const SmartPopup: React.FC<SmartPopupProps> = ({
       />
     </Box>
     <Box marginTop={1}>
-      <Text color="gray">Enter to apply root · T to toggle · Esc to close</Text>
+      <Text color="gray">Enter to apply root · Ctrl+T to toggle · Esc to close</Text>
     </Box>
     <Box marginTop={1}>
       <Text color="gray">Current root will mirror saved value.</Text>

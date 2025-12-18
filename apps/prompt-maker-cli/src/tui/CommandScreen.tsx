@@ -12,7 +12,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Box, useApp, useInput, useStdout } from 'ink'
+import { Box, useApp, useInput, useStdout, type Key } from 'ink'
 import wrapAnsi from 'wrap-ansi'
 
 import { InputBar, estimateInputBarRows } from './components/core/InputBar'
@@ -73,6 +73,22 @@ const APP_STATIC_ROWS = 7
 const COMMAND_SCREEN_OVERHEAD_ROWS = 3
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
+
+const isControlKey = (input: string, key: Key, target: string): boolean => {
+  if (!target) {
+    return false
+  }
+
+  const normalized = target.toLowerCase()
+  const code = normalized.charCodeAt(0)
+  const controlChar = code >= 97 && code <= 122 ? String.fromCharCode(code - 96) : null
+
+  if (key.ctrl === true && input.toLowerCase() === normalized) {
+    return true
+  }
+
+  return controlChar ? input === controlChar : false
+}
 
 const filterModelOptions = (query: string, options: readonly ModelOption[]): ModelOption[] => {
   const trimmed = query.trim().toLowerCase()
@@ -1468,7 +1484,7 @@ export const CommandScreen = memo(
           }
 
           if (popupState.type === 'smart') {
-            if (typeof input === 'string' && input.toLowerCase() === 't') {
+            if (isControlKey(input, key, 't')) {
               handleSmartToggle(!smartContextEnabled)
               return
             }
