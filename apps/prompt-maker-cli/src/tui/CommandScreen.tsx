@@ -33,6 +33,7 @@ import { IntentFilePopup } from './components/popups/IntentFilePopup'
 import { InstructionsPopup } from './components/popups/InstructionsPopup'
 import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
+import { filterCommandDescriptors, resolveCommandMenuSearchState } from './command-filter'
 import { parseAbsolutePathFromInput, isCommandInput } from './drag-drop-path'
 import { filterFileSuggestions } from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
@@ -471,8 +472,15 @@ export const CommandScreen = memo(
         return { keyword, args: rest.join(' ') }
       }, [commandQuery])
 
-      const normalizedQuery = parsedCommand.keyword.toLowerCase()
       const commandArgsRaw = parsedCommand.args
+
+      const commandMenuSearchState = useMemo(
+        () => resolveCommandMenuSearchState({ commandQuery, commands: COMMAND_DESCRIPTORS }),
+        [commandQuery],
+      )
+
+      const commandMenuFilterQuery = commandMenuSearchState.filterQuery
+      const commandMenuArgsRaw = commandMenuSearchState.treatRemainderAsArgs ? commandArgsRaw : ''
 
       const trimmedMetaInstructions = metaInstructions.trim()
 
@@ -611,23 +619,12 @@ export const CommandScreen = memo(
         if (!isCommandMode) {
           return COMMAND_DESCRIPTORS
         }
-        if (!normalizedQuery) {
-          return COMMAND_DESCRIPTORS
-        }
-        const filtered = COMMAND_DESCRIPTORS.filter((command) => {
-          if (command.id.startsWith(normalizedQuery)) {
-            return true
-          }
-          if (command.label.toLowerCase().startsWith(normalizedQuery)) {
-            return true
-          }
-          if ('aliases' in command && Array.isArray(command.aliases)) {
-            return command.aliases.some((alias) => alias.startsWith(normalizedQuery))
-          }
-          return false
+
+        return filterCommandDescriptors({
+          query: commandMenuFilterQuery,
+          commands: COMMAND_DESCRIPTORS,
         })
-        return filtered.length > 0 ? filtered : COMMAND_DESCRIPTORS
-      }, [isCommandMode, normalizedQuery])
+      }, [commandMenuFilterQuery, isCommandMode])
 
       const visibleCommands = commandMatches
       const isCommandMenuActive = isCommandMode && !isPopupOpen && !helpOpen
@@ -821,7 +818,7 @@ export const CommandScreen = memo(
 
       useEffect(() => {
         setCommandSelectionIndex(0)
-      }, [normalizedQuery, isCommandMode])
+      }, [commandMenuFilterQuery, isCommandMode])
 
       useEffect(() => {
         if (!commandMenuSignal || commandMenuSignal === lastCommandMenuSignalRef.current) {
@@ -1705,14 +1702,14 @@ export const CommandScreen = memo(
 
           if (isCommandMenuActive) {
             if (selectedCommand) {
-              const trimmedArgs = commandArgsRaw.trim()
+              const trimmedArgs = commandMenuArgsRaw.trim()
               addCommandHistoryEntry(
                 `/${selectedCommand.id}${trimmedArgs ? ` ${trimmedArgs}` : ''}`,
               )
               if (selectedCommand.id === 'new') {
-                handleNewCommand(commandArgsRaw)
+                handleNewCommand(commandMenuArgsRaw)
               } else {
-                handleCommandSelection(selectedCommand.id, commandArgsRaw)
+                handleCommandSelection(selectedCommand.id, commandMenuArgsRaw)
               }
             }
             setInputValue('')
@@ -1763,7 +1760,7 @@ export const CommandScreen = memo(
           isGenerating,
           runGeneration,
           pushHistory,
-          commandArgsRaw,
+          commandMenuArgsRaw,
           intentFilePath,
         ],
       )
