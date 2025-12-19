@@ -38,7 +38,7 @@ import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
 import { filterCommandDescriptors, resolveCommandMenuSearchState } from './command-filter'
 import { parseAbsolutePathFromInput, isCommandInput } from './drag-drop-path'
-import { filterFileSuggestions } from './file-suggestions'
+import { filterDirectorySuggestions, filterFileSuggestions } from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
 import {
   consumeBracketedPasteChunk,
@@ -1119,7 +1119,16 @@ export const CommandScreen = memo(
           pushHistory(
             trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared',
           )
-          setPopupState((prev) => (prev?.type === 'smart' ? { ...prev, draft: trimmed } : prev))
+          setPopupState((prev) =>
+            prev?.type === 'smart'
+              ? {
+                  ...prev,
+                  draft: trimmed,
+                  suggestedFocused: false,
+                  suggestedSelectionIndex: 0,
+                }
+              : prev,
+          )
         },
         [setSmartRoot, pushHistory],
       )
@@ -1174,6 +1183,36 @@ export const CommandScreen = memo(
       const filePopupSuggestionsFocused =
         filePopupSuggestedFocused && filePopupSuggestions.length > 0
 
+      const smartPopupDraft = popupState?.type === 'smart' ? popupState.draft : ''
+      const smartPopupSuggestedItems =
+        popupState?.type === 'smart' ? popupState.suggestedItems : ([] as string[])
+      const smartPopupSuggestedFocused =
+        popupState?.type === 'smart' ? popupState.suggestedFocused : false
+      const smartPopupSuggestedSelectionIndex =
+        popupState?.type === 'smart' ? popupState.suggestedSelectionIndex : 0
+
+      const smartPopupSuggestions = useMemo(() => {
+        if (!smartPopupSuggestedItems.length) {
+          return []
+        }
+
+        const excluded = smartContextRoot ? [smartContextRoot] : []
+
+        return filterDirectorySuggestions({
+          suggestions: smartPopupSuggestedItems,
+          query: smartPopupDraft,
+          exclude: excluded,
+        })
+      }, [smartContextRoot, smartPopupDraft, smartPopupSuggestedItems])
+
+      const smartPopupSuggestionSelectionIndex = Math.min(
+        smartPopupSuggestedSelectionIndex,
+        Math.max(smartPopupSuggestions.length - 1, 0),
+      )
+
+      const smartPopupSuggestionsFocused =
+        smartPopupSuggestedFocused && smartPopupSuggestions.length > 0
+
       const modelPopupQuery = popupState?.type === 'model' ? popupState.query : ''
       const debouncedModelPopupQuery = useDebouncedValue(modelPopupQuery, 75)
 
@@ -1227,6 +1266,28 @@ export const CommandScreen = memo(
             : prev,
         )
       }, [filePopupSuggestedFocused, filePopupSuggestions.length, popupState?.type, setPopupState])
+
+      useEffect(() => {
+        if (popupState?.type !== 'smart') {
+          return
+        }
+        if (!smartPopupSuggestedFocused) {
+          return
+        }
+        if (smartPopupSuggestions.length > 0) {
+          return
+        }
+        setPopupState((prev) =>
+          prev?.type === 'smart'
+            ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+            : prev,
+        )
+      }, [
+        popupState?.type,
+        setPopupState,
+        smartPopupSuggestedFocused,
+        smartPopupSuggestions.length,
+      ])
 
       useInput(
         (input, key) => {
@@ -1518,14 +1579,114 @@ export const CommandScreen = memo(
           }
 
           if (popupState.type === 'smart') {
+            const hasSuggestions = smartPopupSuggestions.length > 0
+            const maxSuggestedIndex = Math.max(smartPopupSuggestions.length - 1, 0)
+            const effectiveSuggestedIndex = Math.min(
+              popupState.suggestedSelectionIndex,
+              maxSuggestedIndex,
+            )
+            const draftIsEmpty = popupState.draft.trim().length === 0
+
             if (isControlKey(input, key, 't')) {
               handleSmartToggle(!smartContextEnabled)
               return
             }
+
             if (key.escape) {
               closePopup()
               return
             }
+
+            if (popupState.suggestedFocused && hasSuggestions) {
+              if (key.tab) {
+                setPopupState((prev) =>
+                  prev?.type === 'smart' ? { ...prev, suggestedFocused: false } : prev,
+                )
+                return
+              }
+
+              if (key.upArrow) {
+                if (effectiveSuggestedIndex === 0) {
+                  setPopupState((prev) =>
+                    prev?.type === 'smart' ? { ...prev, suggestedFocused: false } : prev,
+                  )
+                  return
+                }
+
+                setPopupState((prev) =>
+                  prev?.type === 'smart'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.max(prev.suggestedSelectionIndex - 1, 0),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.downArrow) {
+                setPopupState((prev) =>
+                  prev?.type === 'smart'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.min(
+                          prev.suggestedSelectionIndex + 1,
+                          maxSuggestedIndex,
+                        ),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.return) {
+                const selection = smartPopupSuggestions[effectiveSuggestedIndex]
+                setPopupState((prev) =>
+                  prev?.type === 'smart'
+                    ? {
+                        ...prev,
+                        draft: selection ?? prev.draft,
+                        suggestedFocused: false,
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              return
+            }
+
+            if (key.tab && !key.shift && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'smart'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
+            if (key.downArrow && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'smart'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
+            if ((key.delete || (draftIsEmpty && isBackspaceKey(input, key))) && smartContextRoot) {
+              handleSmartRootSubmit('')
+              return
+            }
+
             return
           }
 
@@ -1976,7 +2137,19 @@ export const CommandScreen = memo(
           if (consumeSuppressedTextInputChange()) {
             return
           }
-          setPopupState((prev) => (prev?.type === 'smart' ? { ...prev, draft: next } : prev))
+
+          const sanitized = stripTerminalPasteArtifacts(next)
+
+          setPopupState((prev) =>
+            prev?.type === 'smart'
+              ? {
+                  ...prev,
+                  draft: sanitized,
+                  suggestedSelectionIndex: 0,
+                  suggestedFocused: false,
+                }
+              : prev,
+          )
         },
         [consumeSuppressedTextInputChange, setPopupState],
       )
@@ -2092,14 +2265,19 @@ export const CommandScreen = memo(
                   visibleRows={reasoningPopupVisibleRows}
                   scrollOffset={popupState.scrollOffset}
                 />
-              ) : (
+              ) : popupState.type === 'smart' ? (
                 <SmartPopup
                   enabled={smartContextEnabled}
+                  savedRoot={smartContextRoot}
                   draft={popupState.draft}
+                  suggestedItems={smartPopupSuggestions}
+                  suggestedSelectionIndex={smartPopupSuggestionSelectionIndex}
+                  suggestedFocused={smartPopupSuggestionsFocused}
+                  maxHeight={overlayHeight}
                   onDraftChange={handleSmartPopupDraftChange}
                   onSubmitRoot={handleSmartRootSubmit}
                 />
-              )}
+              ) : null}
             </Box>
           ) : null}
 

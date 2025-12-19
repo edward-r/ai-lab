@@ -1,8 +1,10 @@
 import fg from 'fast-glob'
 
 import {
+  discoverDirectorySuggestions,
   discoverFileSuggestions,
   FILE_SUGGESTION_IGNORE_PATTERNS,
+  filterDirectorySuggestions,
   filterFileSuggestions,
 } from '../tui/file-suggestions'
 
@@ -30,6 +32,32 @@ describe('file-suggestions', () => {
       }),
     )
     expect(results).toEqual(['a.ts', 'z.ts'])
+  })
+
+  it('discovers workspace directories, normalizes, sorts, and limits', async () => {
+    globMock.mockResolvedValue(['/repo/z', '/repo/a', '/other/outside'])
+
+    const results = await discoverDirectorySuggestions({ cwd: '/repo', limit: 2 })
+
+    expect(globMock).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        cwd: '/repo',
+        ignore: FILE_SUGGESTION_IGNORE_PATTERNS,
+        onlyDirectories: true,
+      }),
+    )
+    expect(results).toEqual(['a', 'z'])
+  })
+
+  it('filters directory suggestions by query and exclusion', () => {
+    const results = filterDirectorySuggestions({
+      suggestions: ['apps/prompt-maker-cli', 'src/app', 'docs'],
+      query: 'app',
+      exclude: ['docs'],
+    })
+
+    expect(results).toEqual(['apps/prompt-maker-cli', 'src/app'])
   })
 
   it('filters suggestions by substring and excludes existing entries', () => {

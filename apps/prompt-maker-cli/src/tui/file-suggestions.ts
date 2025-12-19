@@ -69,6 +69,40 @@ export const discoverFileSuggestions = async (
   return [...unique].sort().slice(0, limit)
 }
 
+export type DiscoverDirectorySuggestionsOptions = {
+  cwd?: string
+  limit?: number
+}
+
+export const discoverDirectorySuggestions = async (
+  options: DiscoverDirectorySuggestionsOptions = {},
+): Promise<string[]> => {
+  const cwd = options.cwd ?? process.cwd()
+  const limit = options.limit ?? DEFAULT_FILE_SUGGESTION_LIMIT
+
+  const matches = await fg(FILE_SUGGESTION_PATTERNS, {
+    cwd,
+    dot: true,
+    absolute: true,
+    onlyDirectories: true,
+    unique: true,
+    suppressErrors: true,
+    followSymbolicLinks: false,
+    ignore: FILE_SUGGESTION_IGNORE_PATTERNS,
+  })
+
+  const unique = new Set<string>()
+  for (const match of matches) {
+    const displayPath = toDisplayPath(cwd, match)
+    if (!displayPath) {
+      continue
+    }
+    unique.add(displayPath)
+  }
+
+  return [...unique].sort().slice(0, limit)
+}
+
 export type FilterFileSuggestionsOptions = {
   suggestions: readonly string[]
   query: string
@@ -108,3 +142,8 @@ export const filterFileSuggestions = ({
 
   return [...prefixMatches, ...substringMatches].slice(0, limit)
 }
+
+export type FilterDirectorySuggestionsOptions = FilterFileSuggestionsOptions
+
+export const filterDirectorySuggestions = (options: FilterDirectorySuggestionsOptions): string[] =>
+  filterFileSuggestions(options)

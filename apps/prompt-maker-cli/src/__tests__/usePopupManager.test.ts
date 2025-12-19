@@ -7,6 +7,7 @@ import type { UsePopupManagerOptions } from '../tui/hooks/usePopupManager'
 import type { ModelOption } from '../tui/types'
 
 jest.mock('../tui/file-suggestions', () => ({
+  discoverDirectorySuggestions: jest.fn(),
   discoverFileSuggestions: jest.fn(),
 }))
 
@@ -92,6 +93,7 @@ const createDeferred = <T>(): Deferred<T> => {
 }
 
 const fileSuggestions = jest.requireMock('../tui/file-suggestions') as {
+  discoverDirectorySuggestions: jest.Mock
   discoverFileSuggestions: jest.Mock
 }
 
@@ -174,6 +176,83 @@ describe('usePopupManager file popup', () => {
 
     expect(options.pushHistory).toHaveBeenCalledWith(
       '[file] Failed to scan workspace: boom',
+      'system',
+    )
+  })
+})
+
+describe('usePopupManager smart popup', () => {
+  beforeEach(() => {
+    fileSuggestions.discoverDirectorySuggestions.mockReset()
+  })
+
+  it('initializes smart popup with suggestion defaults', () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverDirectorySuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions({ smartContextRoot: 'src' })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openSmartPopup()
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'smart',
+      draft: 'src',
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('populates smart popup suggestions after scanning', async () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverDirectorySuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openSmartPopup()
+    })
+
+    await act(async () => {
+      deferred.resolve(['src', 'apps/prompt-maker-cli'])
+      await deferred.promise
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'smart',
+      draft: '',
+      suggestedItems: ['src', 'apps/prompt-maker-cli'],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('logs a history entry when scanning fails', async () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverDirectorySuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openSmartPopup()
+    })
+
+    await act(async () => {
+      deferred.reject(new Error('boom'))
+      try {
+        await deferred.promise
+      } catch {
+        // ignored
+      }
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith(
+      '[smart] Failed to scan workspace: boom',
       'system',
     )
   })

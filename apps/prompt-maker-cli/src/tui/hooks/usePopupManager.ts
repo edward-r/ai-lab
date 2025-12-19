@@ -3,7 +3,7 @@ import path from 'node:path'
 import { useCallback, useState } from 'react'
 
 import { TOGGLE_LABELS } from '../config'
-import { discoverFileSuggestions } from '../file-suggestions'
+import { discoverDirectorySuggestions, discoverFileSuggestions } from '../file-suggestions'
 import type {
   CommandDescriptor,
   HistoryEntry,
@@ -167,8 +167,35 @@ export const usePopupManager = ({
   }, [])
 
   const openSmartPopup = useCallback(() => {
-    setPopupState({ type: 'smart', draft: smartContextRoot ?? '' })
-  }, [smartContextRoot])
+    setPopupState({
+      type: 'smart',
+      draft: smartContextRoot ?? '',
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+
+    const scan = async (): Promise<void> => {
+      try {
+        const suggestions = await discoverDirectorySuggestions({ cwd: process.cwd(), limit: 200 })
+        setPopupState((prev) =>
+          prev?.type === 'smart'
+            ? {
+                ...prev,
+                suggestedItems: suggestions,
+                suggestedSelectionIndex: 0,
+                suggestedFocused: false,
+              }
+            : prev,
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+        pushHistory(`[smart] Failed to scan workspace: ${message}`, 'system')
+      }
+    }
+
+    void scan()
+  }, [pushHistory, smartContextRoot])
 
   const openTokensPopup = useCallback(() => {
     setPopupState({ type: 'tokens' })
