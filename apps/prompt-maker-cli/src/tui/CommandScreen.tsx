@@ -17,7 +17,10 @@ import wrapAnsi from 'wrap-ansi'
 
 import { InputBar, estimateInputBarRows } from './components/core/InputBar'
 import type { DebugKeyEvent } from './components/core/MultilineTextInput'
-import { stripBracketedPasteControlSequences } from './components/core/bracketed-paste'
+import {
+  stripBracketedPasteControlSequences,
+  stripTerminalPasteArtifacts,
+} from './components/core/bracketed-paste'
 import { isBackspaceKey } from './components/core/text-input-keys'
 import { CommandMenu } from './components/core/CommandMenu'
 import { resolveCommandMenuKeyAction } from './components/core/command-menu-keymap'
@@ -1884,11 +1887,14 @@ export const CommandScreen = memo(
           if (consumeSuppressedTextInputChange()) {
             return
           }
+
+          const sanitized = stripTerminalPasteArtifacts(next)
+
           setPopupState((prev) =>
             prev?.type === 'file'
               ? {
                   ...prev,
-                  draft: next,
+                  draft: sanitized,
                   suggestedSelectionIndex: 0,
                   suggestedFocused: false,
                 }

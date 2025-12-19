@@ -1,5 +1,8 @@
+import { stripTerminalPasteArtifacts } from './components/core/bracketed-paste'
+
 export const parseAbsolutePathFromInput = (input: string): string | null => {
-  const trimmed = input.trim()
+  const sanitizedInput = stripTerminalPasteArtifacts(input)
+  const trimmed = sanitizedInput.trim()
   if (!trimmed) {
     return null
   }
@@ -34,7 +37,8 @@ export const isCommandInput = (
   input: string,
   existsSync: (candidate: string) => boolean,
 ): boolean => {
-  const trimmedStart = input.trimStart()
+  const sanitizedInput = stripTerminalPasteArtifacts(input)
+  const trimmedStart = sanitizedInput.trimStart()
   if (!trimmedStart.startsWith('/')) {
     return false
   }
