@@ -1309,10 +1309,12 @@ export const CommandScreen = memo(
 
           if (popupState.type === 'file') {
             const hasSuggestions = filePopupSuggestions.length > 0
+            const maxSuggestedIndex = Math.max(filePopupSuggestions.length - 1, 0)
             const effectiveSuggestedIndex = Math.min(
               popupState.suggestedSelectionIndex,
-              Math.max(filePopupSuggestions.length - 1, 0),
+              maxSuggestedIndex,
             )
+            const draftIsEmpty = popupState.draft.trim().length === 0
 
             if (key.escape) {
               closePopup()
@@ -1320,21 +1322,21 @@ export const CommandScreen = memo(
             }
 
             if (popupState.suggestedFocused && hasSuggestions) {
-              if (key.tab && !key.shift) {
+              if (key.tab) {
                 setPopupState((prev) =>
                   prev?.type === 'file' ? { ...prev, suggestedFocused: false } : prev,
                 )
                 return
               }
+
               if (key.upArrow) {
                 if (effectiveSuggestedIndex === 0) {
                   setPopupState((prev) =>
-                    prev?.type === 'file'
-                      ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
-                      : prev,
+                    prev?.type === 'file' ? { ...prev, suggestedFocused: false } : prev,
                   )
                   return
                 }
+
                 setPopupState((prev) =>
                   prev?.type === 'file'
                     ? {
@@ -1345,6 +1347,7 @@ export const CommandScreen = memo(
                 )
                 return
               }
+
               if (key.downArrow) {
                 setPopupState((prev) =>
                   prev?.type === 'file'
@@ -1352,13 +1355,14 @@ export const CommandScreen = memo(
                         ...prev,
                         suggestedSelectionIndex: Math.min(
                           prev.suggestedSelectionIndex + 1,
-                          Math.max(filePopupSuggestions.length - 1, 0),
+                          maxSuggestedIndex,
                         ),
                       }
                     : prev,
                 )
                 return
               }
+
               if (key.return) {
                 const selection = filePopupSuggestions[effectiveSuggestedIndex]
                 setPopupState((prev) =>
@@ -1372,27 +1376,11 @@ export const CommandScreen = memo(
                 )
                 return
               }
+
               return
             }
 
             if (key.tab && !key.shift && hasSuggestions) {
-              setPopupState((prev) =>
-                prev?.type === 'file'
-                  ? {
-                      ...prev,
-                      suggestedFocused: true,
-                      suggestedSelectionIndex: 0,
-                    }
-                  : prev,
-              )
-              return
-            }
-
-            if (
-              key.downArrow &&
-              hasSuggestions &&
-              (files.length === 0 || popupState.draft.trim().length > 0)
-            ) {
               setPopupState((prev) =>
                 prev?.type === 'file'
                   ? {
@@ -1413,7 +1401,40 @@ export const CommandScreen = memo(
               )
               return
             }
-            if (key.downArrow && files.length > 0) {
+
+            if (key.downArrow) {
+              if (files.length === 0) {
+                if (hasSuggestions) {
+                  setPopupState((prev) =>
+                    prev?.type === 'file'
+                      ? {
+                          ...prev,
+                          suggestedFocused: true,
+                          suggestedSelectionIndex: 0,
+                        }
+                      : prev,
+                  )
+                }
+                return
+              }
+
+              if (popupState.selectionIndex >= files.length - 1) {
+                if (hasSuggestions) {
+                  setPopupState((prev) =>
+                    prev?.type === 'file'
+                      ? {
+                          ...prev,
+                          suggestedFocused: true,
+                          suggestedSelectionIndex: 0,
+                        }
+                      : prev,
+                  )
+                  return
+                }
+
+                return
+              }
+
               setPopupState((prev) =>
                 prev?.type === 'file'
                   ? {
@@ -1424,10 +1445,12 @@ export const CommandScreen = memo(
               )
               return
             }
-            if ((key.delete || isBackspaceKey(input, key)) && files.length > 0) {
+
+            if ((key.delete || (draftIsEmpty && isBackspaceKey(input, key))) && files.length > 0) {
               handleRemoveFile(popupState.selectionIndex)
               return
             }
+
             return
           }
 
@@ -1451,7 +1474,11 @@ export const CommandScreen = memo(
               )
               return
             }
-            if ((key.delete || isBackspaceKey(input, key)) && urls.length > 0) {
+            if (
+              (key.delete ||
+                (popupState.draft.trim().length === 0 && isBackspaceKey(input, key))) &&
+              urls.length > 0
+            ) {
               handleRemoveUrl(popupState.selectionIndex)
               return
             }
@@ -1995,10 +2022,11 @@ export const CommandScreen = memo(
                   items={files}
                   selectedIndex={popupState.selectionIndex}
                   emptyLabel="No file globs added"
-                  instructions="Enter to add · Tab/↓ suggestions · ↑/↓ navigate · Del to remove · Esc to close"
+                  instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
                   suggestedItems={filePopupSuggestions}
                   suggestedSelectionIndex={filePopupSuggestionSelectionIndex}
                   suggestedFocused={filePopupSuggestionsFocused}
+                  maxHeight={overlayHeight}
                   onDraftChange={handleFilePopupDraftChange}
                   onSubmitDraft={handleAddFile}
                 />
