@@ -20,6 +20,7 @@ import type { DebugKeyEvent } from './components/core/MultilineTextInput'
 import { stripBracketedPasteControlSequences } from './components/core/bracketed-paste'
 import { isBackspaceKey } from './components/core/text-input-keys'
 import { CommandMenu } from './components/core/CommandMenu'
+import { resolveCommandMenuKeyAction } from './components/core/command-menu-keymap'
 import { ScrollableOutput } from './components/core/ScrollableOutput'
 import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
@@ -215,6 +216,7 @@ export const CommandScreen = memo(
       const [isPasteActive, setIsPasteActive] = useState(false)
       const bracketedPasteStateRef = useRef<BracketedPasteState>(createBracketedPasteState())
       const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
+      const lastCommandMenuSignalRef = useRef<number>(0)
       const builtInModelOptionsRef = useRef<ModelOption[]>(getBuiltInModelOptions())
       const initialSessionModelRef = useRef<string | null>(getLastSessionModel())
       const [modelOptions, setModelOptions] = useState<ModelOption[]>(
@@ -822,9 +824,11 @@ export const CommandScreen = memo(
       }, [normalizedQuery, isCommandMode])
 
       useEffect(() => {
-        if (!commandMenuSignal) {
+        if (!commandMenuSignal || commandMenuSignal === lastCommandMenuSignalRef.current) {
           return
         }
+
+        lastCommandMenuSignalRef.current = commandMenuSignal
         setPopupState(null)
         setInputValue('/')
         setCommandSelectionIndex(0)
@@ -943,21 +947,24 @@ export const CommandScreen = memo(
 
       useInput(
         (_input, key) => {
-          if (!isCommandMenuActive || !visibleCommands.length) {
+          if (!isCommandMenuActive) {
             return
           }
-          if (key.upArrow) {
-            setCommandSelectionIndex(
-              (prev) => (prev - 1 + visibleCommands.length) % visibleCommands.length,
-            )
-            return
-          }
-          if (key.downArrow) {
-            setCommandSelectionIndex((prev) => (prev + 1) % visibleCommands.length)
-            return
-          }
-          if (key.escape) {
+
+          const action = resolveCommandMenuKeyAction({
+            key,
+            selectedIndex: commandSelectionIndex,
+            itemCount: visibleCommands.length,
+          })
+
+          if (action.type === 'close') {
             setInputValue('')
+            setCommandSelectionIndex(0)
+            return
+          }
+
+          if (action.type === 'change-selection') {
+            setCommandSelectionIndex(action.nextIndex)
           }
         },
         { isActive: isCommandMenuActive && !helpOpen },
