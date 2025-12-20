@@ -6,6 +6,8 @@ import { CommandScreen, type CommandScreenHandle } from './CommandScreen'
 import { TestRunnerScreen, type TestRunnerScreenHandle } from './TestRunnerScreen'
 import { ContextProvider } from './context'
 import { HelpOverlay } from './components/core/HelpOverlay'
+import { Toast, TOAST_HEIGHT } from './components/core/Toast'
+import { useNotifier } from './notifier'
 import { COMMAND_DESCRIPTORS } from './config'
 import { createHelpSections, estimateHelpOverlayHeight } from './help-config'
 import { resolveAppContainerKeyAction } from './app-container-keymap'
@@ -22,6 +24,7 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [pendingCommandMenu, setPendingCommandMenu] = useState(false)
   const [commandMenuSignal, setCommandMenuSignal] = useState(0)
+  const { toast, notify } = useNotifier({ autoDismissMs: 2200 })
   const commandScreenRef = useRef<CommandScreenHandle | null>(null)
   const testRunnerRef = useRef<TestRunnerScreenHandle | null>(null)
 
@@ -117,6 +120,8 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
   const helpIdealHeight = useMemo(() => estimateHelpOverlayHeight(helpSections), [helpSections])
   const helpOverlayHeight = Math.min(helpIdealHeight, helpMaxHeight)
   const helpReservedRows = isHelpOpen ? helpOverlayHeight + 1 : 0
+  const toastReservedRows = toast ? TOAST_HEIGHT : 0
+  const reservedRows = helpReservedRows + toastReservedRows
 
   return (
     <ContextProvider>
@@ -125,6 +130,11 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
         <Text color="gray">
           Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C or /exit to exit.
         </Text>
+        {toast ? (
+          <Box justifyContent="flex-end" width="100%" flexShrink={0}>
+            <Toast message={toast.message} kind={toast.kind} />
+          </Box>
+        ) : null}
         <Box flexDirection="column" flexGrow={1} marginTop={1}>
           {view === 'generate' ? (
             <>
@@ -144,7 +154,8 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
                   onPopupVisibilityChange={setIsPopupOpen}
                   commandMenuSignal={commandMenuSignal}
                   helpOpen={isHelpOpen}
-                  reservedRows={helpReservedRows}
+                  reservedRows={reservedRows}
+                  notify={notify}
                 />
               </Box>
             </>

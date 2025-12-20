@@ -24,6 +24,7 @@ import type { UploadStateChange } from '../../prompt-generator-service'
 import { MODEL_PROVIDER_LABELS } from '../../model-providers'
 import { checkModelProviderStatus } from '../provider-status'
 import type { TokenUsageStore } from '../token-usage-store'
+import type { NotifyOptions } from '../notifier'
 import type { HistoryEntry, ProviderStatus } from '../types'
 
 const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
@@ -125,6 +126,7 @@ const writeSeriesArtifacts = async (
 
 export type UseGenerationPipelineOptions = {
   pushHistory: (content: string, kind?: HistoryEntry['kind']) => void
+  notify?: (message: string, options?: NotifyOptions) => void
   files: string[]
   urls: string[]
   images: string[]
@@ -148,6 +150,7 @@ export type UseGenerationPipelineOptions = {
 
 export const useGenerationPipeline = ({
   pushHistory,
+  notify,
   files,
   urls,
   images,
@@ -596,13 +599,22 @@ export const useGenerationPipeline = ({
         }
 
         if (smartContextEnabled) {
-          pushHistory('[series] Resolving smart context…', 'progress')
+          if (notify) {
+            notify('Smart context: resolving…', { kind: 'progress' })
+          } else {
+            pushHistory('[series] Resolving smart context…', 'progress')
+          }
+
           try {
             const smartFiles = await resolveSmartContextFiles(
               intent,
               resolvedContext,
               (message: string) => {
-                pushHistory(`[series] ${message}`, 'progress')
+                if (notify) {
+                  notify(`Smart context: ${message}`, { kind: 'progress' })
+                } else {
+                  pushHistory(`[series] ${message}`, 'progress')
+                }
                 setStatusMessage(`Series: ${message}`)
               },
               smartContextRoot ?? undefined,
@@ -701,6 +713,7 @@ export const useGenerationPipeline = ({
       smartContextEnabled,
       smartContextRoot,
       normalizedMetaInstructions,
+      notify,
       pushHistory,
       setStatusMessage,
       ensureProviderReady,

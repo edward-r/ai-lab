@@ -73,6 +73,7 @@ describe('useGenerationPipeline', () => {
     copyEnabled: false,
     chatGptEnabled: false,
     isTestCommandRunning: false,
+    notify: jest.fn(),
   }
 
   beforeEach(() => {

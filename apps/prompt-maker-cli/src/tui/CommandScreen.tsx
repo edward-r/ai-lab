@@ -72,6 +72,7 @@ import type { ModelProvider } from '../model-providers'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context-store'
+import type { NotifyOptions } from './notifier'
 import { createTokenUsageStore } from './token-usage-store'
 
 const APP_STATIC_ROWS = 7
@@ -149,6 +150,7 @@ type CommandScreenProps = {
   commandMenuSignal?: number
   helpOpen?: boolean
   reservedRows?: number
+  notify: (message: string, options?: NotifyOptions) => void
 }
 
 export type CommandScreenHandle = {
@@ -164,7 +166,9 @@ export const CommandScreen = memo(
         commandMenuSignal,
         helpOpen = false,
         reservedRows = 0,
+        notify,
       },
+
       ref,
     ) => {
       const { exit } = useApp()
@@ -509,6 +513,7 @@ export const CommandScreen = memo(
         submitRefinement,
       } = useGenerationPipeline({
         pushHistory: pushHistoryProxy,
+        notify,
         files,
         urls,
         images,
@@ -1107,18 +1112,16 @@ export const CommandScreen = memo(
             return
           }
           toggleSmartContext()
-          pushHistory(`Smart context ${nextEnabled ? 'enabled' : 'disabled'}`)
+          notify(`Smart context ${nextEnabled ? 'enabled' : 'disabled'}`)
         },
-        [smartContextEnabled, toggleSmartContext, pushHistory],
+        [notify, smartContextEnabled, toggleSmartContext],
       )
 
       const handleSmartRootSubmit = useCallback(
         (value: string) => {
           const trimmed = value.trim()
           setSmartRoot(trimmed)
-          pushHistory(
-            trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared',
-          )
+          notify(trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared')
           setPopupState((prev) =>
             prev?.type === 'smart'
               ? {
@@ -1130,7 +1133,7 @@ export const CommandScreen = memo(
               : prev,
           )
         },
-        [setSmartRoot, pushHistory],
+        [notify, setSmartRoot],
       )
 
       const historyPopupDraft = popupState?.type === 'history' ? popupState.draft : ''
