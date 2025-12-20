@@ -47,7 +47,13 @@ export type PopupState =
   | { type: 'tokens' }
   | { type: 'reasoning'; scrollOffset: number }
   | { type: 'test'; draft: string }
-  | { type: 'intent'; draft: string }
+  | {
+      type: 'intent'
+      draft: string
+      suggestedItems: string[]
+      suggestedSelectionIndex: number
+      suggestedFocused: boolean
+    }
   | { type: 'instructions'; draft: string }
   | { type: 'series'; draft: string; hint?: string }
   | null

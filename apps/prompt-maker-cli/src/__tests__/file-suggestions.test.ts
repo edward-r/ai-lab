@@ -3,9 +3,11 @@ import fg from 'fast-glob'
 import {
   discoverDirectorySuggestions,
   discoverFileSuggestions,
+  discoverIntentFileSuggestions,
   FILE_SUGGESTION_IGNORE_PATTERNS,
   filterDirectorySuggestions,
   filterFileSuggestions,
+  filterIntentFileSuggestions,
 } from '../tui/file-suggestions'
 
 jest.mock('fast-glob')
@@ -77,5 +79,44 @@ describe('file-suggestions', () => {
     })
 
     expect(results[0]).toBe('src/readme-helper.ts')
+  })
+
+  it('discovers intent file suggestions by scanning markdown/text files', async () => {
+    globMock.mockResolvedValue(['/repo/intents/a.md', '/repo/intents/b.txt'])
+
+    const results = await discoverIntentFileSuggestions({ cwd: '/repo', limit: 5 })
+
+    expect(globMock).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        cwd: '/repo',
+        ignore: FILE_SUGGESTION_IGNORE_PATTERNS,
+        onlyFiles: true,
+      }),
+    )
+
+    expect(results).toEqual(['intents/a.md', 'intents/b.txt'])
+  })
+
+  it('filters intent files using fuzzy token matching', () => {
+    const results = filterIntentFileSuggestions({
+      suggestions: [
+        'tmp-uat/intent-basic.md',
+        'intents/travel-app-notes.md',
+        'intents/onboarding-bot.md',
+      ],
+      query: 'itb',
+    })
+
+    expect(results[0]).toBe('tmp-uat/intent-basic.md')
+  })
+
+  it('supports multi-token intent fuzzy search', () => {
+    const results = filterIntentFileSuggestions({
+      suggestions: ['intents/travel-app-notes.md', 'intents/onboarding-bot.md'],
+      query: 'trav app',
+    })
+
+    expect(results).toEqual(['intents/travel-app-notes.md'])
   })
 })

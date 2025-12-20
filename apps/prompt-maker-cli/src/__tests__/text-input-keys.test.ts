@@ -51,4 +51,14 @@ describe('resolveSingleLineKeyAction', () => {
 
     expect(action).toEqual({ type: 'change', nextState: { value: 'ab', cursor: 2 } })
   })
+
+  it('treats delete-with-empty-input as a backspace edit', () => {
+    const action = resolveSingleLineKeyAction({
+      input: '',
+      key: createKey({ delete: true }),
+      state: { value: 'abc', cursor: 3 },
+    })
+
+    expect(action).toEqual({ type: 'change', nextState: { value: 'ab', cursor: 2 } })
+  })
 })

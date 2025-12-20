@@ -3,7 +3,11 @@ import path from 'node:path'
 import { useCallback, useState } from 'react'
 
 import { TOGGLE_LABELS } from '../config'
-import { discoverDirectorySuggestions, discoverFileSuggestions } from '../file-suggestions'
+import {
+  discoverDirectorySuggestions,
+  discoverFileSuggestions,
+  discoverIntentFileSuggestions,
+} from '../file-suggestions'
 import type {
   CommandDescriptor,
   HistoryEntry,
@@ -210,8 +214,35 @@ export const usePopupManager = ({
   }, [defaultTestFile, lastTestFile])
 
   const openIntentPopup = useCallback(() => {
-    setPopupState({ type: 'intent', draft: intentFilePath })
-  }, [intentFilePath])
+    setPopupState({
+      type: 'intent',
+      draft: intentFilePath,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+
+    const scan = async (): Promise<void> => {
+      try {
+        const suggestions = await discoverIntentFileSuggestions({ cwd: process.cwd(), limit: 200 })
+        setPopupState((prev) =>
+          prev?.type === 'intent'
+            ? {
+                ...prev,
+                suggestedItems: suggestions,
+                suggestedSelectionIndex: 0,
+                suggestedFocused: false,
+              }
+            : prev,
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+        pushHistory(`[intent] Failed to scan workspace: ${message}`, 'system')
+      }
+    }
+
+    void scan()
+  }, [intentFilePath, pushHistory])
 
   const openInstructionsPopup = useCallback(() => {
     setPopupState({ type: 'instructions', draft: metaInstructions })

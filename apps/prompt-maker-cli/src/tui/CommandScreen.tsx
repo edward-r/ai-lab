@@ -38,7 +38,11 @@ import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
 import { filterCommandDescriptors, resolveCommandMenuSearchState } from './command-filter'
 import { parseAbsolutePathFromInput, isCommandInput } from './drag-drop-path'
-import { filterDirectorySuggestions, filterFileSuggestions } from './file-suggestions'
+import {
+  filterDirectorySuggestions,
+  filterFileSuggestions,
+  filterIntentFileSuggestions,
+} from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
 import {
   consumeBracketedPasteChunk,
@@ -1216,6 +1220,33 @@ export const CommandScreen = memo(
       const smartPopupSuggestionsFocused =
         smartPopupSuggestedFocused && smartPopupSuggestions.length > 0
 
+      const intentPopupDraft = popupState?.type === 'intent' ? popupState.draft : ''
+      const intentPopupSuggestedItems =
+        popupState?.type === 'intent' ? popupState.suggestedItems : ([] as string[])
+      const intentPopupSuggestedFocused =
+        popupState?.type === 'intent' ? popupState.suggestedFocused : false
+      const intentPopupSuggestedSelectionIndex =
+        popupState?.type === 'intent' ? popupState.suggestedSelectionIndex : 0
+
+      const intentPopupSuggestions = useMemo(() => {
+        if (!intentPopupSuggestedItems.length) {
+          return []
+        }
+        return filterIntentFileSuggestions({
+          suggestions: intentPopupSuggestedItems,
+          query: intentPopupDraft,
+          limit: 200,
+        })
+      }, [intentPopupDraft, intentPopupSuggestedItems])
+
+      const intentPopupSuggestionSelectionIndex = Math.min(
+        intentPopupSuggestedSelectionIndex,
+        Math.max(intentPopupSuggestions.length - 1, 0),
+      )
+
+      const intentPopupSuggestionsFocused =
+        intentPopupSuggestedFocused && intentPopupSuggestions.length > 0
+
       const modelPopupQuery = popupState?.type === 'model' ? popupState.query : ''
       const debouncedModelPopupQuery = useDebouncedValue(modelPopupQuery, 75)
 
@@ -1290,6 +1321,28 @@ export const CommandScreen = memo(
         setPopupState,
         smartPopupSuggestedFocused,
         smartPopupSuggestions.length,
+      ])
+
+      useEffect(() => {
+        if (popupState?.type !== 'intent') {
+          return
+        }
+        if (!intentPopupSuggestedFocused) {
+          return
+        }
+        if (intentPopupSuggestions.length > 0) {
+          return
+        }
+        setPopupState((prev) =>
+          prev?.type === 'intent'
+            ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+            : prev,
+        )
+      }, [
+        intentPopupSuggestedFocused,
+        intentPopupSuggestions.length,
+        popupState?.type,
+        setPopupState,
       ])
 
       useInput(
@@ -1755,9 +1808,97 @@ export const CommandScreen = memo(
           }
 
           if (popupState.type === 'intent') {
+            const hasSuggestions = intentPopupSuggestions.length > 0
+            const maxSuggestedIndex = Math.max(intentPopupSuggestions.length - 1, 0)
+            const effectiveSuggestedIndex = Math.min(
+              popupState.suggestedSelectionIndex,
+              maxSuggestedIndex,
+            )
+
             if (key.escape) {
               closePopup()
+              return
             }
+
+            if (popupState.suggestedFocused && hasSuggestions) {
+              if (key.tab) {
+                setPopupState((prev) =>
+                  prev?.type === 'intent' ? { ...prev, suggestedFocused: false } : prev,
+                )
+                return
+              }
+
+              if (key.upArrow) {
+                if (effectiveSuggestedIndex === 0) {
+                  setPopupState((prev) =>
+                    prev?.type === 'intent' ? { ...prev, suggestedFocused: false } : prev,
+                  )
+                  return
+                }
+
+                setPopupState((prev) =>
+                  prev?.type === 'intent'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.max(prev.suggestedSelectionIndex - 1, 0),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.downArrow) {
+                setPopupState((prev) =>
+                  prev?.type === 'intent'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.min(
+                          prev.suggestedSelectionIndex + 1,
+                          maxSuggestedIndex,
+                        ),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.return) {
+                const selection = intentPopupSuggestions[effectiveSuggestedIndex]
+                if (selection) {
+                  handleIntentFileSubmit(selection)
+                }
+                return
+              }
+
+              return
+            }
+
+            if (key.tab && !key.shift && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'intent'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
+            if (key.downArrow && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'intent'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
             return
           }
 
@@ -2097,12 +2238,19 @@ export const CommandScreen = memo(
 
       const handleIntentPopupDraftChange = useCallback(
         (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) => (prev?.type === 'intent' ? { ...prev, draft: next } : prev))
+          const sanitized = stripTerminalPasteArtifacts(next)
+          setPopupState((prev) =>
+            prev?.type === 'intent'
+              ? {
+                  ...prev,
+                  draft: sanitized,
+                  suggestedSelectionIndex: 0,
+                  suggestedFocused: false,
+                }
+              : prev,
+          )
         },
-        [consumeSuppressedTextInputChange, setPopupState],
+        [setPopupState],
       )
 
       const handleSeriesPopupDraftChange = useCallback(
@@ -2233,6 +2381,10 @@ export const CommandScreen = memo(
               ) : popupState.type === 'intent' ? (
                 <IntentFilePopup
                   draft={popupState.draft}
+                  suggestions={intentPopupSuggestions}
+                  suggestedSelectionIndex={intentPopupSuggestionSelectionIndex}
+                  suggestedFocused={intentPopupSuggestionsFocused}
+                  maxHeight={overlayHeight}
                   onDraftChange={handleIntentPopupDraftChange}
                   onSubmitDraft={handleIntentFileSubmit}
                 />

@@ -59,7 +59,7 @@ export const POPUP_HEIGHTS = {
   tokens: 16,
   reasoning: 18,
   test: 7,
-  intent: 7,
+  intent: 9,
   instructions: 7,
   series: 8,
 } as const
