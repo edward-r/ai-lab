@@ -76,6 +76,7 @@ import type { ModelProvider } from '../model-providers'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context-store'
+import { planSessionCommand } from './new-command'
 import type { NotifyOptions } from './notifier'
 import { createTokenUsageStore } from './token-usage-store'
 
@@ -300,8 +301,6 @@ export const CommandScreen = memo(
       const [jsonOutputEnabled, setJsonOutputEnabled] = useState(false)
       const [isTestCommandRunning, setIsTestCommandRunning] = useState(false)
       const [lastTestFile, setLastTestFile] = useState<string | null>(null)
-      const [isAwaitingNewReuse, setIsAwaitingNewReuse] = useState(false)
-      const pendingNewReusePromptRef = useRef<string | null>(null)
       const suppressNextInputRef = useRef(false)
 
       const tokenUsageStoreRef = useRef<ReturnType<typeof createTokenUsageStore> | null>(null)
@@ -698,34 +697,16 @@ export const CommandScreen = memo(
       })
       const { offset: scrollOffset, scrollTo, scrollBy } = scroll
 
-      const hasNewReuseFlag = useCallback((argsRaw: string): boolean => {
-        const tokens = argsRaw
-          .split(/\s+/)
-          .map((token) => token.trim())
-          .filter((token) => token.length > 0)
-        return tokens.includes('--reuse')
-      }, [])
-
       const resetSessionState = useCallback(() => {
         resetContext()
         setIntentFilePath('')
         lastUserIntentRef.current = null
         lastTypedIntentRef.current = ''
-        pendingNewReusePromptRef.current = null
-        setIsAwaitingNewReuse(false)
         setInputValue('')
         setPopupState(null)
         resetHistory()
         scrollTo(Number.MAX_SAFE_INTEGER)
       }, [resetContext, resetHistory, scrollTo, setIntentFilePath, setPopupState])
-
-      const applyReusedPromptAsMetaInstructions = useCallback(
-        (prompt: string) => {
-          setMetaInstructions(prompt)
-          pushHistory('[new] Loaded last prompt into meta instructions.', 'system')
-        },
-        [pushHistory, setMetaInstructions],
-      )
 
       const handleNewCommand = useCallback(
         (argsRaw: string) => {
@@ -734,34 +715,36 @@ export const CommandScreen = memo(
             return
           }
 
-          const reuseFlag = hasNewReuseFlag(argsRaw)
-          const previousPrompt = lastGeneratedPrompt?.trim() ?? ''
-
           resetSessionState()
+          const plan = planSessionCommand({ commandId: 'new', lastGeneratedPrompt: null })
+          pushHistory(plan.message, 'system')
 
-          if (!previousPrompt) {
-            pushHistory('[new] Session reset (no previous prompt to reuse).', 'system')
-            return
+          if (argsRaw.includes('--reuse')) {
+            pushHistory('[new] Tip: use /reuse to reuse the last prompt.', 'system')
           }
-
-          if (reuseFlag) {
-            applyReusedPromptAsMetaInstructions(previousPrompt)
-            return
-          }
-
-          pendingNewReusePromptRef.current = previousPrompt
-          setIsAwaitingNewReuse(true)
-          pushHistory('[new] Reuse last generated prompt as meta instructions? (y/n)', 'system')
         },
-        [
-          applyReusedPromptAsMetaInstructions,
-          hasNewReuseFlag,
-          isGenerating,
-          lastGeneratedPrompt,
-          pushHistory,
-          resetSessionState,
-        ],
+        [isGenerating, pushHistory, resetSessionState],
       )
+
+      const handleReuseCommand = useCallback(() => {
+        if (isGenerating) {
+          pushHistory('[reuse] Cannot reset while generation is running.', 'system')
+          return
+        }
+
+        const previousPrompt = lastGeneratedPrompt
+        resetSessionState()
+        const plan = planSessionCommand({
+          commandId: 'reuse',
+          lastGeneratedPrompt: previousPrompt,
+        })
+
+        if (plan.type === 'reset-and-load-meta') {
+          setMetaInstructions(plan.metaInstructions)
+        }
+
+        pushHistory(plan.message, 'system')
+      }, [isGenerating, lastGeneratedPrompt, pushHistory, resetSessionState, setMetaInstructions])
 
       useEffect(() => {
         pushHistoryRef.current = pushHistory
@@ -2003,34 +1986,6 @@ export const CommandScreen = memo(
             return
           }
 
-          if (isAwaitingNewReuse) {
-            const response = expandedValue.trim().toLowerCase()
-            if (response === 'y' || response === 'yes') {
-              const prompt = pendingNewReusePromptRef.current
-              pendingNewReusePromptRef.current = null
-              setIsAwaitingNewReuse(false)
-              setInputValue('')
-              if (prompt) {
-                applyReusedPromptAsMetaInstructions(prompt)
-              } else {
-                pushHistory('[new] No previous prompt available to reuse.', 'system')
-              }
-              return
-            }
-
-            if (response === 'n' || response === 'no') {
-              pendingNewReusePromptRef.current = null
-              setIsAwaitingNewReuse(false)
-              setInputValue('')
-              pushHistory('[new] Continuing without reusing the previous prompt.', 'system')
-              return
-            }
-
-            pushHistory('[new] Please answer "y" or "n".', 'system')
-            setInputValue('')
-            return
-          }
-
           if (popupState) {
             return
           }
@@ -2043,6 +1998,8 @@ export const CommandScreen = memo(
               )
               if (selectedCommand.id === 'new') {
                 handleNewCommand(commandMenuArgsRaw)
+              } else if (selectedCommand.id === 'reuse') {
+                handleReuseCommand()
               } else {
                 handleCommandSelection(selectedCommand.id, commandMenuArgsRaw)
               }

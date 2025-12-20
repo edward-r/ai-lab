@@ -1201,10 +1201,10 @@ Screenshot references:
 
 ### Phase 7 — Session reset and reuse semantics
 
-#### Prompt 21 — Phase 7.22 Make `/new --reuse` Actually Work
+#### Prompt 21 — Phase 7.22 Replace `/new --reuse` with `/reuse`
 
 ```md
-# Task: Phase 7.22 — Make /new --reuse work and reduce confusion
+# Task: Phase 7.22 — Replace /new --reuse with /reuse
 
 ## Requirements Snapshot
 
@@ -1216,29 +1216,28 @@ Screenshot references:
 
 ## Goal
 
-Ensure `/new --reuse` behaves as intended (session reset/reuse semantics) and the UX clearly communicates what happened.
+Reduce confusion by simplifying session commands:
+
+- `/new` always resets session state
+- `/reuse` resets session state and loads the last generated prompt into meta instructions
 
 ## Context
 
 Likely relevant:
 
-- command parsing/handling for `/new`
+- command parsing/handling for `/new` and `/reuse`
 - any session state store used by the TUI
 
 ## Constraints
 
-- Preserve semantics for `/new` without `--reuse`.
-
-Screenshot reference:
-
-- `/Users/eroberts/Downloads/TUI UAT Images/uat-S08-05-new-flag-reuse.png`
+- Preserve `/new` reset semantics.
 
 ## Work
 
-1. Identify intended behavior (infer from code/tests/docs if unclear).
-2. Reproduce current confusing behavior.
-3. Fix the root cause (state reset vs carry-over mismatch).
-4. Add/adjust tests for `/new --reuse`.
+1. Remove the `--reuse` flag from `/new`.
+2. Add a new `/reuse` command implementing the old reuse behavior.
+3. Update UX copy so the user can tell what happened.
+4. Add/adjust tests.
 
 ## Output
 
@@ -1246,7 +1245,8 @@ Screenshot reference:
 
 ## Validation
 
-- Run `/new --reuse` and confirm session behavior matches documented expectation.
+- Run `/new` and confirm it only resets.
+- Run `/reuse` and confirm it loads meta instructions.
 ```
 
 ---

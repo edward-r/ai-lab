@@ -14,7 +14,12 @@ export const COMMAND_DESCRIPTORS = [
   {
     id: 'new',
     label: 'New',
-    description: 'Reset session state (/new [--reuse])',
+    description: 'Reset session state (/new)',
+  },
+  {
+    id: 'reuse',
+    label: 'Reuse',
+    description: 'Reset and reuse last prompt (/reuse)',
   },
   { id: 'file', label: 'File', description: 'Attach file context' },
   { id: 'url', label: 'URL', description: 'Add URL context' },
@@ -39,7 +44,7 @@ export const COMMAND_DESCRIPTORS = [
   },
   { id: 'history', label: 'History', description: 'Browse command/intent history (/history)' },
   { id: 'test', label: 'Test', description: 'Run prompt tests (/test prompt-tests.yaml)' },
-  { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
+  { id: 'exit', label: 'Exit', description: 'Exit the app (/exit)' },
 ] as const
 
 export const TOGGLE_LABELS = {
