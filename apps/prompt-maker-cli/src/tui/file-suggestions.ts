@@ -1,6 +1,19 @@
+/*
+ * File/directory suggestion helpers used by the Ink TUI.
+ *
+ * This module contains two layers:
+ * 1) Discovery (IO): scan the workspace using `fast-glob`.
+ * 2) Filtering (pure): rank/limit suggestions based on a user query.
+ *
+ * Keeping filtering logic pure makes it easy to unit test and helps ensure
+ * later UI refactors don’t accidentally change suggestion behavior.
+ */
+
 import path from 'node:path'
 
 import fg from 'fast-glob'
+
+import { filterStringsByQuery } from './string-filter'
 
 const FILE_SUGGESTION_PATTERNS = ['**/*']
 
@@ -294,31 +307,12 @@ export const filterFileSuggestions = ({
   exclude = [],
   limit = DEFAULT_FILE_SUGGESTION_LIMIT,
 }: FilterFileSuggestionsOptions): string[] => {
-  const trimmedQuery = query.trim().toLowerCase()
+  // Filtering itself is pure and shared; this wrapper handles
+  // per-call concerns like exclusion and limiting.
   const excluded = new Set(exclude)
+  const eligible = suggestions.filter((suggestion) => !excluded.has(suggestion))
 
-  const prefixMatches: string[] = []
-  const substringMatches: string[] = []
-
-  for (const suggestion of suggestions) {
-    if (excluded.has(suggestion)) {
-      continue
-    }
-    if (!trimmedQuery) {
-      prefixMatches.push(suggestion)
-      continue
-    }
-    const candidate = suggestion.toLowerCase()
-    if (candidate.startsWith(trimmedQuery)) {
-      prefixMatches.push(suggestion)
-      continue
-    }
-    if (candidate.includes(trimmedQuery)) {
-      substringMatches.push(suggestion)
-    }
-  }
-
-  return [...prefixMatches, ...substringMatches].slice(0, limit)
+  return filterStringsByQuery(eligible, query).slice(0, limit)
 }
 
 export type FilterDirectorySuggestionsOptions = FilterFileSuggestionsOptions

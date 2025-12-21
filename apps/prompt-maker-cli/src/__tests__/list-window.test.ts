@@ -1,5 +1,30 @@
 import { resolveListPopupHeights } from '../tui/components/popups/list-popup-layout'
-import { resolveWindowedList } from '../tui/components/popups/list-window'
+import { resolveCursorWindow, resolveWindowedList } from '../tui/components/popups/list-window'
+
+describe('resolveCursorWindow', () => {
+  it('returns empty range for invalid sizes', () => {
+    expect(resolveCursorWindow(10, 5, 0)).toEqual({ startIndex: 0, endIndexExclusive: 0 })
+    expect(resolveCursorWindow(0, 0, 5)).toEqual({ startIndex: 0, endIndexExclusive: 0 })
+  })
+
+  it('windows near the start', () => {
+    expect(resolveCursorWindow(10, 0, 5)).toEqual({ startIndex: 0, endIndexExclusive: 5 })
+    expect(resolveCursorWindow(10, 1, 5)).toEqual({ startIndex: 0, endIndexExclusive: 5 })
+  })
+
+  it('windows in the middle with a 2-row lead', () => {
+    // With lead=2, cursorIndex=5 should put the window start at 3.
+    expect(resolveCursorWindow(10, 5, 5)).toEqual({ startIndex: 3, endIndexExclusive: 8 })
+  })
+
+  it('windows near the end', () => {
+    expect(resolveCursorWindow(10, 9, 5)).toEqual({ startIndex: 5, endIndexExclusive: 10 })
+  })
+
+  it('shows all items when list is smaller than window', () => {
+    expect(resolveCursorWindow(3, 1, 10)).toEqual({ startIndex: 0, endIndexExclusive: 3 })
+  })
+})
 
 describe('resolveWindowedList', () => {
   it('shows all items when they fit', () => {
