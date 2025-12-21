@@ -55,13 +55,23 @@ export const createHelpSections = ({ commandDescriptors }: HelpConfigOptions): H
       ],
     },
     {
-      title: 'Generate',
+      title: 'Quick Start',
       lines: [
-        'Type intents freely, or start a command with /.',
-        'History: ↑/↓ scroll · PgUp/PgDn page',
-        'Tab: Open Series intent popup (when typing)',
-        ...formatCommandLines(commandDescriptors),
+        'Type natural language requests or start a command with /.',
+        'Press Enter to log input; arrow keys scroll history.',
+        'Press ? anytime to view keyboard shortcuts.',
+        'Series: /series opens a popup; it prefills from typed/last intent (or /intent file).',
+        'Tests: /test prompt-tests.yaml runs the prompt test suite.',
+        'Tokens: /tokens shows token usage breakdown.',
+        'Reasoning: /reasoning (or /why) shows last model reasoning.',
+        'JSON: /json on|off toggles prompt payload in history.',
+        'Tip: Drag & drop a file path, then press Tab to add it to context.',
+        'Tip: Press Tab to open the Series intent popup.',
       ],
+    },
+    {
+      title: 'Generate',
+      lines: ['History: ↑/↓ scroll · PgUp/PgDn page', ...formatCommandLines(commandDescriptors)],
     },
     {
       title: 'Test Runner',

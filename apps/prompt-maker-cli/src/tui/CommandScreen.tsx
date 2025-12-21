@@ -104,25 +104,7 @@ const isControlKey = (input: string, key: Key, target: string): boolean => {
   return controlChar ? input === controlChar : false
 }
 
-const WELCOME_LINES = [
-  'Welcome to the Prompt Maker command palette preview.',
-  'Type natural language requests or start a command with /.',
-  'Press Enter to log input; arrow keys scroll history.',
-  'Press ? anytime to view keyboard shortcuts.',
-  'Series: /series opens a popup; it prefills from typed/last intent (or /intent file).',
-  'Tests: /test prompt-tests.yaml runs the prompt test suite.',
-  'Tokens: /tokens shows token usage breakdown.',
-  'Reasoning: /reasoning (or /why) shows last model reasoning.',
-  'JSON: /json on|off toggles prompt payload in history.',
-  'Tip: Drag & drop a file path, then press Tab to add it to context.',
-  'Tip: Press Tab to open the Series intent popup.',
-]
-
-const WELCOME_HISTORY: HistoryEntry[] = WELCOME_LINES.map((line, index) => ({
-  id: `welcome-${index}`,
-  content: line,
-  kind: 'system',
-}))
+const EMPTY_HISTORY: HistoryEntry[] = []
 
 const DEFAULT_PROVIDER_STATUSES: ProviderStatusMap = {
   openai: { provider: 'openai', status: 'error', message: 'Status unavailable' },
@@ -674,7 +656,7 @@ export const CommandScreen = memo(
       ])
 
       const { history, pushHistory, resetHistory, clearHistory, scroll } = useCommandHistory({
-        initialEntries: WELCOME_HISTORY,
+        initialEntries: EMPTY_HISTORY,
         visibleRows: historyRows,
       })
       const { offset: scrollOffset, scrollTo, scrollBy } = scroll
