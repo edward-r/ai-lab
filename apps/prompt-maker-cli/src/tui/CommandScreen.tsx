@@ -29,6 +29,7 @@ import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
 import { SmartPopup } from './components/popups/SmartPopup'
 import { TokenUsagePopup } from './components/popups/TokenUsagePopup'
+import { SettingsPopup } from './components/popups/SettingsPopup'
 import { ReasoningPopup } from './components/popups/ReasoningPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
@@ -1720,6 +1721,13 @@ export const CommandScreen = memo(
             return
           }
 
+          if (popupState.type === 'settings') {
+            if (key.escape) {
+              closePopup()
+            }
+            return
+          }
+
           if (popupState.type === 'reasoning') {
             const maxOffset = Math.max(0, reasoningPopupLines.length - reasoningPopupVisibleRows)
 
@@ -2365,6 +2373,8 @@ export const CommandScreen = memo(
                   run={tokenUsageStoreRef.current?.getLatestRun() ?? null}
                   breakdown={tokenUsageStoreRef.current?.getLatestBreakdown() ?? null}
                 />
+              ) : popupState.type === 'settings' ? (
+                <SettingsPopup chips={enhancedStatusChips} />
               ) : popupState.type === 'reasoning' ? (
                 <ReasoningPopup
                   lines={reasoningPopupLines}

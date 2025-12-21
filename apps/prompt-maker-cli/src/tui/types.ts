@@ -45,6 +45,7 @@ export type PopupState =
       suggestedFocused: boolean
     }
   | { type: 'tokens' }
+  | { type: 'settings' }
   | { type: 'reasoning'; scrollOffset: number }
   | { type: 'test'; draft: string }
   | {

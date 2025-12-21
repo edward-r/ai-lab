@@ -27,6 +27,7 @@ export type PopupManagerActions = {
   openHistoryPopup: () => void
   openSmartPopup: () => void
   openTokensPopup: () => void
+  openSettingsPopup: () => void
   openReasoningPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
@@ -210,6 +211,10 @@ export const usePopupManager = ({
 
   const openTokensPopup = useCallback(() => {
     setPopupState({ type: 'tokens' })
+  }, [])
+
+  const openSettingsPopup = useCallback(() => {
+    setPopupState({ type: 'settings' })
   }, [])
 
   const openReasoningPopup = useCallback(() => {
@@ -456,6 +461,10 @@ export const usePopupManager = ({
           openTokensPopup()
           setInputValue('')
           return
+        case 'settings':
+          openSettingsPopup()
+          setInputValue('')
+          return
         case 'reasoning':
           openReasoningPopup()
           setInputValue('')
@@ -561,30 +570,31 @@ export const usePopupManager = ({
       chatGptEnabled,
       copyEnabled,
       exitApp,
-      interactiveTransportPath,
+      getLatestTypedIntent,
+      handleIntentFileSubmit,
+      handleInstructionsSubmit,
       intentFilePath,
+      interactiveTransportPath,
       isGenerating,
       jsonOutputEnabled,
       lastUserIntentRef,
       openFilePopup,
+      openHistoryPopup,
+      openInstructionsPopup,
+      openIntentPopup,
       openModelPopup,
-      openSeriesPopup,
-      openSmartPopup,
-      openTokensPopup,
       openReasoningPopup,
+      openSeriesPopup,
+      openSettingsPopup,
+      openSmartPopup,
       openTestPopup,
       openTogglePopup,
-      handleIntentFileSubmit,
-      handleInstructionsSubmit,
+      openTokensPopup,
       openUrlPopup,
-      openHistoryPopup,
-      openIntentPopup,
-      openInstructionsPopup,
       polishEnabled,
       pushHistory,
       runTestsFromCommand,
       setInputValue,
-      getLatestTypedIntent,
       syncTypedIntentRef,
     ],
   )
@@ -600,9 +610,9 @@ export const usePopupManager = ({
       openHistoryPopup,
       openSmartPopup,
       openTokensPopup,
+      openSettingsPopup,
       openReasoningPopup,
       openTestPopup,
-
       openIntentPopup,
       openInstructionsPopup,
       openSeriesPopup,

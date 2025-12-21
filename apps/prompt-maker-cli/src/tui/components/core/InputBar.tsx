@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 
 import { MultilineTextInput, type DebugKeyEvent } from './MultilineTextInput'
+import { resolveIndicatorSegments } from './status-indicators-layout'
 import { resolveInputBarPresentation, type InputBarMode } from './input-bar-presentation'
 import type { TokenLabelLookup } from './tokenized-text'
 import { getLineCount } from './multiline-text-buffer'
@@ -54,6 +55,13 @@ export const InputBar: React.FC<InputBarProps> = ({
 }) => {
   const presentation = resolveInputBarPresentation(mode)
 
+  const summary = React.useMemo(() => {
+    const segments = resolveIndicatorSegments(statusChips)
+    const status = segments.find((segment) => segment.label === 'Status')
+    const model = segments.find((segment) => segment.label === 'Model')
+    return { status, model }
+  }, [statusChips])
+
   return (
     <Box
       flexDirection="column"
@@ -62,7 +70,6 @@ export const InputBar: React.FC<InputBarProps> = ({
       paddingX={1}
       paddingY={0}
     >
-      <Text color="cyan">{statusChips.join(' ')}</Text>
       <Text color={presentation.labelColor} bold={presentation.labelBold}>
         {presentation.label}
       </Text>
@@ -79,6 +86,24 @@ export const InputBar: React.FC<InputBarProps> = ({
         tokenLabel={tokenLabel}
         onDebugKeyEvent={onDebugKeyEvent}
       />
+
+      {summary.status || summary.model ? (
+        <Text color="gray">
+          {summary.status ? (
+            <>
+              <Text color="gray">Status: </Text>
+              <Text color="cyan">{summary.status.value}</Text>
+            </>
+          ) : null}
+          {summary.status && summary.model ? <Text color="gray"> · </Text> : null}
+          {summary.model ? (
+            <>
+              <Text color="gray">Model: </Text>
+              <Text color="white">{summary.model.value}</Text>
+            </>
+          ) : null}
+        </Text>
+      ) : null}
     </Box>
   )
 }

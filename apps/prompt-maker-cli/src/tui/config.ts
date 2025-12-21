@@ -36,6 +36,7 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Toggle JSON payload in history (/json on|off)' },
   { id: 'tokens', label: 'Tokens', description: 'Show token usage breakdown (/tokens)' },
+  { id: 'settings', label: 'Settings', description: 'Show current settings (/settings)' },
   {
     id: 'reasoning',
     label: 'Reasoning',
@@ -62,6 +63,7 @@ export const POPUP_HEIGHTS = {
   history: 16,
   smart: 9,
   tokens: 16,
+  settings: 14,
   reasoning: 18,
   test: 7,
   intent: 9,

@@ -11,6 +11,12 @@ describe('tui command descriptors', () => {
     expect(descriptor?.description).toMatch(/intent file/i)
   })
 
+  it('includes a settings command descriptor', () => {
+    const descriptor = getDescriptor('settings')
+    expect(descriptor).toBeDefined()
+    expect(descriptor?.description).toContain('/settings')
+  })
+
   it('includes concrete examples for /test, /json, /history, /intent, and /meta', () => {
     const testDescriptor = getDescriptor('test')
     expect(testDescriptor).toBeDefined()
