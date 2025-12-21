@@ -25,13 +25,15 @@ const getRowColors = (selected: boolean, status: ModelOptionStatus): Record<stri
     }
     return { color: 'red' }
   }
+
+  // Use a robust highlight that stays visible in Kitty.
   if (status === 'ok') {
-    return { color: 'black', backgroundColor: 'cyanBright' }
+    return { color: 'cyan', bold: 'true' }
   }
   if (status === 'missing') {
-    return { color: 'black', backgroundColor: 'yellow' }
+    return { color: 'yellow', bold: 'true' }
   }
-  return { color: 'white', backgroundColor: 'red' }
+  return { color: 'red', bold: 'true' }
 }
 
 type ModelOptionStatus = 'ok' | 'missing' | 'error'
@@ -93,12 +95,14 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
             if (option.notes) {
               secondaryTextParts.push(option.notes)
             }
+            const secondaryText = secondaryTextParts.join(' · ')
             return (
               <Box key={option.id} flexDirection="column" marginBottom={0}>
                 <Text {...rowColors}>
+                  {isSelected ? '› ' : '  '}
                   {option.label} · {annotationParts.join(' · ')}
                 </Text>
-                <Text color={isSelected ? 'white' : 'gray'}>{secondaryTextParts.join(' · ')}</Text>
+                {isSelected ? <Text color="gray">{secondaryText}</Text> : null}
               </Box>
             )
           })

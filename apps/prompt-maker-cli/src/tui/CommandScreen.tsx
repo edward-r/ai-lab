@@ -63,6 +63,7 @@ import {
   getPreferredModelId,
   loadModelOptions,
 } from './model-options'
+import { filterModelOptions, resolveModelPopupQuery } from './model-filter'
 import { getLastSessionModel, setLastSessionModel } from './model-session'
 import { checkProviderStatus } from './provider-status'
 import type {
@@ -99,24 +100,6 @@ const isControlKey = (input: string, key: Key, target: string): boolean => {
   }
 
   return controlChar ? input === controlChar : false
-}
-
-const filterModelOptions = (query: string, options: readonly ModelOption[]): ModelOption[] => {
-  const trimmed = query.trim().toLowerCase()
-  if (!trimmed) {
-    return [...options]
-  }
-  return options.filter((option) => {
-    const haystacks = [
-      option.id.toLowerCase(),
-      option.label.toLowerCase(),
-      option.provider,
-      option.description.toLowerCase(),
-      option.capabilities.join(' ').toLowerCase(),
-      option.notes?.toLowerCase() ?? '',
-    ]
-    return haystacks.some((value) => value.includes(trimmed))
-  })
 }
 
 const WELCOME_LINES = [
@@ -1232,13 +1215,17 @@ export const CommandScreen = memo(
 
       const modelPopupQuery = popupState?.type === 'model' ? popupState.query : ''
       const debouncedModelPopupQuery = useDebouncedValue(modelPopupQuery, 75)
+      const effectiveModelPopupQuery = resolveModelPopupQuery(
+        modelPopupQuery,
+        debouncedModelPopupQuery,
+      )
 
       const modelPopupOptions = useMemo(() => {
         if (popupState?.type !== 'model') {
           return []
         }
-        return filterModelOptions(debouncedModelPopupQuery, modelOptions)
-      }, [debouncedModelPopupQuery, modelOptions, popupState?.type])
+        return filterModelOptions(effectiveModelPopupQuery, modelOptions)
+      }, [effectiveModelPopupQuery, modelOptions, popupState?.type])
 
       const reasoningPopupVisibleRows = Math.max(1, POPUP_HEIGHTS.reasoning - 5)
 
