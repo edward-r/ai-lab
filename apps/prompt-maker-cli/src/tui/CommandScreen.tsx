@@ -12,7 +12,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Box, useApp, useInput, useStdout, type Key } from 'ink'
+import { Box, Text, useApp, useInput, useStdout, type Key } from 'ink'
 import wrapAnsi from 'wrap-ansi'
 
 import { InputBar, estimateInputBarRows } from './components/core/InputBar'
@@ -481,6 +481,7 @@ export const CommandScreen = memo(
         statusChips,
         isAwaitingRefinement,
         submitRefinement,
+        awaitingInteractiveMode,
       } = useGenerationPipeline({
         pushHistory: pushHistoryProxy,
         notify,
@@ -637,10 +638,15 @@ export const CommandScreen = memo(
         [inputBarDebugLine, inputBarHint, inputBarValue],
       )
 
+      const isAwaitingTransportInput =
+        isGenerating && Boolean(interactiveTransportPath) && awaitingInteractiveMode === 'transport'
+
       const historyRows = useMemo(() => {
         const overlaySpacingRows = !helpOpen && (popupState || isCommandMenuActive) ? 1 : 0
         const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_OVERHEAD_ROWS + inputBarRows
-        const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
+        const transportHeaderRows = interactiveTransportPath ? 1 : 0
+        const transportAwaitingRows = isAwaitingTransportInput ? 1 : 0
+        const parentRows = baseChromeRows + transportHeaderRows + transportAwaitingRows
         const availableRows =
           terminalRows - overlayHeight - parentRows - overlaySpacingRows - reservedRows
         return Math.max(1, availableRows)
@@ -648,6 +654,7 @@ export const CommandScreen = memo(
         helpOpen,
         inputBarRows,
         interactiveTransportPath,
+        isAwaitingTransportInput,
         isCommandMenuActive,
         overlayHeight,
         popupState,
@@ -2247,6 +2254,13 @@ export const CommandScreen = memo(
 
       return (
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
+          {isAwaitingTransportInput ? (
+            <Box flexShrink={0}>
+              <Text color="yellow">
+                Waiting for interactive transport input (send refine/finish).
+              </Text>
+            </Box>
+          ) : null}
           <Box
             flexDirection="column"
             height={historyRows}

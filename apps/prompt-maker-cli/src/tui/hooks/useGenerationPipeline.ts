@@ -173,8 +173,12 @@ export const useGenerationPipeline = ({
 }: UseGenerationPipelineOptions) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
+  type InteractiveAwaitingMode = 'transport' | 'tty'
+
   const [statusMessage, setStatusMessage] = useState('Idle')
   const [isAwaitingRefinement, setIsAwaitingRefinement] = useState(false)
+  const [awaitingInteractiveMode, setAwaitingInteractiveMode] =
+    useState<InteractiveAwaitingMode | null>(null)
   const [latestTelemetry, setLatestTelemetry] = useState<
     GeneratePipelineResult['telemetry'] | null
   >(null)
@@ -197,6 +201,7 @@ export const useGenerationPipeline = ({
   const pendingRefinementRef = useRef<PendingRefinement | null>(null)
   const refinementRequestIdRef = useRef(0)
   const isGeneratingRef = useRef(false)
+  const transportAwaitingHintShownRef = useRef(false)
 
   useEffect(() => {
     isGeneratingRef.current = isGenerating
@@ -218,6 +223,8 @@ export const useGenerationPipeline = ({
     }
     submitRefinement('')
     setIsAwaitingRefinement(false)
+    setAwaitingInteractiveMode(null)
+    transportAwaitingHintShownRef.current = false
   }, [isGenerating, submitRefinement])
 
   useEffect(() => {
@@ -300,6 +307,7 @@ export const useGenerationPipeline = ({
           return
         }
         case 'generation.final':
+          setAwaitingInteractiveMode(null)
           pushHistory('Generation stream finalized.', 'progress')
           return
         case 'transport.listening':
@@ -311,17 +319,40 @@ export const useGenerationPipeline = ({
         case 'transport.client.disconnected':
           pushHistory('Transport client disconnected.', 'progress')
           return
-        case 'interactive.awaiting':
-          pushHistory(`Awaiting ${event.mode} input`, 'progress')
+        case 'interactive.awaiting': {
+          const normalizedMode =
+            event.mode === 'transport' || event.mode === 'tty' ? event.mode : null
+
+          setAwaitingInteractiveMode(normalizedMode)
+
+          const waitingMessage =
+            normalizedMode === 'transport'
+              ? 'Waiting for interactive transport input…'
+              : 'Waiting for interactive input…'
+          pushHistory(waitingMessage, 'progress')
+          setStatusMessage(waitingMessage)
+
+          if (
+            normalizedMode === 'transport' &&
+            interactiveTransportPath &&
+            !transportAwaitingHintShownRef.current
+          ) {
+            pushHistory('Tip: connect a client and send refine/finish to continue.', 'system')
+            transportAwaitingHintShownRef.current = true
+          }
+
           return
+        }
         case 'interactive.state':
+          setAwaitingInteractiveMode(null)
+          setStatusMessage(`Interactive ${event.phase}`)
           pushHistory(`Interactive ${event.phase} (iteration ${event.iteration})`, 'progress')
           return
         default:
           return
       }
     },
-    [pushHistory, terminalColumns, tokenUsageStore],
+    [interactiveTransportPath, pushHistory, terminalColumns, tokenUsageStore],
   )
 
   const interactiveDelegate: InteractiveDelegate = useMemo(
@@ -421,6 +452,8 @@ export const useGenerationPipeline = ({
       onReasoningUpdate?.(null)
 
       setIsGenerating(true)
+      setAwaitingInteractiveMode(null)
+      transportAwaitingHintShownRef.current = false
       setStatusMessage('Preparing generation…')
       pushHistory('Starting generation…')
       try {
@@ -777,5 +810,6 @@ export const useGenerationPipeline = ({
     statusChips,
     isAwaitingRefinement,
     submitRefinement,
+    awaitingInteractiveMode,
   }
 }

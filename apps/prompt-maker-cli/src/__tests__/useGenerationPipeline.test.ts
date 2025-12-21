@@ -190,6 +190,78 @@ describe('useGenerationPipeline', () => {
     expect(result.current.statusChips).toEqual(expect.arrayContaining(['[tokens:1.2k]']))
   })
 
+  it('surfaces transport waiting state in status', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'ok',
+      message: 'ready',
+    })
+
+    const pushHistory = jest.fn()
+    let resolvePipeline: ((value: unknown) => void) | null = null
+
+    generateCommandModule.runGeneratePipeline.mockImplementation(
+      (_args: unknown, _options: unknown) => {
+        return new Promise((resolve) => {
+          resolvePipeline = resolve
+        })
+      },
+    )
+
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+        interactiveTransportPath: '/tmp/socket',
+      }),
+    )
+
+    let runPromise: Promise<void> | null = null
+
+    act(() => {
+      runPromise = result.current.runGeneration({ intent: 'Ship it' })
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const optionsArg = generateCommandModule.runGeneratePipeline.mock.calls[0]?.[1] as unknown
+    const onStreamEvent =
+      typeof optionsArg === 'object' &&
+      optionsArg !== null &&
+      'onStreamEvent' in optionsArg &&
+      typeof (optionsArg as { onStreamEvent?: unknown }).onStreamEvent === 'function'
+        ? ((optionsArg as { onStreamEvent?: unknown }).onStreamEvent as (event: unknown) => void)
+        : null
+
+    expect(onStreamEvent).not.toBeNull()
+
+    await act(async () => {
+      onStreamEvent?.({ event: 'interactive.awaiting', mode: 'transport' })
+    })
+
+    expect(result.current.awaitingInteractiveMode).toBe('transport')
+    expect(result.current.statusMessage).toBe('Waiting for interactive transport input…')
+    expect(pushHistory).toHaveBeenCalledWith('Waiting for interactive transport input…', 'progress')
+    expect(pushHistory).toHaveBeenCalledWith(
+      'Tip: connect a client and send refine/finish to continue.',
+      'system',
+    )
+
+    await act(async () => {
+      resolvePipeline?.({
+        finalPrompt: 'Prompt',
+        model: 'gpt-4o-mini',
+        iterations: 1,
+        telemetry: null,
+        payload: {},
+      })
+      await runPromise
+    })
+  })
+
   it('animates the status chip while tests run', () => {
     jest.useFakeTimers()
 
