@@ -2400,6 +2400,7 @@ export const CommandScreen = memo(
             value={inputBarValue}
             onChange={handleInputChange}
             onSubmit={handleSubmit}
+            mode={isAwaitingRefinement ? 'refinement' : 'intent'}
             isDisabled={isPopupOpen || helpOpen}
             isPasteActive={isPasteActive}
             statusChips={enhancedStatusChips}

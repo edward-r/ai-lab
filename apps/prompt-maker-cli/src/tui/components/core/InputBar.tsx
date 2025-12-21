@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Text } from 'ink'
 
 import { MultilineTextInput, type DebugKeyEvent } from './MultilineTextInput'
+import { resolveInputBarPresentation, type InputBarMode } from './input-bar-presentation'
 import type { TokenLabelLookup } from './tokenized-text'
 import { getLineCount } from './multiline-text-buffer'
 
@@ -9,6 +10,7 @@ export type InputBarProps = {
   value: string
   onChange: (next: string) => void
   onSubmit: (value: string) => void
+  mode?: InputBarMode
   isDisabled?: boolean
   isPasteActive?: boolean
   statusChips: readonly string[]
@@ -40,6 +42,7 @@ export const InputBar: React.FC<InputBarProps> = ({
   value,
   onChange,
   onSubmit,
+  mode = 'intent',
   isDisabled = false,
   isPasteActive = false,
   statusChips,
@@ -48,22 +51,34 @@ export const InputBar: React.FC<InputBarProps> = ({
   debugLine,
   tokenLabel,
   onDebugKeyEvent,
-}) => (
-  <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-    <Text color="cyan">{statusChips.join(' ')}</Text>
-    <Text color="gray">Intent / Command</Text>
-    {hint ? <Text color="gray">{hint}</Text> : null}
-    {debugLine ? <Text color="gray">{debugLine}</Text> : null}
-    <MultilineTextInput
-      value={value}
-      onChange={onChange}
-      onSubmit={onSubmit}
-      placeholder={placeholder ?? 'Describe your goal or type /command'}
-      focus={!isDisabled}
-      isDisabled={isDisabled}
-      isPasteActive={isPasteActive}
-      tokenLabel={tokenLabel}
-      onDebugKeyEvent={onDebugKeyEvent}
-    />
-  </Box>
-)
+}) => {
+  const presentation = resolveInputBarPresentation(mode)
+
+  return (
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={presentation.borderColor}
+      paddingX={1}
+      paddingY={0}
+    >
+      <Text color="cyan">{statusChips.join(' ')}</Text>
+      <Text color={presentation.labelColor} bold={presentation.labelBold}>
+        {presentation.label}
+      </Text>
+      {hint ? <Text color="gray">{hint}</Text> : null}
+      {debugLine ? <Text color="gray">{debugLine}</Text> : null}
+      <MultilineTextInput
+        value={value}
+        onChange={onChange}
+        onSubmit={onSubmit}
+        placeholder={placeholder ?? 'Describe your goal or type /command'}
+        focus={!isDisabled}
+        isDisabled={isDisabled}
+        isPasteActive={isPasteActive}
+        tokenLabel={tokenLabel}
+        onDebugKeyEvent={onDebugKeyEvent}
+      />
+    </Box>
+  )
+}
