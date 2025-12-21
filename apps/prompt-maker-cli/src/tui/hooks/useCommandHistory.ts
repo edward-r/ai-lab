@@ -14,6 +14,7 @@ export const useCommandHistory = ({
   history: HistoryEntry[]
   pushHistory: (content: string, kind?: HistoryEntry['kind']) => void
   resetHistory: () => void
+  clearHistory: () => void
   scroll: {
     offset: number
     scrollTo: (next: number) => void
@@ -70,10 +71,18 @@ export const useCommandHistory = ({
     setIsPinnedToBottom(true)
   }, [visibleRows])
 
+  const clearHistory = useCallback(() => {
+    historyIdRef.current = 0
+    setHistory([])
+    setScrollOffset(0)
+    setIsPinnedToBottom(true)
+  }, [])
+
   return {
     history,
     pushHistory,
     resetHistory,
+    clearHistory,
     scroll: {
       offset: scrollOffset,
       scrollTo,

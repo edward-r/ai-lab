@@ -5,12 +5,17 @@ import {
   backspace,
   clampCursor,
   deleteForward,
-  getCursorCoordinates,
   insertText,
   moveCursorLeft,
   moveCursorRight,
   type MultilineTextBufferState,
 } from './multiline-text-buffer'
+import { isBackspaceKey } from './text-input-keys'
+import {
+  expandTokenizedLines,
+  getTokenizedCursorCoordinates,
+  type TokenLabelLookup,
+} from './tokenized-text'
 
 export type DebugKeyEvent = {
   input: string
@@ -25,6 +30,7 @@ export type MultilineTextInputProps = {
   focus?: boolean
   isDisabled?: boolean
   isPasteActive?: boolean
+  tokenLabel?: TokenLabelLookup | undefined
   onDebugKeyEvent?: ((event: DebugKeyEvent) => void) | undefined
 }
 
@@ -37,12 +43,17 @@ type RenderLine = {
   color?: 'gray'
 }
 
-const toRenderLines = (value: string, placeholder: string | undefined): RenderLine[] => {
+const toRenderLines = (
+  value: string,
+  placeholder: string | undefined,
+  tokenLabel: TokenLabelLookup,
+): RenderLine[] => {
   if (!value) {
     return [{ id: 'placeholder', content: placeholder ?? '', color: 'gray' }]
   }
 
-  return value.split('\n').map((line, index) => ({ id: `line-${index}`, content: line }))
+  const lines = expandTokenizedLines(value, tokenLabel)
+  return lines.map((line, index) => ({ id: `line-${index}`, content: line }))
 }
 
 export const MultilineTextInput: React.FC<MultilineTextInputProps> = ({
@@ -53,6 +64,7 @@ export const MultilineTextInput: React.FC<MultilineTextInputProps> = ({
   focus = false,
   isDisabled = false,
   isPasteActive = false,
+  tokenLabel,
   onDebugKeyEvent,
 }) => {
   const [cursor, setCursor] = useState<number>(value.length)
@@ -103,27 +115,7 @@ export const MultilineTextInput: React.FC<MultilineTextInputProps> = ({
         return
       }
 
-      const kittyCsiUMatch = /^\u001b\[([0-9]+)(?:;[0-9]+)*u$/.exec(input)
-      const kittyCsiUCode = kittyCsiUMatch ? Number(kittyCsiUMatch[1]) : null
-      const isKittyBackspaceSequence =
-        (kittyCsiUCode !== null && [8, 51, 127].includes(kittyCsiUCode)) ||
-        input === '\u001b[127~' ||
-        input === '\u001b[8~' ||
-        input === '\u001b[51~'
-
-      const hasDel = input.includes('\u007f')
-      const hasBackspace = input.includes('\b')
-
-      const isBackspace =
-        key.backspace ||
-        hasDel ||
-        hasBackspace ||
-        (key.ctrl && input.toLowerCase() === 'h') ||
-        (key.ctrl && input === '?') ||
-        isKittyBackspaceSequence ||
-        (key.delete && input === '')
-
-      if (isBackspace) {
+      if (isBackspaceKey(input, key)) {
         applyNextState(backspace(state))
         return
       }
@@ -156,10 +148,18 @@ export const MultilineTextInput: React.FC<MultilineTextInputProps> = ({
     { isActive: focus && !isDisabled },
   )
 
-  const lines = useMemo(() => toRenderLines(value, placeholder), [placeholder, value])
+  const resolvedTokenLabel = useMemo<TokenLabelLookup>(
+    () => tokenLabel ?? (() => null),
+    [tokenLabel],
+  )
+
+  const lines = useMemo(
+    () => toRenderLines(value, placeholder, resolvedTokenLabel),
+    [placeholder, resolvedTokenLabel, value],
+  )
   const { row: cursorRow, column: cursorColumn } = useMemo(
-    () => getCursorCoordinates(value, cursor),
-    [cursor, value],
+    () => getTokenizedCursorCoordinates(value, cursor, resolvedTokenLabel),
+    [cursor, resolvedTokenLabel, value],
   )
 
   return (

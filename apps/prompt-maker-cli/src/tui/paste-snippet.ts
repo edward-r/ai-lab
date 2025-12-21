@@ -1,3 +1,5 @@
+import { stripBracketedPasteControlSequences } from './components/core/bracketed-paste'
+
 export const BRACKETED_PASTE_START = '[200~'
 export const BRACKETED_PASTE_END = '[201~'
 
@@ -67,8 +69,7 @@ export const consumeBracketedPasteChunk = (
   }
 }
 
-const MIN_PASTE_DELTA_CHARS = 80
-const LARGE_SINGLE_LINE_CHARS = 400
+export const MIN_PASTE_CHARS = 80
 const PREVIEW_LINE_LIMIT = 3
 
 export type PastedSnippet = {
@@ -79,8 +80,13 @@ export type PastedSnippet = {
   readonly previewLines: readonly string[]
 }
 
-const normalizeLineEndings = (value: string): string =>
-  value.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+const normalizeLineEndings = (value: string): string => {
+  const normalized = value
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\u0000/g, '')
+  return stripBracketedPasteControlSequences(normalized)
+}
 
 const countLines = (value: string): number => {
   const trimmed = value.trimEnd()
@@ -94,12 +100,12 @@ export const formatPastedSnippetLabel = (lineCount: number): string =>
   `[Pasted ~${lineCount} ${lineCount === 1 ? 'line' : 'lines'}]`
 
 export const createPastedSnippet = (raw: string): PastedSnippet | null => {
-  const normalized = normalizeLineEndings(raw).replace(/\u0000/g, '')
+  const normalized = normalizeLineEndings(raw)
   const text = normalized.trimEnd()
   const lineCount = countLines(text)
   const charCount = text.length
 
-  if (lineCount < 2 && charCount < LARGE_SINGLE_LINE_CHARS) {
+  if (charCount < MIN_PASTE_CHARS) {
     return null
   }
 
@@ -117,25 +123,52 @@ export const createPastedSnippet = (raw: string): PastedSnippet | null => {
   }
 }
 
+export type PastedSnippetDetection = {
+  readonly snippet: PastedSnippet
+  readonly range: {
+    readonly start: number
+    readonly end: number
+  }
+  readonly normalizedNextValue: string
+}
+
+const findInsertedRange = (
+  previousValue: string,
+  nextValue: string,
+): { start: number; end: number } => {
+  const maxPrefix = Math.min(previousValue.length, nextValue.length)
+  let start = 0
+  while (start < maxPrefix && previousValue[start] === nextValue[start]) {
+    start += 1
+  }
+
+  let previousEnd = previousValue.length
+  let nextEnd = nextValue.length
+  while (
+    previousEnd > start &&
+    nextEnd > start &&
+    previousValue[previousEnd - 1] === nextValue[nextEnd - 1]
+  ) {
+    previousEnd -= 1
+    nextEnd -= 1
+  }
+
+  return { start, end: nextEnd }
+}
+
 export const detectPastedSnippetFromInputChange = (
   previousValue: string,
   nextValue: string,
-): PastedSnippet | null => {
+): PastedSnippetDetection | null => {
   const previousNormalized = normalizeLineEndings(previousValue)
   const nextNormalized = normalizeLineEndings(nextValue)
-  const delta = nextNormalized.length - previousNormalized.length
 
-  if (delta < MIN_PASTE_DELTA_CHARS) {
+  const range = findInsertedRange(previousNormalized, nextNormalized)
+  const inserted = nextNormalized.slice(range.start, range.end)
+  const snippet = createPastedSnippet(inserted)
+  if (!snippet) {
     return null
   }
 
-  if (/[\n\r]/.test(nextNormalized)) {
-    return createPastedSnippet(nextNormalized)
-  }
-
-  if (nextNormalized.length < LARGE_SINGLE_LINE_CHARS) {
-    return null
-  }
-
-  return createPastedSnippet(nextNormalized)
+  return { snippet, range, normalizedNextValue: nextNormalized }
 }

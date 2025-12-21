@@ -37,11 +37,24 @@ export type PopupState =
     }
   | { type: 'url'; draft: string; selectionIndex: number }
   | { type: 'history'; draft: string; selectionIndex: number }
-  | { type: 'smart'; draft: string }
+  | {
+      type: 'smart'
+      draft: string
+      suggestedItems: string[]
+      suggestedSelectionIndex: number
+      suggestedFocused: boolean
+    }
   | { type: 'tokens' }
+  | { type: 'settings' }
   | { type: 'reasoning'; scrollOffset: number }
   | { type: 'test'; draft: string }
-  | { type: 'intent'; draft: string }
+  | {
+      type: 'intent'
+      draft: string
+      suggestedItems: string[]
+      suggestedSelectionIndex: number
+      suggestedFocused: boolean
+    }
   | { type: 'instructions'; draft: string }
   | { type: 'series'; draft: string; hint?: string }
   | null

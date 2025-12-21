@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Text } from 'ink'
-import TextInput from 'ink-text-input'
+
+import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 export type SeriesIntentPopupProps = {
   draft: string
@@ -28,7 +29,7 @@ export const SeriesIntentPopup: React.FC<SeriesIntentPopupProps> = ({
       ) : (
         <Text color="gray">Draft may come from typed text, last run, or the intent file.</Text>
       )}
-      <TextInput
+      <SingleLineTextInput
         value={draft}
         onChange={onDraftChange}
         onSubmit={() => onSubmitDraft(draft)}

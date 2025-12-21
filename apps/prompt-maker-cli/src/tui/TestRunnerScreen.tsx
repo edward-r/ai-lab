@@ -8,9 +8,9 @@ import React, {
 } from 'react'
 import path from 'node:path'
 import { Box, Text, useInput } from 'ink'
-import TextInput from 'ink-text-input'
 
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
+import { SingleLineTextInput } from './components/core/SingleLineTextInput'
 import { useLogBuffer } from './useLogBuffer'
 
 const STATUS_LABEL: Record<TestStatus, string> = {
@@ -233,7 +233,7 @@ export const TestRunnerScreen = forwardRef<TestRunnerScreenHandle, TestRunnerScr
       <Box flexDirection="column" marginTop={1}>
         {focus === 'file' ? <Text color="green">Test File</Text> : <Text>Test File</Text>}
         <Box borderStyle="round" borderColor={focus === 'file' ? 'green' : 'gray'} paddingX={1}>
-          <TextInput
+          <SingleLineTextInput
             value={filePath}
             onChange={handleFilePathChange}
             placeholder="prompt-tests.yaml"

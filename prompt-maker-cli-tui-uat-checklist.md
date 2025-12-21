@@ -159,7 +159,7 @@ Suggested launch patterns for UAT:
   - `Ctrl+G` open command palette (or switch to Generate + open).
   - `Ctrl+T` switch to tests.
   - `?` toggle help.
-  - `Esc` exits unless a popup is open in Generate.
+  - `Esc` dismisses UI; never exits.
   - `Ctrl+C` exits.
   - Source: `apps/prompt-maker-cli/src/tui/app-container-keymap.ts`, `apps/prompt-maker-cli/src/tui/AppContainer.tsx`.
 - Help overlay scroll + close:
@@ -171,7 +171,7 @@ Suggested launch patterns for UAT:
 
 Commands shown in the command menu are defined in `apps/prompt-maker-cli/src/tui/config.ts`:
 
-- `/model`, `/intent`, `/instructions` (alias `/meta`), `/new [--reuse]`, `/file`, `/url`, `/smart`, `/image`, `/video`, `/polish`, `/series`, `/copy`, `/chatgpt`, `/json`, `/tokens`, `/reasoning` (alias `/why`), `/history`, `/test`, `/exit`.
+- `/model`, `/intent`, `/instructions` (alias `/meta`), `/new`, `/reuse`, `/file`, `/url`, `/smart`, `/image`, `/video`, `/polish`, `/series`, `/copy`, `/chatgpt`, `/json`, `/tokens`, `/reasoning` (alias `/why`), `/history`, `/test`, `/exit`.
 - Toggle labels: `polish`, `copy`, `chatgpt`, `json`.
 - Popup height map (`POPUP_HEIGHTS`): model/toggle/file/url/history/smart/tokens/reasoning/test/intent/instructions/series.
 
@@ -515,37 +515,23 @@ Use a consistent scheme so the engineering agent can cross-reference quickly:
 - **Expected Result:** Snippet is submitted as if it were typed intent; history includes `> ...` (user line) and generation begins (or aborts if provider missing).
 - **Screenshot:** `uat-S07-03-paste-submitted.png`.
 
-### 6.9 S08 — `/new` reset + reuse prompt y/n
+### 6.9 S08 — `/new` reset + `/reuse` last prompt
 
-- [ ] **Action:** Run `/new` with no previous prompt.
-  - Preconditions: fresh session OR ensure no prompt generated yet.
+- [ ] **Action:** Run `/new`.
   - Keys: `Ctrl+G`, type `new`, press `Enter`.
-- **Expected Result:** History logs `[new] Session reset (no previous prompt to reuse).`
+- **Expected Result:** History logs `[new] Session reset.` and clears session context (files/urls/smart/meta).
   - Source: `apps/prompt-maker-cli/src/tui/CommandScreen.tsx` (`handleNewCommand`).
-- **Screenshot:** `uat-S08-01-new-no-prompt.png`.
 
-- [ ] **Action:** After a generation run has produced a final prompt, run `/new` again.
+- [ ] **Action:** After a generation run has produced a final prompt, run `/reuse`.
   - Preconditions: you have a `Final prompt ...` entry in history.
-  - Keys: `Ctrl+G`, type `new`, press `Enter`.
-- **Expected Result:** History asks: `[new] Reuse last generated prompt as meta instructions? (y/n)`.
-  - Source: `apps/prompt-maker-cli/src/tui/CommandScreen.tsx`.
-- **Screenshot:** `uat-S08-02-new-asks-reuse.png`.
+  - Keys: `Ctrl+G`, type `reuse`, press `Enter`.
+- **Expected Result:** Session resets and immediately loads the last prompt into meta instructions; status chips include `[instr:on]`.
+  - Source: `apps/prompt-maker-cli/src/tui/CommandScreen.tsx` (`handleReuseCommand`).
 
-- [ ] **Action:** Answer `y`.
-  - Keys/typing: type `y` and press `Enter`.
-- **Expected Result:** Meta instructions are set from last prompt and history logs `[new] Loaded last prompt into meta instructions.`; status chips include `[instr:on]`.
-- **Screenshot:** `uat-S08-03-new-reuse-yes.png`.
-
-- [ ] **Action:** Run `/new` again, answer `n`.
-  - Keys: run `/new`, then type `n`.
-- **Expected Result:** History logs `[new] Continuing without reusing the previous prompt.`.
-- **Screenshot:** `uat-S08-04-new-reuse-no.png`.
-
-- [ ] **Action:** Run `/new --reuse`.
-  - Keys/typing: `Ctrl+G`, type `new --reuse`, press `Enter`.
-- **Expected Result:** Session resets and immediately loads last prompt into meta instructions (no y/n question).
-  - Source: `apps/prompt-maker-cli/src/tui/CommandScreen.tsx` (`--reuse` parsing).
-- **Screenshot:** `uat-S08-05-new-flag-reuse.png`.
+- [ ] **Action:** Run `/reuse` with no previous prompt.
+  - Preconditions: fresh session OR ensure no prompt generated yet.
+  - Keys: `Ctrl+G`, type `reuse`, press `Enter`.
+- **Expected Result:** History logs `[reuse] Session reset · no previous prompt to reuse.`.
 
 ### 6.10 S09 — Interactive refinement loop (TUI delegate)
 
@@ -894,7 +880,7 @@ Use this as the final “did we hit everything?” audit.
 - [ ] `/model`
 - [ ] `/intent`
 - [ ] `/instructions` and alias `/meta`
-- [ ] `/new` and `/new --reuse`
+- [ ] `/new` and `/reuse`
 - [ ] `/file`
 - [ ] `/url`
 - [ ] `/smart`

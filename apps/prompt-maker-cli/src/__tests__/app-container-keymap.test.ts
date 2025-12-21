@@ -41,12 +41,36 @@ describe('resolveAppContainerKeyAction', () => {
     expect(action).toEqual({ type: 'none' })
   })
 
-  it('does not exit on Esc when a generate popup is open', () => {
+  it('does not exit on Esc (generate view, no popup)', () => {
+    const action = resolveAppContainerKeyAction({
+      input: '',
+      key: createKey({ escape: true }),
+      view: 'generate',
+      isPopupOpen: false,
+      isHelpOpen: false,
+    })
+
+    expect(action).toEqual({ type: 'none' })
+  })
+
+  it('does not exit on Esc (generate view, popup open)', () => {
     const action = resolveAppContainerKeyAction({
       input: '',
       key: createKey({ escape: true }),
       view: 'generate',
       isPopupOpen: true,
+      isHelpOpen: false,
+    })
+
+    expect(action).toEqual({ type: 'none' })
+  })
+
+  it('does not exit on Esc (tests view)', () => {
+    const action = resolveAppContainerKeyAction({
+      input: '',
+      key: createKey({ escape: true }),
+      view: 'tests',
+      isPopupOpen: false,
       isHelpOpen: false,
     })
 

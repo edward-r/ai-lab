@@ -24,6 +24,7 @@ import type { UploadStateChange } from '../../prompt-generator-service'
 import { MODEL_PROVIDER_LABELS } from '../../model-providers'
 import { checkModelProviderStatus } from '../provider-status'
 import type { TokenUsageStore } from '../token-usage-store'
+import type { NotifyOptions } from '../notifier'
 import type { HistoryEntry, ProviderStatus } from '../types'
 
 const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
@@ -125,6 +126,7 @@ const writeSeriesArtifacts = async (
 
 export type UseGenerationPipelineOptions = {
   pushHistory: (content: string, kind?: HistoryEntry['kind']) => void
+  notify?: (message: string, options?: NotifyOptions) => void
   files: string[]
   urls: string[]
   images: string[]
@@ -148,6 +150,7 @@ export type UseGenerationPipelineOptions = {
 
 export const useGenerationPipeline = ({
   pushHistory,
+  notify,
   files,
   urls,
   images,
@@ -170,8 +173,12 @@ export const useGenerationPipeline = ({
 }: UseGenerationPipelineOptions) => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
+  type InteractiveAwaitingMode = 'transport' | 'tty'
+
   const [statusMessage, setStatusMessage] = useState('Idle')
   const [isAwaitingRefinement, setIsAwaitingRefinement] = useState(false)
+  const [awaitingInteractiveMode, setAwaitingInteractiveMode] =
+    useState<InteractiveAwaitingMode | null>(null)
   const [latestTelemetry, setLatestTelemetry] = useState<
     GeneratePipelineResult['telemetry'] | null
   >(null)
@@ -194,6 +201,7 @@ export const useGenerationPipeline = ({
   const pendingRefinementRef = useRef<PendingRefinement | null>(null)
   const refinementRequestIdRef = useRef(0)
   const isGeneratingRef = useRef(false)
+  const transportAwaitingHintShownRef = useRef(false)
 
   useEffect(() => {
     isGeneratingRef.current = isGenerating
@@ -215,6 +223,8 @@ export const useGenerationPipeline = ({
     }
     submitRefinement('')
     setIsAwaitingRefinement(false)
+    setAwaitingInteractiveMode(null)
+    transportAwaitingHintShownRef.current = false
   }, [isGenerating, submitRefinement])
 
   useEffect(() => {
@@ -223,8 +233,10 @@ export const useGenerationPipeline = ({
     }
   }, [submitRefinement])
 
+  const isBusy = isGenerating || isTestCommandRunning
+
   useEffect(() => {
-    if (!isGenerating) {
+    if (!isBusy) {
       setSpinnerIndex(0)
       return
     }
@@ -232,7 +244,7 @@ export const useGenerationPipeline = ({
       setSpinnerIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
     }, 120)
     return () => clearInterval(timer)
-  }, [isGenerating])
+  }, [isBusy])
 
   const handleStreamEvent = useCallback(
     (event: StreamEventInput) => {
@@ -295,6 +307,7 @@ export const useGenerationPipeline = ({
           return
         }
         case 'generation.final':
+          setAwaitingInteractiveMode(null)
           pushHistory('Generation stream finalized.', 'progress')
           return
         case 'transport.listening':
@@ -306,17 +319,40 @@ export const useGenerationPipeline = ({
         case 'transport.client.disconnected':
           pushHistory('Transport client disconnected.', 'progress')
           return
-        case 'interactive.awaiting':
-          pushHistory(`Awaiting ${event.mode} input`, 'progress')
+        case 'interactive.awaiting': {
+          const normalizedMode =
+            event.mode === 'transport' || event.mode === 'tty' ? event.mode : null
+
+          setAwaitingInteractiveMode(normalizedMode)
+
+          const waitingMessage =
+            normalizedMode === 'transport'
+              ? 'Waiting for interactive transport input…'
+              : 'Waiting for interactive input…'
+          pushHistory(waitingMessage, 'progress')
+          setStatusMessage(waitingMessage)
+
+          if (
+            normalizedMode === 'transport' &&
+            interactiveTransportPath &&
+            !transportAwaitingHintShownRef.current
+          ) {
+            pushHistory('Tip: connect a client and send refine/finish to continue.', 'system')
+            transportAwaitingHintShownRef.current = true
+          }
+
           return
+        }
         case 'interactive.state':
+          setAwaitingInteractiveMode(null)
+          setStatusMessage(`Interactive ${event.phase}`)
           pushHistory(`Interactive ${event.phase} (iteration ${event.iteration})`, 'progress')
           return
         default:
           return
       }
     },
-    [pushHistory, terminalColumns, tokenUsageStore],
+    [interactiveTransportPath, pushHistory, terminalColumns, tokenUsageStore],
   )
 
   const interactiveDelegate: InteractiveDelegate = useMemo(
@@ -416,6 +452,8 @@ export const useGenerationPipeline = ({
       onReasoningUpdate?.(null)
 
       setIsGenerating(true)
+      setAwaitingInteractiveMode(null)
+      transportAwaitingHintShownRef.current = false
       setStatusMessage('Preparing generation…')
       pushHistory('Starting generation…')
       try {
@@ -596,13 +634,22 @@ export const useGenerationPipeline = ({
         }
 
         if (smartContextEnabled) {
-          pushHistory('[series] Resolving smart context…', 'progress')
+          if (notify) {
+            notify('Smart context: resolving…', { kind: 'progress' })
+          } else {
+            pushHistory('[series] Resolving smart context…', 'progress')
+          }
+
           try {
             const smartFiles = await resolveSmartContextFiles(
               intent,
               resolvedContext,
               (message: string) => {
-                pushHistory(`[series] ${message}`, 'progress')
+                if (notify) {
+                  notify(`Smart context: ${message}`, { kind: 'progress' })
+                } else {
+                  pushHistory(`[series] ${message}`, 'progress')
+                }
                 setStatusMessage(`Series: ${message}`)
               },
               smartContextRoot ?? undefined,
@@ -701,6 +748,7 @@ export const useGenerationPipeline = ({
       smartContextEnabled,
       smartContextRoot,
       normalizedMetaInstructions,
+      notify,
       pushHistory,
       setStatusMessage,
       ensureProviderReady,
@@ -708,9 +756,15 @@ export const useGenerationPipeline = ({
   )
 
   const statusChips = useMemo(() => {
-    const statusChip = isGenerating
-      ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${statusMessage}]`
-      : `[status:${statusMessage}]`
+    const effectiveStatusMessage = isGenerating
+      ? statusMessage
+      : isTestCommandRunning
+        ? 'Running tests'
+        : statusMessage
+
+    const statusChip = isBusy
+      ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${effectiveStatusMessage}]`
+      : `[status:${effectiveStatusMessage}]`
     const chips = [statusChip, `[${currentModel}]`]
     if (latestTelemetry) {
       chips.push(`[tokens:${formatCompactTokens(latestTelemetry.totalTokens)}]`)
@@ -729,6 +783,7 @@ export const useGenerationPipeline = ({
 
     return chips
   }, [
+    isBusy,
     isGenerating,
     spinnerIndex,
     statusMessage,
@@ -755,5 +810,6 @@ export const useGenerationPipeline = ({
     statusChips,
     isAwaitingRefinement,
     submitRefinement,
+    awaitingInteractiveMode,
   }
 }

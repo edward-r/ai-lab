@@ -31,6 +31,18 @@ describe('drag-drop-path', () => {
         'C:\\Users\\alice\\file.txt',
       )
     })
+
+    it('parses pasted paths with bracketed paste markers', () => {
+      expect(parseAbsolutePathFromInput("[200~'/Users/alice/My File.md'[201~")).toBe(
+        '/Users/alice/My File.md',
+      )
+    })
+
+    it('parses pasted paths with stray sgr fragments', () => {
+      expect(parseAbsolutePathFromInput("[200~'/Users/alice/My File.md'[7m")).toBe(
+        '/Users/alice/My File.md',
+      )
+    })
   })
 
   describe('isCommandInput', () => {

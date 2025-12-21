@@ -12,18 +12,24 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Box, useApp, useInput, useStdout } from 'ink'
+import { Box, Text, useApp, useInput, useStdout, type Key } from 'ink'
 import wrapAnsi from 'wrap-ansi'
 
 import { InputBar, estimateInputBarRows } from './components/core/InputBar'
 import type { DebugKeyEvent } from './components/core/MultilineTextInput'
+import {
+  stripBracketedPasteControlSequences,
+  stripTerminalPasteArtifacts,
+} from './components/core/bracketed-paste'
+import { isBackspaceKey } from './components/core/text-input-keys'
 import { CommandMenu } from './components/core/CommandMenu'
-import { PastedSnippetCard } from './components/core/PastedSnippetCard'
+import { resolveCommandMenuKeyAction } from './components/core/command-menu-keymap'
 import { ScrollableOutput } from './components/core/ScrollableOutput'
 import { ListPopup } from './components/popups/ListPopup'
 import { ModelPopup } from './components/popups/ModelPopup'
 import { SmartPopup } from './components/popups/SmartPopup'
 import { TokenUsagePopup } from './components/popups/TokenUsagePopup'
+import { SettingsPopup } from './components/popups/SettingsPopup'
 import { ReasoningPopup } from './components/popups/ReasoningPopup'
 import { TestPopup } from './components/popups/TestPopup'
 import { TogglePopup } from './components/popups/TogglePopup'
@@ -31,8 +37,13 @@ import { IntentFilePopup } from './components/popups/IntentFilePopup'
 import { InstructionsPopup } from './components/popups/InstructionsPopup'
 import { SeriesIntentPopup } from './components/popups/SeriesIntentPopup'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from './config'
+import { filterCommandDescriptors, resolveCommandMenuSearchState } from './command-filter'
 import { parseAbsolutePathFromInput, isCommandInput } from './drag-drop-path'
-import { filterFileSuggestions } from './file-suggestions'
+import {
+  filterDirectorySuggestions,
+  filterFileSuggestions,
+  filterIntentFileSuggestions,
+} from './file-suggestions'
 import { resolveIntentSource } from './intent-source'
 import {
   consumeBracketedPasteChunk,
@@ -53,7 +64,10 @@ import {
   getPreferredModelId,
   loadModelOptions,
 } from './model-options'
-import { getLastSessionModel, setLastSessionModel } from './model-session'
+import { resolveModelPopupQuery } from './model-filter'
+import { buildModelPopupOptions } from './model-popup-options'
+import { formatProviderStatusChip } from './provider-chip'
+import { getLastSessionModel, getRecentSessionModels, setLastSessionModel } from './model-session'
 import { checkProviderStatus } from './provider-status'
 import type {
   HistoryEntry,
@@ -66,6 +80,8 @@ import type { ModelProvider } from '../model-providers'
 import { resolveDefaultGenerateModel } from '../prompt-generator-service'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../test-command'
 import { useContextDispatch, useContextState } from './context-store'
+import { planSessionCommand } from './new-command'
+import type { NotifyOptions } from './notifier'
 import { createTokenUsageStore } from './token-usage-store'
 
 const APP_STATIC_ROWS = 7
@@ -73,43 +89,23 @@ const COMMAND_SCREEN_OVERHEAD_ROWS = 3
 const COMMAND_MENU_HEIGHT = COMMAND_DESCRIPTORS.length + 2
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
 
-const filterModelOptions = (query: string, options: readonly ModelOption[]): ModelOption[] => {
-  const trimmed = query.trim().toLowerCase()
-  if (!trimmed) {
-    return [...options]
+const isControlKey = (input: string, key: Key, target: string): boolean => {
+  if (!target) {
+    return false
   }
-  return options.filter((option) => {
-    const haystacks = [
-      option.id.toLowerCase(),
-      option.label.toLowerCase(),
-      option.provider,
-      option.description.toLowerCase(),
-      option.capabilities.join(' ').toLowerCase(),
-      option.notes?.toLowerCase() ?? '',
-    ]
-    return haystacks.some((value) => value.includes(trimmed))
-  })
+
+  const normalized = target.toLowerCase()
+  const code = normalized.charCodeAt(0)
+  const controlChar = code >= 97 && code <= 122 ? String.fromCharCode(code - 96) : null
+
+  if (key.ctrl === true && input.toLowerCase() === normalized) {
+    return true
+  }
+
+  return controlChar ? input === controlChar : false
 }
 
-const WELCOME_LINES = [
-  'Welcome to the Prompt Maker command palette preview.',
-  'Type natural language requests or start a command with /.',
-  'Press Enter to log input; arrow keys scroll history.',
-  'Press ? anytime to view keyboard shortcuts.',
-  'Series: /series opens a popup; it prefills from typed/last intent (or /intent file).',
-  'Tests: /test prompt-tests.yaml runs the prompt test suite.',
-  'Tokens: /tokens shows token usage breakdown.',
-  'Reasoning: /reasoning (or /why) shows last model reasoning.',
-  'JSON: /json on|off toggles prompt payload in history.',
-  'Tip: Drag & drop a file path, then press Tab to add it to context.',
-  'Tip: Press Tab to open the Series intent popup.',
-]
-
-const WELCOME_HISTORY: HistoryEntry[] = WELCOME_LINES.map((line, index) => ({
-  id: `welcome-${index}`,
-  content: line,
-  kind: 'system',
-}))
+const EMPTY_HISTORY: HistoryEntry[] = []
 
 const DEFAULT_PROVIDER_STATUSES: ProviderStatusMap = {
   openai: { provider: 'openai', status: 'error', message: 'Status unavailable' },
@@ -127,6 +123,7 @@ type CommandScreenProps = {
   commandMenuSignal?: number
   helpOpen?: boolean
   reservedRows?: number
+  notify: (message: string, options?: NotifyOptions) => void
 }
 
 export type CommandScreenHandle = {
@@ -142,7 +139,9 @@ export const CommandScreen = memo(
         commandMenuSignal,
         helpOpen = false,
         reservedRows = 0,
+        notify,
       },
+
       ref,
     ) => {
       const { exit } = useApp()
@@ -188,13 +187,17 @@ export const CommandScreen = memo(
       const [inputValue, setInputValue] = useState('')
       const inputValueRef = useRef('')
       inputValueRef.current = inputValue
-      const [pastedSnippet, setPastedSnippet] = useState<PastedSnippet | null>(null)
-      const pastedSnippetRef = useRef<PastedSnippet | null>(null)
-      pastedSnippetRef.current = pastedSnippet
+
+      const PASTE_TOKEN_START = 0xe000
+      const PASTE_TOKEN_END = 0xf8ff
+      const pastedSnippetTokensRef = useRef<Map<string, PastedSnippet>>(new Map())
+      const nextPasteTokenRef = useRef(PASTE_TOKEN_START)
+
       const suppressTextInputDuringPasteRef = useRef(false)
       const [isPasteActive, setIsPasteActive] = useState(false)
       const bracketedPasteStateRef = useRef<BracketedPasteState>(createBracketedPasteState())
       const [commandSelectionIndex, setCommandSelectionIndex] = useState(0)
+      const lastCommandMenuSignalRef = useRef<number>(0)
       const builtInModelOptionsRef = useRef<ModelOption[]>(getBuiltInModelOptions())
       const initialSessionModelRef = useRef<string | null>(getLastSessionModel())
       const [modelOptions, setModelOptions] = useState<ModelOption[]>(
@@ -266,8 +269,6 @@ export const CommandScreen = memo(
       const [jsonOutputEnabled, setJsonOutputEnabled] = useState(false)
       const [isTestCommandRunning, setIsTestCommandRunning] = useState(false)
       const [lastTestFile, setLastTestFile] = useState<string | null>(null)
-      const [isAwaitingNewReuse, setIsAwaitingNewReuse] = useState(false)
-      const pendingNewReusePromptRef = useRef<string | null>(null)
       const suppressNextInputRef = useRef(false)
 
       const tokenUsageStoreRef = useRef<ReturnType<typeof createTokenUsageStore> | null>(null)
@@ -283,27 +284,111 @@ export const CommandScreen = memo(
         return true
       }, [])
 
-      const clearPastedSnippet = useCallback(() => {
-        setPastedSnippet(null)
+      const dropMissingPasteTokens = useCallback((previous: string, next: string): void => {
+        const map = pastedSnippetTokensRef.current
+        if (map.size === 0) {
+          return
+        }
+
+        const previousTokens = new Set(Array.from(previous).filter((token) => map.has(token)))
+        if (previousTokens.size === 0) {
+          return
+        }
+
+        const nextTokens = new Set(Array.from(next).filter((token) => map.has(token)))
+        for (const token of previousTokens) {
+          if (!nextTokens.has(token)) {
+            map.delete(token)
+          }
+        }
       }, [])
 
-      const applyPastedSnippet = useCallback(
-        (snippet: PastedSnippet): void => {
-          setPastedSnippet(snippet)
-          suppressNextInputRef.current = true
-          setInputValue('')
-          lastTypedIntentRef.current = ''
-        },
-        [setInputValue],
-      )
+      const resetPasteTokens = useCallback((): void => {
+        pastedSnippetTokensRef.current.clear()
+        nextPasteTokenRef.current = PASTE_TOKEN_START
+      }, [])
+
+      useEffect(() => {
+        if (inputValue.length > 0) {
+          return
+        }
+        resetPasteTokens()
+      }, [inputValue.length, resetPasteTokens])
+
+      const tokenLabel = useCallback((token: string) => {
+        return pastedSnippetTokensRef.current.get(token)?.label ?? null
+      }, [])
+
+      const allocatePasteToken = useCallback((): string => {
+        const map = pastedSnippetTokensRef.current
+        let nextCodePoint = nextPasteTokenRef.current
+
+        while (nextCodePoint <= PASTE_TOKEN_END) {
+          const token = String.fromCharCode(nextCodePoint)
+          nextCodePoint += 1
+          if (!map.has(token)) {
+            nextPasteTokenRef.current = nextCodePoint
+            return token
+          }
+        }
+
+        resetPasteTokens()
+        const fallback = String.fromCharCode(PASTE_TOKEN_START)
+        nextPasteTokenRef.current = PASTE_TOKEN_START + 1
+        return fallback
+      }, [resetPasteTokens])
+
+      const expandPasteTokens = useCallback((value: string): string => {
+        const map = pastedSnippetTokensRef.current
+        if (map.size === 0) {
+          return value
+        }
+
+        let expanded = ''
+        for (const character of value) {
+          const snippet = map.get(character)
+          expanded += snippet ? snippet.text : character
+        }
+        return expanded
+      }, [])
+
+      const updateLastTypedIntent = useCallback((next: string): void => {
+        if (isCommandInput(next, fs.existsSync)) {
+          return
+        }
+        lastTypedIntentRef.current = next
+      }, [])
 
       const appendInlinePaste = useCallback(
         (raw: string): void => {
-          const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+          const normalized = stripBracketedPasteControlSequences(
+            raw
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n')
+              .replace(/\u0000/g, ''),
+          )
+          const snippet = createPastedSnippet(normalized)
+
           suppressNextInputRef.current = true
-          setInputValue((prev) => prev + normalized)
+
+          if (snippet) {
+            const token = allocatePasteToken()
+            pastedSnippetTokensRef.current.set(token, snippet)
+            setInputValue((prev) => {
+              const next = prev + token
+              updateLastTypedIntent(next)
+              return next
+            })
+            return
+          }
+
+          setInputValue((prev) => {
+            const next = prev + normalized
+            updateLastTypedIntent(next)
+            return next
+          })
         },
-        [setInputValue],
+        [allocatePasteToken, updateLastTypedIntent],
       )
 
       const pushHistoryRef = useRef<(content: string, kind?: HistoryEntry['kind']) => void>(
@@ -365,8 +450,15 @@ export const CommandScreen = memo(
         return { keyword, args: rest.join(' ') }
       }, [commandQuery])
 
-      const normalizedQuery = parsedCommand.keyword.toLowerCase()
       const commandArgsRaw = parsedCommand.args
+
+      const commandMenuSearchState = useMemo(
+        () => resolveCommandMenuSearchState({ commandQuery, commands: COMMAND_DESCRIPTORS }),
+        [commandQuery],
+      )
+
+      const commandMenuFilterQuery = commandMenuSearchState.filterQuery
+      const commandMenuArgsRaw = commandMenuSearchState.treatRemainderAsArgs ? commandArgsRaw : ''
 
       const trimmedMetaInstructions = metaInstructions.trim()
 
@@ -390,8 +482,10 @@ export const CommandScreen = memo(
         statusChips,
         isAwaitingRefinement,
         submitRefinement,
+        awaitingInteractiveMode,
       } = useGenerationPipeline({
         pushHistory: pushHistoryProxy,
+        notify,
         files,
         urls,
         images,
@@ -437,6 +531,7 @@ export const CommandScreen = memo(
         isGenerating,
         lastUserIntentRef,
         pushHistory: pushHistoryProxy,
+        notify,
         setInputValue,
         runSeriesGeneration,
         runTestsFromCommand: runTestsFromCommandProxy,
@@ -461,18 +556,14 @@ export const CommandScreen = memo(
       const isPopupOpen = popupState !== null
       const trimmedIntentFilePath = intentFilePath.trim()
 
-      const providerChips = useMemo(() => {
-        const providers: ModelProvider[] = ['openai', 'gemini']
-        return providers.map((provider) => {
-          const status = providerStatuses[provider]
-          const suffix =
-            status.status === 'ok' ? 'ok' : status.status === 'missing' ? 'missing-key' : 'error'
-          return `[${provider}:${suffix}]`
-        })
-      }, [providerStatuses])
+      const providerChip = useMemo(
+        () => formatProviderStatusChip(currentModel, providerStatuses),
+        [currentModel, providerStatuses],
+      )
 
       const enhancedStatusChips = useMemo(() => {
-        const chips = [...statusChips, ...providerChips]
+        const chips = [...statusChips, providerChip]
+
         if (trimmedIntentFilePath) {
           chips.push('[intent:file]')
           chips.push(`[file:${path.basename(trimmedIntentFilePath)}]`)
@@ -483,7 +574,7 @@ export const CommandScreen = memo(
           chips.push('[instr:on]')
         }
         return chips
-      }, [providerChips, statusChips, trimmedIntentFilePath, trimmedMetaInstructions])
+      }, [providerChip, statusChips, trimmedIntentFilePath, trimmedMetaInstructions])
 
       useEffect(() => {
         if (!onPopupVisibilityChange) {
@@ -505,23 +596,12 @@ export const CommandScreen = memo(
         if (!isCommandMode) {
           return COMMAND_DESCRIPTORS
         }
-        if (!normalizedQuery) {
-          return COMMAND_DESCRIPTORS
-        }
-        const filtered = COMMAND_DESCRIPTORS.filter((command) => {
-          if (command.id.startsWith(normalizedQuery)) {
-            return true
-          }
-          if (command.label.toLowerCase().startsWith(normalizedQuery)) {
-            return true
-          }
-          if ('aliases' in command && Array.isArray(command.aliases)) {
-            return command.aliases.some((alias) => alias.startsWith(normalizedQuery))
-          }
-          return false
+
+        return filterCommandDescriptors({
+          query: commandMenuFilterQuery,
+          commands: COMMAND_DESCRIPTORS,
         })
-        return filtered.length > 0 ? filtered : COMMAND_DESCRIPTORS
-      }, [isCommandMode, normalizedQuery])
+      }, [commandMenuFilterQuery, isCommandMode])
 
       const visibleCommands = commandMatches
       const isCommandMenuActive = isCommandMode && !isPopupOpen && !helpOpen
@@ -534,7 +614,7 @@ export const CommandScreen = memo(
           ? POPUP_HEIGHTS[popupState.type as PopupKind]
           : menuHeight
 
-      const inputBarValue = pastedSnippet ? '' : inputValue
+      const inputBarValue = inputValue
       const inputBarHint = useMemo(() => {
         if (isPopupOpen || helpOpen || !droppedFilePath) {
           return undefined
@@ -559,10 +639,15 @@ export const CommandScreen = memo(
         [inputBarDebugLine, inputBarHint, inputBarValue],
       )
 
+      const isAwaitingTransportInput =
+        isGenerating && Boolean(interactiveTransportPath) && awaitingInteractiveMode === 'transport'
+
       const historyRows = useMemo(() => {
         const overlaySpacingRows = !helpOpen && (popupState || isCommandMenuActive) ? 1 : 0
         const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_OVERHEAD_ROWS + inputBarRows
-        const parentRows = interactiveTransportPath ? baseChromeRows + 1 : baseChromeRows
+        const transportHeaderRows = interactiveTransportPath ? 1 : 0
+        const transportAwaitingRows = isAwaitingTransportInput ? 1 : 0
+        const parentRows = baseChromeRows + transportHeaderRows + transportAwaitingRows
         const availableRows =
           terminalRows - overlayHeight - parentRows - overlaySpacingRows - reservedRows
         return Math.max(1, availableRows)
@@ -570,6 +655,7 @@ export const CommandScreen = memo(
         helpOpen,
         inputBarRows,
         interactiveTransportPath,
+        isAwaitingTransportInput,
         isCommandMenuActive,
         overlayHeight,
         popupState,
@@ -577,40 +663,22 @@ export const CommandScreen = memo(
         terminalRows,
       ])
 
-      const { history, pushHistory, resetHistory, scroll } = useCommandHistory({
-        initialEntries: WELCOME_HISTORY,
+      const { history, pushHistory, resetHistory, clearHistory, scroll } = useCommandHistory({
+        initialEntries: EMPTY_HISTORY,
         visibleRows: historyRows,
       })
       const { offset: scrollOffset, scrollTo, scrollBy } = scroll
-
-      const hasNewReuseFlag = useCallback((argsRaw: string): boolean => {
-        const tokens = argsRaw
-          .split(/\s+/)
-          .map((token) => token.trim())
-          .filter((token) => token.length > 0)
-        return tokens.includes('--reuse')
-      }, [])
 
       const resetSessionState = useCallback(() => {
         resetContext()
         setIntentFilePath('')
         lastUserIntentRef.current = null
         lastTypedIntentRef.current = ''
-        pendingNewReusePromptRef.current = null
-        setIsAwaitingNewReuse(false)
         setInputValue('')
         setPopupState(null)
         resetHistory()
         scrollTo(Number.MAX_SAFE_INTEGER)
       }, [resetContext, resetHistory, scrollTo, setIntentFilePath, setPopupState])
-
-      const applyReusedPromptAsMetaInstructions = useCallback(
-        (prompt: string) => {
-          setMetaInstructions(prompt)
-          pushHistory('[new] Loaded last prompt into meta instructions.', 'system')
-        },
-        [pushHistory, setMetaInstructions],
-      )
 
       const handleNewCommand = useCallback(
         (argsRaw: string) => {
@@ -619,34 +687,36 @@ export const CommandScreen = memo(
             return
           }
 
-          const reuseFlag = hasNewReuseFlag(argsRaw)
-          const previousPrompt = lastGeneratedPrompt?.trim() ?? ''
-
           resetSessionState()
+          const plan = planSessionCommand({ commandId: 'new', lastGeneratedPrompt: null })
+          pushHistory(plan.message, 'system')
 
-          if (!previousPrompt) {
-            pushHistory('[new] Session reset (no previous prompt to reuse).', 'system')
-            return
+          if (argsRaw.includes('--reuse')) {
+            pushHistory('[new] Tip: use /reuse to reuse the last prompt.', 'system')
           }
-
-          if (reuseFlag) {
-            applyReusedPromptAsMetaInstructions(previousPrompt)
-            return
-          }
-
-          pendingNewReusePromptRef.current = previousPrompt
-          setIsAwaitingNewReuse(true)
-          pushHistory('[new] Reuse last generated prompt as meta instructions? (y/n)', 'system')
         },
-        [
-          applyReusedPromptAsMetaInstructions,
-          hasNewReuseFlag,
-          isGenerating,
-          lastGeneratedPrompt,
-          pushHistory,
-          resetSessionState,
-        ],
+        [isGenerating, pushHistory, resetSessionState],
       )
+
+      const handleReuseCommand = useCallback(() => {
+        if (isGenerating) {
+          pushHistory('[reuse] Cannot reset while generation is running.', 'system')
+          return
+        }
+
+        const previousPrompt = lastGeneratedPrompt
+        resetSessionState()
+        const plan = planSessionCommand({
+          commandId: 'reuse',
+          lastGeneratedPrompt: previousPrompt,
+        })
+
+        if (plan.type === 'reset-and-load-meta') {
+          setMetaInstructions(plan.metaInstructions)
+        }
+
+        pushHistory(plan.message, 'system')
+      }, [isGenerating, lastGeneratedPrompt, pushHistory, resetSessionState, setMetaInstructions])
 
       useEffect(() => {
         pushHistoryRef.current = pushHistory
@@ -715,12 +785,14 @@ export const CommandScreen = memo(
 
       useEffect(() => {
         setCommandSelectionIndex(0)
-      }, [normalizedQuery, isCommandMode])
+      }, [commandMenuFilterQuery, isCommandMode])
 
       useEffect(() => {
-        if (!commandMenuSignal) {
+        if (!commandMenuSignal || commandMenuSignal === lastCommandMenuSignalRef.current) {
           return
         }
+
+        lastCommandMenuSignalRef.current = commandMenuSignal
         setPopupState(null)
         setInputValue('/')
         setCommandSelectionIndex(0)
@@ -811,13 +883,6 @@ export const CommandScreen = memo(
           }
 
           const latestPaste = result.completed[result.completed.length - 1] ?? ''
-          const snippet = createPastedSnippet(latestPaste)
-
-          if (snippet) {
-            applyPastedSnippet(snippet)
-            return
-          }
-
           appendInlinePaste(latestPaste)
         },
         { isActive: !helpOpen },
@@ -846,21 +911,24 @@ export const CommandScreen = memo(
 
       useInput(
         (_input, key) => {
-          if (!isCommandMenuActive || !visibleCommands.length) {
+          if (!isCommandMenuActive) {
             return
           }
-          if (key.upArrow) {
-            setCommandSelectionIndex(
-              (prev) => (prev - 1 + visibleCommands.length) % visibleCommands.length,
-            )
-            return
-          }
-          if (key.downArrow) {
-            setCommandSelectionIndex((prev) => (prev + 1) % visibleCommands.length)
-            return
-          }
-          if (key.escape) {
+
+          const action = resolveCommandMenuKeyAction({
+            key,
+            selectedIndex: commandSelectionIndex,
+            itemCount: visibleCommands.length,
+          })
+
+          if (action.type === 'close') {
             setInputValue('')
+            setCommandSelectionIndex(0)
+            return
+          }
+
+          if (action.type === 'change-selection') {
+            setCommandSelectionIndex(action.nextIndex)
           }
         },
         { isActive: isCommandMenuActive && !helpOpen },
@@ -1003,21 +1071,28 @@ export const CommandScreen = memo(
             return
           }
           toggleSmartContext()
-          pushHistory(`Smart context ${nextEnabled ? 'enabled' : 'disabled'}`)
+          notify(`Smart context ${nextEnabled ? 'enabled' : 'disabled'}`)
         },
-        [smartContextEnabled, toggleSmartContext, pushHistory],
+        [notify, smartContextEnabled, toggleSmartContext],
       )
 
       const handleSmartRootSubmit = useCallback(
         (value: string) => {
           const trimmed = value.trim()
           setSmartRoot(trimmed)
-          pushHistory(
-            trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared',
+          notify(trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared')
+          setPopupState((prev) =>
+            prev?.type === 'smart'
+              ? {
+                  ...prev,
+                  draft: trimmed,
+                  suggestedFocused: false,
+                  suggestedSelectionIndex: 0,
+                }
+              : prev,
           )
-          setPopupState((prev) => (prev?.type === 'smart' ? { ...prev, draft: trimmed } : prev))
         },
-        [setSmartRoot, pushHistory],
+        [notify, setSmartRoot],
       )
 
       const historyPopupDraft = popupState?.type === 'history' ? popupState.draft : ''
@@ -1070,15 +1145,85 @@ export const CommandScreen = memo(
       const filePopupSuggestionsFocused =
         filePopupSuggestedFocused && filePopupSuggestions.length > 0
 
-      const modelPopupQuery = popupState?.type === 'model' ? popupState.query : ''
-      const debouncedModelPopupQuery = useDebouncedValue(modelPopupQuery, 75)
+      const smartPopupDraft = popupState?.type === 'smart' ? popupState.draft : ''
+      const smartPopupSuggestedItems =
+        popupState?.type === 'smart' ? popupState.suggestedItems : ([] as string[])
+      const smartPopupSuggestedFocused =
+        popupState?.type === 'smart' ? popupState.suggestedFocused : false
+      const smartPopupSuggestedSelectionIndex =
+        popupState?.type === 'smart' ? popupState.suggestedSelectionIndex : 0
 
-      const modelPopupOptions = useMemo(() => {
-        if (popupState?.type !== 'model') {
+      const smartPopupSuggestions = useMemo(() => {
+        if (!smartPopupSuggestedItems.length) {
           return []
         }
-        return filterModelOptions(debouncedModelPopupQuery, modelOptions)
-      }, [debouncedModelPopupQuery, modelOptions, popupState?.type])
+
+        const excluded = smartContextRoot ? [smartContextRoot] : []
+
+        return filterDirectorySuggestions({
+          suggestions: smartPopupSuggestedItems,
+          query: smartPopupDraft,
+          exclude: excluded,
+        })
+      }, [smartContextRoot, smartPopupDraft, smartPopupSuggestedItems])
+
+      const smartPopupSuggestionSelectionIndex = Math.min(
+        smartPopupSuggestedSelectionIndex,
+        Math.max(smartPopupSuggestions.length - 1, 0),
+      )
+
+      const smartPopupSuggestionsFocused =
+        smartPopupSuggestedFocused && smartPopupSuggestions.length > 0
+
+      const intentPopupDraft = popupState?.type === 'intent' ? popupState.draft : ''
+      const intentPopupSuggestedItems =
+        popupState?.type === 'intent' ? popupState.suggestedItems : ([] as string[])
+      const intentPopupSuggestedFocused =
+        popupState?.type === 'intent' ? popupState.suggestedFocused : false
+      const intentPopupSuggestedSelectionIndex =
+        popupState?.type === 'intent' ? popupState.suggestedSelectionIndex : 0
+
+      const intentPopupSuggestions = useMemo(() => {
+        if (!intentPopupSuggestedItems.length) {
+          return []
+        }
+        return filterIntentFileSuggestions({
+          suggestions: intentPopupSuggestedItems,
+          query: intentPopupDraft,
+          limit: 200,
+        })
+      }, [intentPopupDraft, intentPopupSuggestedItems])
+
+      const intentPopupSuggestionSelectionIndex = Math.min(
+        intentPopupSuggestedSelectionIndex,
+        Math.max(intentPopupSuggestions.length - 1, 0),
+      )
+
+      const intentPopupSuggestionsFocused =
+        intentPopupSuggestedFocused && intentPopupSuggestions.length > 0
+
+      const modelPopupQuery = popupState?.type === 'model' ? popupState.query : ''
+      const debouncedModelPopupQuery = useDebouncedValue(modelPopupQuery, 75)
+      const effectiveModelPopupQuery = resolveModelPopupQuery(
+        modelPopupQuery,
+        debouncedModelPopupQuery,
+      )
+
+      const modelPopupData = useMemo(() => {
+        if (popupState?.type !== 'model') {
+          return { options: [], recentCount: 0 }
+        }
+
+        const recentModelIds = getRecentSessionModels()
+        return buildModelPopupOptions({
+          query: effectiveModelPopupQuery,
+          modelOptions,
+          recentModelIds,
+        })
+      }, [effectiveModelPopupQuery, modelOptions, popupState?.type])
+
+      const modelPopupOptions = modelPopupData.options
+      const modelPopupRecentCount = modelPopupData.recentCount
 
       const reasoningPopupVisibleRows = Math.max(1, POPUP_HEIGHTS.reasoning - 5)
 
@@ -1123,6 +1268,50 @@ export const CommandScreen = memo(
             : prev,
         )
       }, [filePopupSuggestedFocused, filePopupSuggestions.length, popupState?.type, setPopupState])
+
+      useEffect(() => {
+        if (popupState?.type !== 'smart') {
+          return
+        }
+        if (!smartPopupSuggestedFocused) {
+          return
+        }
+        if (smartPopupSuggestions.length > 0) {
+          return
+        }
+        setPopupState((prev) =>
+          prev?.type === 'smart'
+            ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+            : prev,
+        )
+      }, [
+        popupState?.type,
+        setPopupState,
+        smartPopupSuggestedFocused,
+        smartPopupSuggestions.length,
+      ])
+
+      useEffect(() => {
+        if (popupState?.type !== 'intent') {
+          return
+        }
+        if (!intentPopupSuggestedFocused) {
+          return
+        }
+        if (intentPopupSuggestions.length > 0) {
+          return
+        }
+        setPopupState((prev) =>
+          prev?.type === 'intent'
+            ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+            : prev,
+        )
+      }, [
+        intentPopupSuggestedFocused,
+        intentPopupSuggestions.length,
+        popupState?.type,
+        setPopupState,
+      ])
 
       useInput(
         (input, key) => {
@@ -1205,10 +1394,12 @@ export const CommandScreen = memo(
 
           if (popupState.type === 'file') {
             const hasSuggestions = filePopupSuggestions.length > 0
+            const maxSuggestedIndex = Math.max(filePopupSuggestions.length - 1, 0)
             const effectiveSuggestedIndex = Math.min(
               popupState.suggestedSelectionIndex,
-              Math.max(filePopupSuggestions.length - 1, 0),
+              maxSuggestedIndex,
             )
+            const draftIsEmpty = popupState.draft.trim().length === 0
 
             if (key.escape) {
               closePopup()
@@ -1216,21 +1407,21 @@ export const CommandScreen = memo(
             }
 
             if (popupState.suggestedFocused && hasSuggestions) {
-              if (key.tab && !key.shift) {
+              if (key.tab) {
                 setPopupState((prev) =>
                   prev?.type === 'file' ? { ...prev, suggestedFocused: false } : prev,
                 )
                 return
               }
+
               if (key.upArrow) {
                 if (effectiveSuggestedIndex === 0) {
                   setPopupState((prev) =>
-                    prev?.type === 'file'
-                      ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
-                      : prev,
+                    prev?.type === 'file' ? { ...prev, suggestedFocused: false } : prev,
                   )
                   return
                 }
+
                 setPopupState((prev) =>
                   prev?.type === 'file'
                     ? {
@@ -1241,6 +1432,7 @@ export const CommandScreen = memo(
                 )
                 return
               }
+
               if (key.downArrow) {
                 setPopupState((prev) =>
                   prev?.type === 'file'
@@ -1248,13 +1440,14 @@ export const CommandScreen = memo(
                         ...prev,
                         suggestedSelectionIndex: Math.min(
                           prev.suggestedSelectionIndex + 1,
-                          Math.max(filePopupSuggestions.length - 1, 0),
+                          maxSuggestedIndex,
                         ),
                       }
                     : prev,
                 )
                 return
               }
+
               if (key.return) {
                 const selection = filePopupSuggestions[effectiveSuggestedIndex]
                 setPopupState((prev) =>
@@ -1268,27 +1461,11 @@ export const CommandScreen = memo(
                 )
                 return
               }
+
               return
             }
 
             if (key.tab && !key.shift && hasSuggestions) {
-              setPopupState((prev) =>
-                prev?.type === 'file'
-                  ? {
-                      ...prev,
-                      suggestedFocused: true,
-                      suggestedSelectionIndex: 0,
-                    }
-                  : prev,
-              )
-              return
-            }
-
-            if (
-              key.downArrow &&
-              hasSuggestions &&
-              (files.length === 0 || popupState.draft.trim().length > 0)
-            ) {
               setPopupState((prev) =>
                 prev?.type === 'file'
                   ? {
@@ -1309,7 +1486,40 @@ export const CommandScreen = memo(
               )
               return
             }
-            if (key.downArrow && files.length > 0) {
+
+            if (key.downArrow) {
+              if (files.length === 0) {
+                if (hasSuggestions) {
+                  setPopupState((prev) =>
+                    prev?.type === 'file'
+                      ? {
+                          ...prev,
+                          suggestedFocused: true,
+                          suggestedSelectionIndex: 0,
+                        }
+                      : prev,
+                  )
+                }
+                return
+              }
+
+              if (popupState.selectionIndex >= files.length - 1) {
+                if (hasSuggestions) {
+                  setPopupState((prev) =>
+                    prev?.type === 'file'
+                      ? {
+                          ...prev,
+                          suggestedFocused: true,
+                          suggestedSelectionIndex: 0,
+                        }
+                      : prev,
+                  )
+                  return
+                }
+
+                return
+              }
+
               setPopupState((prev) =>
                 prev?.type === 'file'
                   ? {
@@ -1320,10 +1530,12 @@ export const CommandScreen = memo(
               )
               return
             }
-            if ((key.delete || key.backspace) && files.length > 0) {
+
+            if ((key.delete || (draftIsEmpty && isBackspaceKey(input, key))) && files.length > 0) {
               handleRemoveFile(popupState.selectionIndex)
               return
             }
+
             return
           }
 
@@ -1347,7 +1559,11 @@ export const CommandScreen = memo(
               )
               return
             }
-            if ((key.delete || key.backspace) && urls.length > 0) {
+            if (
+              (key.delete ||
+                (popupState.draft.trim().length === 0 && isBackspaceKey(input, key))) &&
+              urls.length > 0
+            ) {
               handleRemoveUrl(popupState.selectionIndex)
               return
             }
@@ -1387,18 +1603,125 @@ export const CommandScreen = memo(
           }
 
           if (popupState.type === 'smart') {
-            if (typeof input === 'string' && input.toLowerCase() === 't') {
+            const hasSuggestions = smartPopupSuggestions.length > 0
+            const maxSuggestedIndex = Math.max(smartPopupSuggestions.length - 1, 0)
+            const effectiveSuggestedIndex = Math.min(
+              popupState.suggestedSelectionIndex,
+              maxSuggestedIndex,
+            )
+            const draftIsEmpty = popupState.draft.trim().length === 0
+
+            if (isControlKey(input, key, 't')) {
               handleSmartToggle(!smartContextEnabled)
               return
             }
+
             if (key.escape) {
               closePopup()
               return
             }
+
+            if (popupState.suggestedFocused && hasSuggestions) {
+              if (key.tab) {
+                setPopupState((prev) =>
+                  prev?.type === 'smart' ? { ...prev, suggestedFocused: false } : prev,
+                )
+                return
+              }
+
+              if (key.upArrow) {
+                if (effectiveSuggestedIndex === 0) {
+                  setPopupState((prev) =>
+                    prev?.type === 'smart' ? { ...prev, suggestedFocused: false } : prev,
+                  )
+                  return
+                }
+
+                setPopupState((prev) =>
+                  prev?.type === 'smart'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.max(prev.suggestedSelectionIndex - 1, 0),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.downArrow) {
+                setPopupState((prev) =>
+                  prev?.type === 'smart'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.min(
+                          prev.suggestedSelectionIndex + 1,
+                          maxSuggestedIndex,
+                        ),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.return) {
+                const selection = smartPopupSuggestions[effectiveSuggestedIndex]
+                setPopupState((prev) =>
+                  prev?.type === 'smart'
+                    ? {
+                        ...prev,
+                        draft: selection ?? prev.draft,
+                        suggestedFocused: false,
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              return
+            }
+
+            if (key.tab && !key.shift && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'smart'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
+            if (key.downArrow && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'smart'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
+            if ((key.delete || (draftIsEmpty && isBackspaceKey(input, key))) && smartContextRoot) {
+              handleSmartRootSubmit('')
+              return
+            }
+
             return
           }
 
           if (popupState.type === 'tokens') {
+            if (key.escape) {
+              closePopup()
+            }
+            return
+          }
+
+          if (popupState.type === 'settings') {
             if (key.escape) {
               closePopup()
             }
@@ -1460,9 +1783,97 @@ export const CommandScreen = memo(
           }
 
           if (popupState.type === 'intent') {
+            const hasSuggestions = intentPopupSuggestions.length > 0
+            const maxSuggestedIndex = Math.max(intentPopupSuggestions.length - 1, 0)
+            const effectiveSuggestedIndex = Math.min(
+              popupState.suggestedSelectionIndex,
+              maxSuggestedIndex,
+            )
+
             if (key.escape) {
               closePopup()
+              return
             }
+
+            if (popupState.suggestedFocused && hasSuggestions) {
+              if (key.tab) {
+                setPopupState((prev) =>
+                  prev?.type === 'intent' ? { ...prev, suggestedFocused: false } : prev,
+                )
+                return
+              }
+
+              if (key.upArrow) {
+                if (effectiveSuggestedIndex === 0) {
+                  setPopupState((prev) =>
+                    prev?.type === 'intent' ? { ...prev, suggestedFocused: false } : prev,
+                  )
+                  return
+                }
+
+                setPopupState((prev) =>
+                  prev?.type === 'intent'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.max(prev.suggestedSelectionIndex - 1, 0),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.downArrow) {
+                setPopupState((prev) =>
+                  prev?.type === 'intent'
+                    ? {
+                        ...prev,
+                        suggestedSelectionIndex: Math.min(
+                          prev.suggestedSelectionIndex + 1,
+                          maxSuggestedIndex,
+                        ),
+                      }
+                    : prev,
+                )
+                return
+              }
+
+              if (key.return) {
+                const selection = intentPopupSuggestions[effectiveSuggestedIndex]
+                if (selection) {
+                  handleIntentFileSubmit(selection)
+                }
+                return
+              }
+
+              return
+            }
+
+            if (key.tab && !key.shift && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'intent'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
+            if (key.downArrow && hasSuggestions) {
+              setPopupState((prev) =>
+                prev?.type === 'intent'
+                  ? {
+                      ...prev,
+                      suggestedFocused: true,
+                      suggestedSelectionIndex: 0,
+                    }
+                  : prev,
+              )
+              return
+            }
+
             return
           }
 
@@ -1502,6 +1913,7 @@ export const CommandScreen = memo(
             return
           }
           const resolvedPath = path.resolve(process.cwd(), targetFile)
+          clearHistory()
           setIsTestCommandRunning(true)
           setLastTestFile(targetFile)
           setPopupState((prev) => (prev?.type === 'test' ? null : prev))
@@ -1541,7 +1953,7 @@ export const CommandScreen = memo(
             setIsTestCommandRunning(false)
           }
         },
-        [isTestCommandRunning, lastTestFile, pushHistory],
+        [clearHistory, isTestCommandRunning, lastTestFile, pushHistory],
       )
 
       const handleTestPopupSubmit = useCallback(
@@ -1559,36 +1971,10 @@ export const CommandScreen = memo(
 
       const handleSubmit = useCallback(
         (value: string) => {
+          const expandedValue = expandPasteTokens(value)
+
           if (isAwaitingRefinement) {
-            submitRefinement(value)
-            setInputValue('')
-            return
-          }
-
-          if (isAwaitingNewReuse) {
-            const response = value.trim().toLowerCase()
-            if (response === 'y' || response === 'yes') {
-              const prompt = pendingNewReusePromptRef.current
-              pendingNewReusePromptRef.current = null
-              setIsAwaitingNewReuse(false)
-              setInputValue('')
-              if (prompt) {
-                applyReusedPromptAsMetaInstructions(prompt)
-              } else {
-                pushHistory('[new] No previous prompt available to reuse.', 'system')
-              }
-              return
-            }
-
-            if (response === 'n' || response === 'no') {
-              pendingNewReusePromptRef.current = null
-              setIsAwaitingNewReuse(false)
-              setInputValue('')
-              pushHistory('[new] Continuing without reusing the previous prompt.', 'system')
-              return
-            }
-
-            pushHistory('[new] Please answer "y" or "n".', 'system')
+            submitRefinement(expandedValue)
             setInputValue('')
             return
           }
@@ -1599,14 +1985,16 @@ export const CommandScreen = memo(
 
           if (isCommandMenuActive) {
             if (selectedCommand) {
-              const trimmedArgs = commandArgsRaw.trim()
+              const trimmedArgs = commandMenuArgsRaw.trim()
               addCommandHistoryEntry(
                 `/${selectedCommand.id}${trimmedArgs ? ` ${trimmedArgs}` : ''}`,
               )
               if (selectedCommand.id === 'new') {
-                handleNewCommand(commandArgsRaw)
+                handleNewCommand(commandMenuArgsRaw)
+              } else if (selectedCommand.id === 'reuse') {
+                handleReuseCommand()
               } else {
-                handleCommandSelection(selectedCommand.id, commandArgsRaw)
+                handleCommandSelection(selectedCommand.id, commandMenuArgsRaw)
               }
             }
             setInputValue('')
@@ -1618,7 +2006,7 @@ export const CommandScreen = memo(
             return
           }
 
-          const trimmed = value.trim()
+          const trimmed = expandedValue.trim()
           const intentSource = resolveIntentSource(trimmed, intentFilePath)
           if (intentSource.kind === 'empty') {
             setInputValue('')
@@ -1650,39 +2038,16 @@ export const CommandScreen = memo(
           isCommandMenuActive,
           isCommandMode,
           isAwaitingRefinement,
+          expandPasteTokens,
           submitRefinement,
           popupState,
           selectedCommand,
           isGenerating,
           runGeneration,
           pushHistory,
-          commandArgsRaw,
+          commandMenuArgsRaw,
           intentFilePath,
         ],
-      )
-
-      useInput(
-        (_input, key) => {
-          if (!pastedSnippetRef.current) {
-            return
-          }
-          if (popupState || helpOpen) {
-            return
-          }
-          if (key.escape) {
-            clearPastedSnippet()
-            return
-          }
-          if (key.return) {
-            const snippet = pastedSnippetRef.current
-            if (!snippet) {
-              return
-            }
-            clearPastedSnippet()
-            handleSubmit(snippet.text)
-          }
-        },
-        { isActive: Boolean(pastedSnippet) && !helpOpen },
       )
 
       const handleInputChange = useCallback(
@@ -1697,19 +2062,43 @@ export const CommandScreen = memo(
             return
           }
 
-          const snippet = detectPastedSnippetFromInputChange(inputValueRef.current, next)
-          if (snippet) {
-            applyPastedSnippet(snippet)
+          const previous = inputValueRef.current
+          const normalizedNext = stripBracketedPasteControlSequences(
+            next
+              .replace(/\r\n/g, '\n')
+              .replace(/\r/g, '\n')
+              .replace(/\u0000/g, ''),
+          )
+          const detection = detectPastedSnippetFromInputChange(previous, normalizedNext)
+
+          if (detection) {
+            const token = allocatePasteToken()
+            pastedSnippetTokensRef.current.set(token, detection.snippet)
+
+            const replaced =
+              detection.normalizedNextValue.slice(0, detection.range.start) +
+              token +
+              detection.normalizedNextValue.slice(detection.range.end)
+
+            dropMissingPasteTokens(previous, replaced)
+            setInputValue(replaced)
+            updateLastTypedIntent(replaced)
             return
           }
 
-          setInputValue(next)
-          if (isCommandInput(next, fs.existsSync)) {
-            return
-          }
-          lastTypedIntentRef.current = next
+          dropMissingPasteTokens(previous, normalizedNext)
+          setInputValue(normalizedNext)
+          updateLastTypedIntent(normalizedNext)
         },
-        [applyPastedSnippet, consumeSuppressedTextInputChange, popupState, setInputValue],
+        [
+          allocatePasteToken,
+          consumeSuppressedTextInputChange,
+          dropMissingPasteTokens,
+          popupState,
+          setInputValue,
+          updateLastTypedIntent,
+          stripBracketedPasteControlSequences,
+        ],
       )
 
       const handleModelPopupQueryChange = useCallback(
@@ -1780,11 +2169,14 @@ export const CommandScreen = memo(
           if (consumeSuppressedTextInputChange()) {
             return
           }
+
+          const sanitized = stripTerminalPasteArtifacts(next)
+
           setPopupState((prev) =>
             prev?.type === 'file'
               ? {
                   ...prev,
-                  draft: next,
+                  draft: sanitized,
                   suggestedSelectionIndex: 0,
                   suggestedFocused: false,
                 }
@@ -1796,12 +2188,19 @@ export const CommandScreen = memo(
 
       const handleIntentPopupDraftChange = useCallback(
         (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) => (prev?.type === 'intent' ? { ...prev, draft: next } : prev))
+          const sanitized = stripTerminalPasteArtifacts(next)
+          setPopupState((prev) =>
+            prev?.type === 'intent'
+              ? {
+                  ...prev,
+                  draft: sanitized,
+                  suggestedSelectionIndex: 0,
+                  suggestedFocused: false,
+                }
+              : prev,
+          )
         },
-        [consumeSuppressedTextInputChange, setPopupState],
+        [setPopupState],
       )
 
       const handleSeriesPopupDraftChange = useCallback(
@@ -1839,7 +2238,19 @@ export const CommandScreen = memo(
           if (consumeSuppressedTextInputChange()) {
             return
           }
-          setPopupState((prev) => (prev?.type === 'smart' ? { ...prev, draft: next } : prev))
+
+          const sanitized = stripTerminalPasteArtifacts(next)
+
+          setPopupState((prev) =>
+            prev?.type === 'smart'
+              ? {
+                  ...prev,
+                  draft: sanitized,
+                  suggestedSelectionIndex: 0,
+                  suggestedFocused: false,
+                }
+              : prev,
+          )
         },
         [consumeSuppressedTextInputChange, setPopupState],
       )
@@ -1851,6 +2262,13 @@ export const CommandScreen = memo(
 
       return (
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
+          {isAwaitingTransportInput ? (
+            <Box flexShrink={0}>
+              <Text color="yellow">
+                Waiting for interactive transport input (send refine/finish).
+              </Text>
+            </Box>
+          ) : null}
           <Box
             flexDirection="column"
             height={historyRows}
@@ -1871,6 +2289,8 @@ export const CommandScreen = memo(
                   query={popupState.query}
                   options={modelPopupOptions}
                   selectedIndex={modelPopupSelection}
+                  recentCount={modelPopupRecentCount}
+                  maxHeight={overlayHeight}
                   providerStatuses={providerStatuses}
                   onQueryChange={handleModelPopupQueryChange}
                   onSubmit={handleModelPopupSubmit}
@@ -1885,10 +2305,11 @@ export const CommandScreen = memo(
                   items={files}
                   selectedIndex={popupState.selectionIndex}
                   emptyLabel="No file globs added"
-                  instructions="Enter to add · Tab/↓ suggestions · ↑/↓ navigate · Del to remove · Esc to close"
+                  instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
                   suggestedItems={filePopupSuggestions}
                   suggestedSelectionIndex={filePopupSuggestionSelectionIndex}
                   suggestedFocused={filePopupSuggestionsFocused}
+                  maxHeight={overlayHeight}
                   onDraftChange={handleFilePopupDraftChange}
                   onSubmitDraft={handleAddFile}
                 />
@@ -1919,6 +2340,10 @@ export const CommandScreen = memo(
               ) : popupState.type === 'intent' ? (
                 <IntentFilePopup
                   draft={popupState.draft}
+                  suggestions={intentPopupSuggestions}
+                  suggestedSelectionIndex={intentPopupSuggestionSelectionIndex}
+                  suggestedFocused={intentPopupSuggestionsFocused}
+                  maxHeight={overlayHeight}
                   onDraftChange={handleIntentPopupDraftChange}
                   onSubmitDraft={handleIntentFileSubmit}
                 />
@@ -1948,20 +2373,27 @@ export const CommandScreen = memo(
                   run={tokenUsageStoreRef.current?.getLatestRun() ?? null}
                   breakdown={tokenUsageStoreRef.current?.getLatestBreakdown() ?? null}
                 />
+              ) : popupState.type === 'settings' ? (
+                <SettingsPopup chips={enhancedStatusChips} />
               ) : popupState.type === 'reasoning' ? (
                 <ReasoningPopup
                   lines={reasoningPopupLines}
                   visibleRows={reasoningPopupVisibleRows}
                   scrollOffset={popupState.scrollOffset}
                 />
-              ) : (
+              ) : popupState.type === 'smart' ? (
                 <SmartPopup
                   enabled={smartContextEnabled}
+                  savedRoot={smartContextRoot}
                   draft={popupState.draft}
+                  suggestedItems={smartPopupSuggestions}
+                  suggestedSelectionIndex={smartPopupSuggestionSelectionIndex}
+                  suggestedFocused={smartPopupSuggestionsFocused}
+                  maxHeight={overlayHeight}
                   onDraftChange={handleSmartPopupDraftChange}
                   onSubmitRoot={handleSmartRootSubmit}
                 />
-              )}
+              ) : null}
             </Box>
           ) : null}
 
@@ -1971,28 +2403,22 @@ export const CommandScreen = memo(
             </Box>
           ) : null}
 
-          {pastedSnippet && !isPopupOpen && !helpOpen ? (
-            <Box marginBottom={1} flexShrink={0}>
-              <PastedSnippetCard snippet={pastedSnippet} />
-            </Box>
-          ) : null}
-
           <InputBar
             value={inputBarValue}
             onChange={handleInputChange}
             onSubmit={handleSubmit}
-            isDisabled={isPopupOpen || helpOpen || Boolean(pastedSnippet)}
+            mode={isAwaitingRefinement ? 'refinement' : 'intent'}
+            isDisabled={isPopupOpen || helpOpen}
             isPasteActive={isPasteActive}
             statusChips={enhancedStatusChips}
             hint={inputBarHint}
             debugLine={inputBarDebugLine}
+            tokenLabel={tokenLabel}
             onDebugKeyEvent={debugKeysEnabled ? handleDebugKeyEvent : undefined}
             placeholder={
-              pastedSnippet
-                ? pastedSnippet.label
-                : isAwaitingRefinement
-                  ? 'Describe refinement (or empty to finish)...'
-                  : 'Describe your goal or type /command'
+              isAwaitingRefinement
+                ? 'Describe refinement (or empty to finish)...'
+                : 'Describe your goal or type /command'
             }
           />
         </Box>

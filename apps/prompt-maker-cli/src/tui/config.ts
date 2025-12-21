@@ -14,7 +14,12 @@ export const COMMAND_DESCRIPTORS = [
   {
     id: 'new',
     label: 'New',
-    description: 'Reset session state (/new [--reuse])',
+    description: 'Reset session state (/new)',
+  },
+  {
+    id: 'reuse',
+    label: 'Reuse',
+    description: 'Reset and reuse last prompt (/reuse)',
   },
   { id: 'file', label: 'File', description: 'Attach file context' },
   { id: 'url', label: 'URL', description: 'Add URL context' },
@@ -31,6 +36,7 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },
   { id: 'json', label: 'JSON', description: 'Toggle JSON payload in history (/json on|off)' },
   { id: 'tokens', label: 'Tokens', description: 'Show token usage breakdown (/tokens)' },
+  { id: 'settings', label: 'Settings', description: 'Show current settings (/settings)' },
   {
     id: 'reasoning',
     label: 'Reasoning',
@@ -39,7 +45,7 @@ export const COMMAND_DESCRIPTORS = [
   },
   { id: 'history', label: 'History', description: 'Browse command/intent history (/history)' },
   { id: 'test', label: 'Test', description: 'Run prompt tests (/test prompt-tests.yaml)' },
-  { id: 'exit', label: 'Exit', description: 'Quit the command palette' },
+  { id: 'exit', label: 'Exit', description: 'Exit the app (/exit)' },
 ] as const
 
 export const TOGGLE_LABELS = {
@@ -50,16 +56,17 @@ export const TOGGLE_LABELS = {
 } as const
 
 export const POPUP_HEIGHTS = {
-  model: 12,
+  model: 16,
   toggle: 6,
   file: 16,
   url: 12,
   history: 16,
   smart: 9,
   tokens: 16,
+  settings: 14,
   reasoning: 18,
   test: 7,
-  intent: 7,
+  intent: 9,
   instructions: 7,
   series: 8,
 } as const

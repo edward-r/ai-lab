@@ -9,15 +9,19 @@
 ## User
 
 # Title
+
 Encyclopedic Technical Explanation of prompt-maker-cli TUI (Architecture, Data Flow, and Key Modules)
 
 ## Role
+
 You are a senior software engineer and technical writer. Your job is to produce a complete, accurate, code-referenced explanation of how the **prompt-maker-cli** Text UI (TUI) works, suitable to onboard another coding agent.
 
 ## Context
+
 You are given source code context for a Node/TypeScript CLI app with a TUI built using **Ink**. The explanation must be grounded in the provided files and must cite file paths when describing behavior.
 
 Key areas to study include (non-exhaustive):
+
 - TUI entry and routing: `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/index.ts`, `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/tui/index.tsx`
 - TUI container and screens: `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/tui/AppContainer.tsx`, `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/tui/CommandScreen.tsx`, `/Users/eroberts/Projects/ai-lab/apps/prompt-make r-cli/src/tui/TestRunnerScreen.tsx`
 - Keybindings/help: `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/tui/app-container-keymap.ts`, `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/tui/help-config.ts`, `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/tui/components/core/HelpOverlay.tsx`
@@ -29,12 +33,15 @@ Key areas to study include (non-exhaustive):
 - Prompt tests runner: `/Users/eroberts/Projects/ai-lab/apps/prompt-maker-cli/src/test-command.ts`, `/Users/eroberts/Projects/ ai-lab/apps/prompt-maker-cli/src/testing/*`
 
 ## Goals & Tasks
+
 Produce an “encyclopedic” explanation that enables another coding agent to:
+
 - Understand the TUI’s architecture and module boundaries.
 - Trace end-to-end flows (user input → command parsing → context resolution → generation → output rendering).
 - Modify or extend the TUI safely (e.g., add a new command, popup, or status chip).
 
 Your document must include:
+
 - **High-level architecture overview** (major components and responsibilities).
 - **Detailed data flow** for:
   - Normal generation from typed intent.
@@ -76,10 +83,12 @@ Your document must include:
 - **Glossary** of key terms/types (e.g., GenerateArgs, StreamEventInput, PopupState, ProviderStatus).
 
 ## Inputs
+
 - Provided code context files (see “Context” section). Treat them as the source of truth.
 - No external assumptions about behavior beyond what is supported by the code.
 
 ## Constraints
+
 - Do **not** implement code or propose unrelated refactors; focus on explaining current behavior.
 - Be precise: when describing behavior, cite the relevant file path(s) and function/component names.
 - If you infer behavior, label it explicitly as an inference and justify it from code.
@@ -88,6 +97,7 @@ Your document must include:
 - Keep the explanation internally consistent with the code.
 
 ## Execution Plan
+
 1. **Map the entrypoints and routing**
    - Explain how `src/index.ts` routes to `ui` vs `generate` vs `test`.
    - Explain how `src/tui/index.tsx` parses args and renders Ink.
@@ -116,11 +126,14 @@ Your document must include:
 9. **Explain test runner**
    - `TestRunnerScreen` flow and reporter callbacks.
 10. **Summarize extension points and testing**
-   - Where to add commands/popups.
-   - Which tests to update/add.
+
+- Where to add commands/popups.
+- Which tests to update/add.
 
 ## Output Format
+
 Produce a single Markdown document with:
+
 - Title
 - Table of Contents
 - Sections matching the “Goals & Tasks” coverage
@@ -130,13 +143,15 @@ Produce a single Markdown document with:
   - Sequence diagram for a generation run.
 
 ## Quality Checks
+
 Before finalizing, verify:
+
 - **Coverage**: Every bullet in “Goals & Tasks” is ad dressed.
 - **Citations**: Each major behavior claim references at least one relevant file path.
 - **Correctness**: No contradictions with the code (especially around interactive/json constraints, model switching, and overlay precedence).
 - **Actionability**: Extensibility steps are concrete (files to edit, types to update, tests to add).
 - **Clarity**: A new engineer can follow the flows without reading the entire codebase first.
-- **No execution**: You only explain; you do not implement or change code. 
+- **No execution**: You only explain; you do not implement or change code.
 
 ---
 
@@ -451,26 +466,26 @@ This routing is implemented in `apps/prompt-maker-cli/src/index.ts:6`–`apps/pr
 
 ### Major module boundaries
 
-- **CLI routing and pipeline**  
-  - Command dispatch: `apps/prompt-maker-cli/src/index.ts:8`  
-  - Generate pipeline: `apps/prompt-maker-cli/src/generate-command.ts:52`  
+- **CLI routing and pipeline**
+  - Command dispatch: `apps/prompt-maker-cli/src/index.ts:8`
+  - Generate pipeline: `apps/prompt-maker-cli/src/generate-command.ts:52`
   - Prompt generation + series generation: `apps/prompt-maker-cli/src/prompt-generator-service.ts:101`
 
-- **TUI shell and screens**  
-  - TUI render entry: `apps/prompt-maker-cli/src/tui/index.tsx:31`  
-  - App container + view switching: `apps/prompt-maker-cli/src/tui/AppContainer.tsx:17`  
-  - Main interactive screen: `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:124`  
+- **TUI shell and screens**
+  - TUI render entry: `apps/prompt-maker-cli/src/tui/index.tsx:31`
+  - App container + view switching: `apps/prompt-maker-cli/src/tui/AppContainer.tsx:17`
+  - Main interactive screen: `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:124`
   - Test runner screen: `apps/prompt-maker-cli/src/tui/TestRunnerScreen.tsx:60`
 
-- **TUI hooks and state machines**  
-  - Pipeline adapter (TUI → CLI pipeline): `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:149`  
-  - Popup state machine: `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:70`  
+- **TUI hooks and state machines**
+  - Pipeline adapter (TUI → CLI pipeline): `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:149`
+  - Popup state machine: `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:70`
   - Context store (files/urls/etc): `apps/prompt-maker-cli/src/tui/context-store.ts:3`
 
-- **Context ingestion**  
-  - File globs: `apps/prompt-maker-cli/src/file-context.ts:9`  
-  - URL fetching: `apps/prompt-maker-cli/src/url-context.ts:13`  
-  - GitHub fetching rules: `apps/prompt-maker-cli/src/github-context.ts:53`  
+- **Context ingestion**
+  - File globs: `apps/prompt-maker-cli/src/file-context.ts:9`
+  - URL fetching: `apps/prompt-maker-cli/src/url-context.ts:13`
+  - GitHub fetching rules: `apps/prompt-maker-cli/src/github-context.ts:53`
   - Smart context (embeddings + search): `apps/prompt-maker-cli/src/smart-context-service.ts:26`
 
 ---
@@ -538,11 +553,11 @@ The TUI is rendered via Ink’s `render()` in `apps/prompt-maker-cli/src/tui/ind
 
 ### Responsibilities
 
-1. **Wraps the application in the shared context provider**  
-   - `<ContextProvider>` wraps everything, see `apps/prompt-maker-cli/src/tui/AppContainer.tsx:22`–`apps/prompt-maker-cli/src/tui/AppContainer.tsx:65`.  
+1. **Wraps the application in the shared context provider**
+   - `<ContextProvider>` wraps everything, see `apps/prompt-maker-cli/src/tui/AppContainer.tsx:22`–`apps/prompt-maker-cli/src/tui/AppContainer.tsx:65`.
    - Context shape is defined in `apps/prompt-maker-cli/src/tui/context-store.ts:3`–`apps/prompt-maker-cli/src/tui/context-store.ts:29`.
 
-2. **View switching (“generate” vs “tests”)**  
+2. **View switching (“generate” vs “tests”)**
    - Local state `view` controls which screen is rendered, see `apps/prompt-maker-cli/src/tui/AppContainer.tsx:20` and `apps/prompt-maker-cli/src/tui/AppContainer.tsx:129`–`apps/prompt-maker-cli/src/tui/AppContainer.tsx:56`.
 
 3. **Help overlay layout reservation**
@@ -560,7 +575,7 @@ The TUI is rendered via Ink’s `render()` in `apps/prompt-maker-cli/src/tui/ind
 ### Help overlay behavior
 
 - Help is toggled by `?` (non-ctrl/non-meta), see `apps/prompt-maker-cli/src/tui/app-container-keymap.ts:36`–`apps/prompt-maker-cli/src/tui/app-container-keymap.ts:41` and `apps/prompt-maker-cli/src/tui/app-container-keymap.ts:65`–`apps/prompt-maker-cli/src/tui/app-container-keymap.ts:67`.
-- While help is open, *global routing consumes everything except Esc or ?* (closing help), see `apps/prompt-maker-cli/src/tui/app-container-keymap.ts:58`–`apps/prompt-maker-cli/src/tui/app-container-keymap.ts:63`.
+- While help is open, _global routing consumes everything except Esc or ?_ (closing help), see `apps/prompt-maker-cli/src/tui/app-container-keymap.ts:58`–`apps/prompt-maker-cli/src/tui/app-container-keymap.ts:63`.
 
 ---
 
@@ -570,7 +585,7 @@ The TUI is rendered via Ink’s `render()` in `apps/prompt-maker-cli/src/tui/ind
 
 ### Layout structure (vertical stack)
 
-1. **History viewport**  
+1. **History viewport**
    - Renders `ScrollableOutput`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1861`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1866`.
    - `ScrollableOutput` colors by entry kind (`user`, `progress`, `system`), see `apps/prompt-maker-cli/src/tui/components/core/ScrollableOutput.tsx:21`–`apps/prompt-maker-cli/src/tui/components/core/ScrollableOutput.tsx:44`.
 
@@ -578,8 +593,8 @@ The TUI is rendered via Ink’s `render()` in `apps/prompt-maker-cli/src/tui/ind
    - If a popup is open and help is not open, it renders the popup container, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1867`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1966`.
    - If command menu is active, renders `CommandMenu`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1968`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1972`.
 
-3. **Paste-preview card (only when not help/popup)**  
-   - Shows `PastedSnippetCard`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1974`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1978`.  
+3. **Paste-preview card (only when not help/popup)**
+   - Shows `PastedSnippetCard`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1974`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1978`.
    - Card component: `apps/prompt-maker-cli/src/tui/components/core/PastedSnippetCard.tsx:10`.
 
 4. **Input bar**
@@ -655,10 +670,11 @@ Command-vs-path detection lives in `apps/prompt-maker-cli/src/tui/drag-drop-path
 
 - `isCommandInput()` returns `true` if input starts with `/`, **unless** the input looks like a valid absolute file path (POSIX or Windows) and should be treated as a path, see `apps/prompt-maker-cli/src/tui/drag-drop-path.ts:33`–`apps/prompt-maker-cli/src/tui/drag-drop-path.ts:58`.
 - Important nuance:
-  - A POSIX absolute path like `/Users/.../file.ts` has nested segments, so it is *not* treated as a command input (`hasNestedSegment` → `false` return), see `apps/prompt-maker-cli/src/tui/drag-drop-path.ts:51`–`apps/prompt-maker-cli/src/tui/drag-drop-path.ts:55`.
+  - A POSIX absolute path like `/Users/.../file.ts` has nested segments, so it is _not_ treated as a command input (`hasNestedSegment` → `false` return), see `apps/prompt-maker-cli/src/tui/drag-drop-path.ts:51`–`apps/prompt-maker-cli/src/tui/drag-drop-path.ts:55`.
   - A single-segment absolute path like `/tmp` is treated as a command **only if it does not exist**, see `apps/prompt-maker-cli/src/tui/drag-drop-path.ts:57`–`apps/prompt-maker-cli/src/tui/drag-drop-path.ts:58`.
 
 This is how the TUI supports both:
+
 - `/model` style commands
 - drag-dropped absolute file paths (which begin with `/` on macOS/Linux)
 
@@ -707,6 +723,7 @@ The popup system is an explicit state machine stored in `popupState` and managed
 - Enforcing constraints like “JSON cannot be enabled when interactive transport is enabled”
 
 Key constraint:
+
 - `JSON_INTERACTIVE_ERROR = 'JSON output is unavailable while interactive transport is enabled.'`, see `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:68`.
 - Enforced both in toggle logic and command handling, see:
   - `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:232`–`apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:239`
@@ -722,7 +739,7 @@ When `/series` is selected, it:
    - latest typed input (tracked by `getLatestTypedIntent`)
    - last run intent (`lastUserIntentRef.current`)
    - intent file content (read if configured)
-   see `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:419`–`apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:466`.
+     see `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:419`–`apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:466`.
 
 Intent file fallback for series reads the file from disk, see `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:434`–`apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:458`.
 
@@ -730,7 +747,7 @@ Intent file fallback for series reads the file from disk, see `apps/prompt-maker
 
 Popups are presentational components with focusable `TextInput` fields and hints. Examples:
 
-- Model selection popup: `apps/prompt-maker-cli/src/tui/components/popups/ModelPopup.tsx:56`  
+- Model selection popup: `apps/prompt-maker-cli/src/tui/components/popups/ModelPopup.tsx:56`
 - List popup (file/url/history): `apps/prompt-maker-cli/src/tui/components/popups/ListPopup.tsx:23`
 - Series intent popup: `apps/prompt-maker-cli/src/tui/components/popups/SeriesIntentPopup.tsx:13`
 - Token usage popup: `apps/prompt-maker-cli/src/tui/components/popups/TokenUsagePopup.tsx:50`
@@ -796,7 +813,7 @@ Notable argument choices:
    - not in command mode
    - not in popup
    - not generating
-   → resolves intent source as text, pushes user history, and calls `runGeneration({ intent })`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1621`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1646`.
+     → resolves intent source as text, pushes user history, and calls `runGeneration({ intent })`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1621`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1646`.
 
 3. `useGenerationPipeline.runGeneration`:
    - checks provider readiness (`checkModelProviderStatus`), see `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:377`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:398`
@@ -806,7 +823,7 @@ Notable argument choices:
    - context resolution
    - generation loop
    - history persistence
-   and returns a `GeneratePipelineResult`, see `apps/prompt-maker-cli/src/generate-command.ts:52`.
+     and returns a `GeneratePipelineResult`, see `apps/prompt-maker-cli/src/generate-command.ts:52`.
 
 5. TUI prints final prompt and optional JSON payload into history, see `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:472`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:506`.
 
@@ -833,6 +850,7 @@ Two entry paths:
   - `CommandScreen` reacts by setting `setInputValue('/')`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:720`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:728`.
 
 Then:
+
 - `CommandMenu` is displayed and filtered, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:504`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:536`.
 - Up/Down selects command, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:847`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:861`.
 - Enter executes selected command via `usePopupManager.actions.handleCommandSelection`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1600`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1614` and `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:311`.
@@ -874,9 +892,10 @@ The TUI uses a custom `interactiveDelegate` that turns the interactive loop into
     - `CommandScreen` routing refinement submissions: `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1562`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1566`
 
 **Key gating rule:** The TUI only enables delegate-based refinement when:
+
 - there is **no interactive transport**
 - and JSON output is **disabled**  
-See `usesTuiInteractiveDelegate = !usesTransportInteractive && !jsonOutputEnabled` in `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:424`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:425`.
+  See `usesTuiInteractiveDelegate = !usesTransportInteractive && !jsonOutputEnabled` in `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:424`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:425`.
 
 This matches the CLI pipeline constraint that `--json` cannot be combined with interactive sessions, see `apps/prompt-maker-cli/src/generate-command.ts:66`–`apps/prompt-maker-cli/src/generate-command.ts:68`.
 
@@ -895,9 +914,11 @@ The CLI pipeline instantiates an `InteractiveTransport` and runs the interactive
 - interactive loop via transport: `apps/prompt-maker-cli/src/generate-command.ts:1046`–`apps/prompt-maker-cli/src/generate-command.ts:1080`
 
 Transport command format is JSON per line:
+
 - `{"type":"refine","instruction":"..."}` or `{"type":"finish"}`, see `apps/prompt-maker-cli/src/generate-command.ts:1747`–`apps/prompt-maker-cli/src/generate-command.ts:1868`.
 
 **TUI behavior with interactive transport enabled:**
+
 - JSON output is disallowed (popup manager blocks it), see `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:232`–`apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:239`.
 - TUI history will display transport lifecycle stream events (listening/connected/disconnected), because `useGenerationPipeline.handleStreamEvent` maps those to history lines, see `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:300`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:309`.
 
@@ -988,7 +1009,7 @@ Then each test is executed:
 - Command handling: `apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:472`–`apps/prompt-maker-cli/src/tui/hooks/usePopupManager.ts:479`.
 - Actual execution inside `CommandScreen.runTestsFromCommand`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1492`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1545`.
 
-This uses a `PromptTestRunReporter` to stream progress lines into the *generation history viewport*, not the separate Test Runner view.
+This uses a `PromptTestRunReporter` to stream progress lines into the _generation history viewport_, not the separate Test Runner view.
 
 ---
 
@@ -1011,7 +1032,7 @@ State fields include:
 
 ### Local UI state vs shared state
 
-`CommandScreen` contains lots of local UI state that is *not* part of the shared context:
+`CommandScreen` contains lots of local UI state that is _not_ part of the shared context:
 
 - Input buffer state: `inputValue` (`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:188`)
 - Popups state: `popupState` from `usePopupManager` (`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:418`)
@@ -1019,8 +1040,9 @@ State fields include:
 - Provider status cache for UI: `providerStatuses`, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:207`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:209`.
 
 Shared context is used to supply pipeline inputs and persist “last outputs” for popups:
+
 - `lastReasoning` is used by `/reasoning` popup rendering, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1085`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:1108`.
-- `lastGeneratedPrompt` is used by `/new --reuse` flow, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:615`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:649`.
+- `lastGeneratedPrompt` is used by `/reuse` flow, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:615`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:649`.
 
 ### History buffers
 
@@ -1037,6 +1059,7 @@ There are **two different “history” concepts**:
    - Deduplicates consecutive duplicates and keeps newest-first, see `apps/prompt-maker-cli/src/tui/command-history.ts:58`–`apps/prompt-maker-cli/src/tui/command-history.ts:80`.
 
 Additionally, the CLI pipeline writes a JSONL audit log of generations to:
+
 - `~/.config/prompt-maker-cli/history.jsonl`, see `apps/prompt-maker-cli/src/history-logger.ts:5`.
 - Called from `runGeneratePipeline` regardless of TUI/CLI mode, see `apps/prompt-maker-cli/src/generate-command.ts:670`–`apps/prompt-maker-cli/src/generate-command.ts:671`.
 
@@ -1081,20 +1104,24 @@ Additionally, the CLI pipeline writes a JSONL audit log of generations to:
 - Retrieves top 5 related files: `vectorStore.search(intent, 5, validFiles)`, see `apps/prompt-maker-cli/src/smart-context-service.ts:88`.
 
 Embeddings cache uses:
+
 - File hash + embedding persisted in `~/.config/prompt-maker-cli/embeddings_cache.json`, see `apps/prompt-maker-cli/src/rag/vector-store.ts:8`–`apps/prompt-maker-cli/src/rag/vector-store.ts:10`.
 - In-memory cache + disk persistence, see `apps/prompt-maker-cli/src/rag/vector-store.ts:18` and `apps/prompt-maker-cli/src/rag/vector-store.ts:90`–`apps/prompt-maker-cli/src/rag/vector-store.ts:118`.
 
 ### Media handling constraints (images vs videos; Gemini requirement)
 
 Images:
+
 - Read and embedded as base64 image parts, max 20MB, supported extensions only, see `apps/prompt-maker-cli/src/image-loader.ts:6`–`apps/prompt-maker-cli/src/image-loader.ts:47`.
 
 Videos:
+
 - Uploaded via Gemini Files API, requiring `GEMINI_API_KEY`, see `apps/prompt-maker-cli/src/media-loader.ts:65`–`apps/prompt-maker-cli/src/media-loader.ts:72`.
 - Polls processing state until ACTIVE (max 5 minutes), see `apps/prompt-maker-cli/src/media-loader.ts:74`–`apps/prompt-maker-cli/src/media-loader.ts:101`.
 - MIME types are limited to a known set, see `apps/prompt-maker-cli/src/media-loader.ts:9`–`apps/prompt-maker-cli/src/media-loader.ts:18`.
 
 **Model constraint for video**:
+
 - CLI pipeline auto-switches to Gemini when video inputs are present, see `apps/prompt-maker-cli/src/generate-command.ts:405`–`apps/prompt-maker-cli/src/generate-command.ts:408`.
 - Series pipeline in TUI does the same, see `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:544`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:547`.
 
@@ -1108,15 +1135,17 @@ Videos:
 - Config-defined model entries are loaded from CLI config `promptGenerator.models`, see `apps/prompt-maker-cli/src/tui/model-options.ts:127`–`apps/prompt-maker-cli/src/tui/model-options.ts:141` and config parsing in `apps/prompt-maker-cli/src/config.ts:148`–`apps/prompt-maker-cli/src/config.ts:170`.
 
 Model options merging logic:
+
 - Base + overrides merged by model ID with “override wins”, see `apps/prompt-maker-cli/src/tui/model-options.ts:105`–`apps/prompt-maker-cli/src/tui/model-options.ts:110`.
 
 Default selection:
+
 - Prefer:
   1. explicit requested model if present in options
   2. option marked `.default`
   3. first option
   4. fallback `gpt-4o-mini`
-  See `apps/prompt-maker-cli/src/tui/model-options.ts:144`–`apps/prompt-maker-cli/src/tui/model-options.ts:159`.
+     See `apps/prompt-maker-cli/src/tui/model-options.ts:144`–`apps/prompt-maker-cli/src/tui/model-options.ts:159`.
 
 ### Provider status caching and error states
 
@@ -1128,6 +1157,7 @@ Provider status checks used by TUI:
 - Missing key detection uses message regex `/missing/i`, see `apps/prompt-maker-cli/src/tui/provider-status.ts:28`–`apps/prompt-maker-cli/src/tui/provider-status.ts:29`.
 
 TUI refreshes provider statuses on mount:
+
 - `CommandScreen` loops over providers and updates UI state, see `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:655`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:679`.
 
 ### Credentials resolution sources
@@ -1146,15 +1176,17 @@ Credential resolution uses environment variables first, then config file:
 The generation pipeline defines a structured stream event schema `StreamEventInput`, see `apps/prompt-maker-cli/src/generate-command.ts:250`–`apps/prompt-maker-cli/src/generate-command.ts:253`.
 
 Events include:
+
 - `progress.update`, `context.telemetry`
 - `generation.iteration.start`, `generation.iteration.complete`, `generation.final`
 - `interactive.awaiting`, `interactive.state`
 - transport lifecycle: `transport.listening`, `transport.client.connected`, `transport.client.disconnected`
-See event type definitions in `apps/prompt-maker-cli/src/generate-command.ts:172`–`apps/prompt-maker-cli/src/generate-command.ts:248`.
+  See event type definitions in `apps/prompt-maker-cli/src/generate-command.ts:172`–`apps/prompt-maker-cli/src/generate-command.ts:248`.
 
 ### TUI mapping of stream events to history/status
 
 `useGenerationPipeline.handleStreamEvent` maps stream events into:
+
 - history lines (`pushHistory`)
 - status message updates (`setStatusMessage`)
 - token tracking (`tokenUsageStore`)
@@ -1162,6 +1194,7 @@ See event type definitions in `apps/prompt-maker-cli/src/generate-command.ts:172
 See `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:237`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:317`.
 
 Notable mappings:
+
 - `context.telemetry` updates telemetry and records it, see `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:284`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:296`.
 - `generation.iteration.complete` records per-iteration prompt tokens and reasoning tokens, see `apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:256`–`apps/prompt-maker-cli/src/tui/hooks/useGenerationPipeline.ts:270`.
 
@@ -1250,6 +1283,7 @@ Status chips are composed in two layers:
    - `apps/prompt-maker-cli/src/tui/CommandScreen.tsx:464`–`apps/prompt-maker-cli/src/tui/CommandScreen.tsx:486`
 
 To add a new chip:
+
 - If it’s tied to generation status, add it to `useGenerationPipeline.ts` chips.
 - If it’s tied to UI-only state (like intent source), add it to `CommandScreen.tsx`.
 
@@ -1334,4 +1368,3 @@ Please write this information out to a markdown file in the root of the project
 ## Assistant
 
 ---
-

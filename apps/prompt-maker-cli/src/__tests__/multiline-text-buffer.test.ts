@@ -27,6 +27,15 @@ describe('multiline-text-buffer', () => {
     expect(insertText(initial, '\nworld')).toEqual({ value: 'hello\nworld', cursor: 11 })
   })
 
+  it('strips bracketed paste markers during insert', () => {
+    const initial: MultilineTextBufferState = { value: '', cursor: 0 }
+    expect(insertText(initial, '\u001b[200~hello\u001b[201~')).toEqual({
+      value: 'hello',
+      cursor: 5,
+    })
+    expect(insertText(initial, '[200~hello[201~')).toEqual({ value: 'hello', cursor: 5 })
+  })
+
   it('backspace removes the previous character', () => {
     const initial: MultilineTextBufferState = { value: 'abc', cursor: 2 }
     expect(backspace(initial)).toEqual({ value: 'ac', cursor: 1 })

@@ -9,11 +9,59 @@ export type CommandHistoryRecord = {
 
 const HISTORY_FILE = path.join(os.homedir(), '.config', 'prompt-maker-cli', 'tui-history.json')
 
-const isFileMissingError = (error: unknown): boolean => {
+const getErrorCode = (error: unknown): string | null => {
   if (!error || typeof error !== 'object') {
-    return false
+    return null
   }
-  return 'code' in error && error.code === 'ENOENT'
+
+  if (!('code' in error)) {
+    return null
+  }
+
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code : null
+}
+
+const isFileMissingError = (error: unknown): boolean => getErrorCode(error) === 'ENOENT'
+
+const isRecoverableHistoryError = (error: unknown): boolean => {
+  if (error instanceof SyntaxError) {
+    return true
+  }
+
+  if (error instanceof Error && error.message === 'History file must contain a JSON array.') {
+    return true
+  }
+
+  return false
+}
+
+const sanitizeTimestamp = (timestamp: string): string => timestamp.replace(/[:.]/g, '-')
+
+const repairCorruptHistoryFile = async (): Promise<void> => {
+  const directory = path.dirname(HISTORY_FILE)
+  const backupPath = path.join(
+    directory,
+    `tui-history.corrupt-${sanitizeTimestamp(new Date().toISOString())}.json`,
+  )
+
+  try {
+    await fs.mkdir(directory, { recursive: true })
+  } catch {
+    return
+  }
+
+  try {
+    await fs.rename(HISTORY_FILE, backupPath)
+  } catch {
+    // Best effort: ignore backup failures.
+  }
+
+  try {
+    await fs.writeFile(HISTORY_FILE, '[]\n', 'utf8')
+  } catch {
+    // Best effort: ignore repair failures.
+  }
 }
 
 const parseHistoryRecords = (raw: unknown): CommandHistoryRecord[] => {
@@ -39,20 +87,48 @@ const parseHistoryRecords = (raw: unknown): CommandHistoryRecord[] => {
 export const readCommandHistory = async (): Promise<CommandHistoryRecord[]> => {
   try {
     const contents = await fs.readFile(HISTORY_FILE, 'utf8')
-    const parsed = JSON.parse(contents) as unknown
-    return parseHistoryRecords(parsed)
+    if (!contents.trim()) {
+      return []
+    }
+
+    try {
+      const parsed = JSON.parse(contents) as unknown
+      return parseHistoryRecords(parsed)
+    } catch (parseError) {
+      if (isRecoverableHistoryError(parseError)) {
+        await repairCorruptHistoryFile()
+        return []
+      }
+      throw parseError
+    }
   } catch (error) {
     if (isFileMissingError(error)) {
       return []
     }
+
+    if (isRecoverableHistoryError(error)) {
+      await repairCorruptHistoryFile()
+      return []
+    }
+
     const message = error instanceof Error ? error.message : 'Unknown history error.'
     throw new Error(`Failed to load history at ${HISTORY_FILE}: ${message}`)
   }
 }
 
 export const writeCommandHistory = async (entries: CommandHistoryRecord[]): Promise<void> => {
-  await fs.mkdir(path.dirname(HISTORY_FILE), { recursive: true })
-  await fs.writeFile(HISTORY_FILE, JSON.stringify(entries, null, 2), 'utf8')
+  const directory = path.dirname(HISTORY_FILE)
+  await fs.mkdir(directory, { recursive: true })
+
+  const contents = JSON.stringify(entries, null, 2)
+  const tempFile = `${HISTORY_FILE}.${process.pid}.tmp`
+  await fs.writeFile(tempFile, contents, 'utf8')
+
+  try {
+    await fs.rename(tempFile, HISTORY_FILE)
+  } catch {
+    await fs.writeFile(HISTORY_FILE, contents, 'utf8')
+  }
 }
 
 export const updateCommandHistory = (params: {

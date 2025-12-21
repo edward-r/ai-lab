@@ -3,7 +3,14 @@ import path from 'node:path'
 import { useCallback, useState } from 'react'
 
 import { TOGGLE_LABELS } from '../config'
-import { discoverFileSuggestions } from '../file-suggestions'
+import {
+  discoverDirectorySuggestions,
+  discoverFileSuggestions,
+  discoverIntentFileSuggestions,
+} from '../file-suggestions'
+import type { NotifyOptions } from '../notifier'
+import { buildModelPopupOptions } from '../model-popup-options'
+import { getRecentSessionModels, recordRecentSessionModel } from '../model-session'
 import type {
   CommandDescriptor,
   HistoryEntry,
@@ -20,6 +27,7 @@ export type PopupManagerActions = {
   openHistoryPopup: () => void
   openSmartPopup: () => void
   openTokensPopup: () => void
+  openSettingsPopup: () => void
   openReasoningPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
@@ -44,6 +52,7 @@ export type UsePopupManagerOptions = {
   isGenerating: boolean
   lastUserIntentRef: React.MutableRefObject<string | null>
   pushHistory: (content: string, kind?: HistoryEntry['kind']) => void
+  notify: (message: string, options?: NotifyOptions) => void
   setInputValue: (value: string) => void
   runSeriesGeneration: (intent: string) => void
   runTestsFromCommand: (value: string) => void
@@ -77,6 +86,7 @@ export const usePopupManager = ({
   isGenerating,
   lastUserIntentRef,
   pushHistory,
+  notify,
   setInputValue,
   runSeriesGeneration,
   runTestsFromCommand,
@@ -104,9 +114,11 @@ export const usePopupManager = ({
   const [popupState, setPopupState] = useState<PopupState>(null)
 
   const openModelPopup = useCallback(() => {
+    const recentModelIds = getRecentSessionModels()
+    const { options } = buildModelPopupOptions({ query: '', modelOptions, recentModelIds })
     const defaultIndex = Math.max(
       0,
-      modelOptions.findIndex((option) => option.id === currentModel),
+      options.findIndex((option) => option.id === currentModel),
     )
     setPopupState({ type: 'model', query: '', selectionIndex: defaultIndex })
   }, [currentModel, modelOptions])
@@ -167,11 +179,42 @@ export const usePopupManager = ({
   }, [])
 
   const openSmartPopup = useCallback(() => {
-    setPopupState({ type: 'smart', draft: smartContextRoot ?? '' })
-  }, [smartContextRoot])
+    setPopupState({
+      type: 'smart',
+      draft: smartContextRoot ?? '',
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+
+    const scan = async (): Promise<void> => {
+      try {
+        const suggestions = await discoverDirectorySuggestions({ cwd: process.cwd(), limit: 200 })
+        setPopupState((prev) =>
+          prev?.type === 'smart'
+            ? {
+                ...prev,
+                suggestedItems: suggestions,
+                suggestedSelectionIndex: 0,
+                suggestedFocused: false,
+              }
+            : prev,
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+        pushHistory(`[smart] Failed to scan workspace: ${message}`, 'system')
+      }
+    }
+
+    void scan()
+  }, [pushHistory, smartContextRoot])
 
   const openTokensPopup = useCallback(() => {
     setPopupState({ type: 'tokens' })
+  }, [])
+
+  const openSettingsPopup = useCallback(() => {
+    setPopupState({ type: 'settings' })
   }, [])
 
   const openReasoningPopup = useCallback(() => {
@@ -183,8 +226,35 @@ export const usePopupManager = ({
   }, [defaultTestFile, lastTestFile])
 
   const openIntentPopup = useCallback(() => {
-    setPopupState({ type: 'intent', draft: intentFilePath })
-  }, [intentFilePath])
+    setPopupState({
+      type: 'intent',
+      draft: intentFilePath,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+
+    const scan = async (): Promise<void> => {
+      try {
+        const suggestions = await discoverIntentFileSuggestions({ cwd: process.cwd(), limit: 200 })
+        setPopupState((prev) =>
+          prev?.type === 'intent'
+            ? {
+                ...prev,
+                suggestedItems: suggestions,
+                suggestedSelectionIndex: 0,
+                suggestedFocused: false,
+              }
+            : prev,
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+        pushHistory(`[intent] Failed to scan workspace: ${message}`, 'system')
+      }
+    }
+
+    void scan()
+  }, [intentFilePath, pushHistory])
 
   const openInstructionsPopup = useCallback(() => {
     setPopupState({ type: 'instructions', draft: metaInstructions })
@@ -214,12 +284,13 @@ export const usePopupManager = ({
       if (!option) {
         return
       }
+      recordRecentSessionModel(option.id)
       setCurrentModel(option.id)
-      pushHistory(`Model set to ${option.id}`)
+      notify(`Selected model: ${option.label} (${option.id})`, { kind: 'info' })
       setInputValue('')
       setPopupState(null)
     },
-    [setCurrentModel, pushHistory, setInputValue],
+    [notify, setCurrentModel, setInputValue],
   )
 
   const handleModelPopupSubmit = useCallback(
@@ -237,21 +308,29 @@ export const usePopupManager = ({
         setPopupState(null)
         return
       }
-      const message =
-        field === 'json'
-          ? value
-            ? 'JSON enabled (payload shown in history)'
-            : 'JSON disabled'
-          : `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
+      if (field === 'json') {
+        setJsonOutputEnabled(value)
+        notify(
+          value
+            ? 'JSON output is ON (payload shown in history)'
+            : 'JSON output is OFF (payload hidden)',
+          { kind: value ? 'info' : 'warning' },
+        )
+        setInputValue('')
+        setPopupState(null)
+        return
+      }
+
+      const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
+
       if (field === 'polish') {
         setPolishEnabled(value)
       } else if (field === 'copy') {
         setCopyEnabled(value)
-      } else if (field === 'chatgpt') {
-        setChatGptEnabled(value)
       } else {
-        setJsonOutputEnabled(value)
+        setChatGptEnabled(value)
       }
+
       pushHistory(message)
       setInputValue('')
       setPopupState(null)
@@ -382,6 +461,10 @@ export const usePopupManager = ({
           openTokensPopup()
           setInputValue('')
           return
+        case 'settings':
+          openSettingsPopup()
+          setInputValue('')
+          return
         case 'reasoning':
           openReasoningPopup()
           setInputValue('')
@@ -487,30 +570,31 @@ export const usePopupManager = ({
       chatGptEnabled,
       copyEnabled,
       exitApp,
-      interactiveTransportPath,
+      getLatestTypedIntent,
+      handleIntentFileSubmit,
+      handleInstructionsSubmit,
       intentFilePath,
+      interactiveTransportPath,
       isGenerating,
       jsonOutputEnabled,
       lastUserIntentRef,
       openFilePopup,
+      openHistoryPopup,
+      openInstructionsPopup,
+      openIntentPopup,
       openModelPopup,
-      openSeriesPopup,
-      openSmartPopup,
-      openTokensPopup,
       openReasoningPopup,
+      openSeriesPopup,
+      openSettingsPopup,
+      openSmartPopup,
       openTestPopup,
       openTogglePopup,
-      handleIntentFileSubmit,
-      handleInstructionsSubmit,
+      openTokensPopup,
       openUrlPopup,
-      openHistoryPopup,
-      openIntentPopup,
-      openInstructionsPopup,
       polishEnabled,
       pushHistory,
       runTestsFromCommand,
       setInputValue,
-      getLatestTypedIntent,
       syncTypedIntentRef,
     ],
   )
@@ -526,9 +610,9 @@ export const usePopupManager = ({
       openHistoryPopup,
       openSmartPopup,
       openTokensPopup,
+      openSettingsPopup,
       openReasoningPopup,
       openTestPopup,
-
       openIntentPopup,
       openInstructionsPopup,
       openSeriesPopup,
