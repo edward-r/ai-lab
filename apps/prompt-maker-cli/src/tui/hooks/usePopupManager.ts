@@ -303,21 +303,29 @@ export const usePopupManager = ({
         setPopupState(null)
         return
       }
-      const message =
-        field === 'json'
-          ? value
-            ? 'JSON enabled (payload shown in history)'
-            : 'JSON disabled'
-          : `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
+      if (field === 'json') {
+        setJsonOutputEnabled(value)
+        notify(
+          value
+            ? 'JSON output is ON (payload shown in history)'
+            : 'JSON output is OFF (payload hidden)',
+          { kind: value ? 'info' : 'warning' },
+        )
+        setInputValue('')
+        setPopupState(null)
+        return
+      }
+
+      const message = `${TOGGLE_LABELS[field]} ${value ? 'enabled' : 'disabled'}`
+
       if (field === 'polish') {
         setPolishEnabled(value)
       } else if (field === 'copy') {
         setCopyEnabled(value)
-      } else if (field === 'chatgpt') {
-        setChatGptEnabled(value)
       } else {
-        setJsonOutputEnabled(value)
+        setChatGptEnabled(value)
       }
+
       pushHistory(message)
       setInputValue('')
       setPopupState(null)

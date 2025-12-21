@@ -19,6 +19,8 @@ const toastChrome = (
       return { borderColor: 'gray', textColor: 'gray', title: 'Notice' }
     case 'progress':
       return { borderColor: 'yellow', textColor: 'yellow', title: 'Working' }
+    case 'warning':
+      return { borderColor: 'yellow', textColor: 'yellow', title: 'Warning' }
     case 'error':
       return { borderColor: 'red', textColor: 'red', title: 'Error' }
     default: {

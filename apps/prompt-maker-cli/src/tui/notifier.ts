@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
-export type ToastKind = 'info' | 'progress' | 'error'
+export type ToastKind = 'info' | 'progress' | 'warning' | 'error'
 
 export type Toast = {
   id: number

@@ -506,7 +506,10 @@ describe('usePopupManager quick toggles', () => {
     })
 
     expect(options.setJsonOutputEnabled).toHaveBeenCalledWith(true)
-    expect(options.pushHistory).toHaveBeenCalledWith('JSON enabled (payload shown in history)')
+    expect(options.notify).toHaveBeenCalledWith('JSON output is ON (payload shown in history)', {
+      kind: 'info',
+    })
+    expect(options.pushHistory).not.toHaveBeenCalled()
   })
 
   it('blocks json toggling when interactive transport is active', () => {
@@ -534,7 +537,10 @@ describe('usePopupManager quick toggles', () => {
     })
 
     expect(options.setJsonOutputEnabled).toHaveBeenCalledWith(false)
-    expect(options.pushHistory).toHaveBeenCalledWith('JSON disabled')
+    expect(options.notify).toHaveBeenCalledWith('JSON output is OFF (payload hidden)', {
+      kind: 'warning',
+    })
+    expect(options.pushHistory).not.toHaveBeenCalled()
   })
 })
 
