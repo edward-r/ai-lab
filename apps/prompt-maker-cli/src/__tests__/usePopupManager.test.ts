@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { JSDOM } from 'jsdom'
 import type { MutableRefObject } from 'react'
 
+import { resetRecentSessionModelsForTests } from '../tui/model-session'
 import { usePopupManager } from '../tui/hooks/usePopupManager'
 import type { UsePopupManagerOptions } from '../tui/hooks/usePopupManager'
 import type { ModelOption } from '../tui/types'
@@ -25,6 +26,10 @@ const globalScope = globalThis as typeof globalThis & {
 globalScope.window = dom.window
 globalScope.document = dom.window.document
 globalScope.navigator = dom.window.navigator
+
+beforeEach(() => {
+  resetRecentSessionModelsForTests()
+})
 
 const defaultModelOptions: ModelOption[] = [
   {
@@ -50,6 +55,7 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
     isGenerating: false,
     lastUserIntentRef: baseRef,
     pushHistory: jest.fn(),
+    notify: jest.fn(),
     setInputValue: jest.fn(),
     runSeriesGeneration: jest.fn(),
     runTestsFromCommand: jest.fn(),
@@ -104,6 +110,7 @@ const getFsMock = () =>
 
 describe('usePopupManager file popup', () => {
   beforeEach(() => {
+    resetRecentSessionModelsForTests()
     fileSuggestions.discoverFileSuggestions.mockReset()
   })
 
@@ -528,5 +535,47 @@ describe('usePopupManager quick toggles', () => {
 
     expect(options.setJsonOutputEnabled).toHaveBeenCalledWith(false)
     expect(options.pushHistory).toHaveBeenCalledWith('JSON disabled')
+  })
+})
+
+describe('usePopupManager model popup', () => {
+  it('notifies on model selection without history', () => {
+    const modelOptions: ModelOption[] = [
+      {
+        id: 'gpt-4o-mini',
+        label: 'GPT-4o Mini',
+        provider: 'openai',
+        description: 'test',
+        capabilities: [],
+        source: 'builtin',
+      },
+      {
+        id: 'gemini-1.5-pro',
+        label: 'Gemini 1.5 Pro',
+        provider: 'gemini',
+        description: 'test',
+        capabilities: [],
+        source: 'builtin',
+      },
+    ]
+
+    const options = createOptions({ currentModel: 'gpt-4o-mini', modelOptions })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openModelPopup()
+    })
+
+    act(() => {
+      result.current.actions.handleModelPopupSubmit(modelOptions[1])
+    })
+
+    expect(options.setCurrentModel).toHaveBeenCalledWith('gemini-1.5-pro')
+    expect(options.notify).toHaveBeenCalledWith('Selected model: Gemini 1.5 Pro (gemini-1.5-pro)', {
+      kind: 'info',
+    })
+    expect(options.pushHistory).not.toHaveBeenCalled()
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
   })
 })

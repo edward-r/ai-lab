@@ -1,115 +1,218 @@
-import React from 'react'
+import { useMemo } from 'react'
 import { Box, Text } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 import { MODEL_PROVIDER_LABELS } from '../../../model-providers'
+import { resolveWindowedList } from './list-window'
 import type { ModelOption, ProviderStatusMap } from '../../types'
 
 export type ModelPopupProps = {
   query: string
   options: readonly ModelOption[]
   selectedIndex: number
+  recentCount: number
+  maxHeight?: number
   providerStatuses: ProviderStatusMap
   onQueryChange: (value: string) => void
   onSubmit: (option?: ModelOption) => void
 }
 
-const getRowColors = (selected: boolean, status: ModelOptionStatus): Record<string, string> => {
-  if (!selected) {
-    if (status === 'ok') {
-      return { color: 'white' }
-    }
-    if (status === 'missing') {
-      return { color: 'yellow' }
-    }
-    return { color: 'red' }
-  }
+type ModelRow =
+  | { type: 'header'; title: string }
+  | { type: 'spacer' }
+  | { type: 'option'; option: ModelOption; optionIndex: number }
 
-  // Use a robust highlight that stays visible in Kitty.
-  if (status === 'ok') {
-    return { color: 'cyan', bold: 'true' }
-  }
+const resolveListRows = (maxHeight: number | undefined): number => {
+  const fallbackHeight = 16
+  const resolvedHeight = maxHeight ?? fallbackHeight
+  const borderRows = 2
+  const contentHeight = Math.max(1, resolvedHeight - borderRows)
+
+  const fixedRows = 3
+  return Math.max(1, contentHeight - fixedRows)
+}
+
+const resolveOptionColor = (option: ModelOption, providerStatuses: ProviderStatusMap): string => {
+  const status = providerStatuses[option.provider]?.status
   if (status === 'missing') {
-    return { color: 'yellow', bold: 'true' }
+    return 'yellow'
   }
-  return { color: 'red', bold: 'true' }
+  if (status === 'error') {
+    return 'red'
+  }
+  return 'white'
 }
 
-type ModelOptionStatus = 'ok' | 'missing' | 'error'
-
-const resolveOptionStatus = (
-  option: ModelOption,
-  providerStatuses: ProviderStatusMap,
-): { status: ModelOptionStatus; message: string } => {
-  const providerStatus = providerStatuses[option.provider]
-  if (!providerStatus) {
-    return { status: 'ok', message: 'Status unknown' }
+const buildRows = (options: readonly ModelOption[], recentCount: number): ModelRow[] => {
+  if (options.length === 0) {
+    return []
   }
-  return { status: providerStatus.status, message: providerStatus.message }
+
+  const rows: ModelRow[] = []
+
+  const safeRecentCount = Math.max(0, Math.min(recentCount, options.length))
+  if (safeRecentCount > 0) {
+    rows.push({ type: 'header', title: 'Recent' })
+    for (let index = 0; index < safeRecentCount; index += 1) {
+      const option = options[index]
+      if (!option) {
+        continue
+      }
+      rows.push({ type: 'option', option, optionIndex: index })
+    }
+    if (safeRecentCount < options.length) {
+      rows.push({ type: 'spacer' })
+    }
+  }
+
+  let lastProvider: string | null = null
+  for (let index = safeRecentCount; index < options.length; index += 1) {
+    const option = options[index]
+    if (!option) {
+      continue
+    }
+
+    const providerLabel = MODEL_PROVIDER_LABELS[option.provider]
+    if (providerLabel !== lastProvider) {
+      rows.push({ type: 'header', title: providerLabel })
+      lastProvider = providerLabel
+    }
+
+    rows.push({ type: 'option', option, optionIndex: index })
+  }
+
+  return rows
 }
 
-const describeCapabilities = (option: ModelOption): string => {
-  if (option.capabilities.length > 0) {
-    return option.capabilities.join(', ')
+const ensureHeaderVisible = (
+  rows: readonly ModelRow[],
+  start: number,
+  end: number,
+  maxRows: number,
+): { start: number; end: number } => {
+  if (start <= 0 || end - start >= maxRows) {
+    return { start, end }
   }
-  return option.description
+
+  const first = rows[start]
+  const previous = rows[start - 1]
+  if (first?.type === 'option' && previous?.type === 'header') {
+    const nextStart = start - 1
+    const nextEnd = Math.min(rows.length, nextStart + maxRows)
+    return { start: nextStart, end: nextEnd }
+  }
+
+  return { start, end }
 }
 
 export const ModelPopup: React.FC<ModelPopupProps> = ({
   query,
   options,
   selectedIndex,
+  recentCount,
+  maxHeight,
   providerStatuses,
   onQueryChange,
   onSubmit,
 }) => {
   const selectedOption = options[selectedIndex]
+  const listRows = useMemo(() => resolveListRows(maxHeight), [maxHeight])
+
+  const rows = useMemo(() => buildRows(options, recentCount), [options, recentCount])
+
+  const selectedRowIndex = useMemo(() => {
+    if (rows.length === 0) {
+      return 0
+    }
+
+    const index = rows.findIndex(
+      (row) => row.type === 'option' && row.optionIndex === selectedIndex,
+    )
+    return index >= 0 ? index : 0
+  }, [rows, selectedIndex])
+
+  const window = useMemo(
+    () =>
+      resolveWindowedList({
+        itemCount: rows.length,
+        selectedIndex: selectedRowIndex,
+        maxVisibleRows: listRows,
+        lead: 2,
+      }),
+    [listRows, rows.length, selectedRowIndex],
+  )
+
+  const slice = useMemo(
+    () => ensureHeaderVisible(rows, window.start, window.end, listRows),
+    [listRows, rows, window.end, window.start],
+  )
+
+  const visibleRows = rows.slice(slice.start, slice.end)
+
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-      <Text color="cyanBright">Select Model</Text>
-      <Box flexDirection="column" marginTop={1}>
-        <Text color="gray">Search</Text>
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text color="cyanBright">Select model</Text>
+        <Text color="gray">esc</Text>
+      </Box>
+
+      <Box marginTop={1}>
         <SingleLineTextInput
           value={query}
           onChange={onQueryChange}
           onSubmit={() => onSubmit(selectedOption)}
-          placeholder="Start typing a model name"
+          placeholder="Search"
           focus
         />
       </Box>
-      <Box flexDirection="column" marginTop={1}>
-        {options.length === 0 ? (
+
+      <Box flexDirection="column" marginTop={1} height={listRows} overflow="hidden">
+        {rows.length === 0 ? (
           <Text color="gray">No models match.</Text>
         ) : (
-          options.map((option, index) => {
-            const isSelected = index === selectedIndex
-            const { status, message } = resolveOptionStatus(option, providerStatuses)
-            const rowColors = getRowColors(isSelected, status)
-            const providerLabel = MODEL_PROVIDER_LABELS[option.provider]
-            const annotationParts = [providerLabel, status === 'ok' ? 'OK' : message]
-            if (option.source === 'config') {
-              annotationParts.push('custom')
+          visibleRows.map((row, rowIndex) => {
+            if (row.type === 'spacer') {
+              return <Text key={`spacer-${slice.start + rowIndex}`}> </Text>
             }
-            const secondaryTextParts = [describeCapabilities(option)]
-            if (option.notes) {
-              secondaryTextParts.push(option.notes)
-            }
-            const secondaryText = secondaryTextParts.join(' · ')
-            return (
-              <Box key={option.id} flexDirection="column" marginBottom={0}>
-                <Text {...rowColors}>
-                  {isSelected ? '› ' : '  '}
-                  {option.label} · {annotationParts.join(' · ')}
+
+            if (row.type === 'header') {
+              return (
+                <Text key={`header-${row.title}-${slice.start + rowIndex}`} color="magenta">
+                  {row.title}
                 </Text>
-                {isSelected ? <Text color="gray">{secondaryText}</Text> : null}
+              )
+            }
+
+            const isSelected = row.optionIndex === selectedIndex
+            const providerLabel = MODEL_PROVIDER_LABELS[row.option.provider]
+
+            const textColor = resolveOptionColor(row.option, providerStatuses)
+            const rowTextProps = isSelected
+              ? ({ color: 'black', backgroundColor: 'blueBright' } as const)
+              : ({ color: textColor } as const)
+
+            const providerTextProps = isSelected
+              ? ({ color: 'black' } as const)
+              : ({ color: 'gray' } as const)
+
+            return (
+              <Box
+                key={`option-${row.option.id}`}
+                flexDirection="row"
+                justifyContent="space-between"
+                width="100%"
+              >
+                <Text {...rowTextProps}>{row.option.label}</Text>
+                <Text {...providerTextProps}>{providerLabel}</Text>
               </Box>
             )
           })
         )}
       </Box>
+
       <Box marginTop={1}>
-        <Text color="gray">Enter to confirm · Esc to cancel</Text>
+        <Text color="gray">Enter to select</Text>
       </Box>
     </Box>
   )

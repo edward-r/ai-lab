@@ -50,4 +50,26 @@ describe('model-filter helpers', () => {
       'model-b',
     ])
   })
+
+  it('supports fuzzy subsequence matching', () => {
+    const options = [
+      createOption('gpt-4o-mini', 'GPT-4o Mini'),
+      createOption('gemini-1.5-pro', 'Gemini 1.5 Pro'),
+    ]
+
+    expect(filterModelOptions('gmp', options).map((option) => option.id)).toEqual([
+      'gemini-1.5-pro',
+    ])
+  })
+
+  it('supports multi-token matching', () => {
+    const options = [
+      createOption('gpt-4o-mini', 'GPT-4o Mini'),
+      createOption('gemini-1.5-pro', 'Gemini 1.5 Pro'),
+    ]
+
+    expect(filterModelOptions('gem pro', options).map((option) => option.id)).toEqual([
+      'gemini-1.5-pro',
+    ])
+  })
 })

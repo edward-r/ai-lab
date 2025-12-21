@@ -8,6 +8,9 @@ import {
   discoverFileSuggestions,
   discoverIntentFileSuggestions,
 } from '../file-suggestions'
+import type { NotifyOptions } from '../notifier'
+import { buildModelPopupOptions } from '../model-popup-options'
+import { getRecentSessionModels, recordRecentSessionModel } from '../model-session'
 import type {
   CommandDescriptor,
   HistoryEntry,
@@ -48,6 +51,7 @@ export type UsePopupManagerOptions = {
   isGenerating: boolean
   lastUserIntentRef: React.MutableRefObject<string | null>
   pushHistory: (content: string, kind?: HistoryEntry['kind']) => void
+  notify: (message: string, options?: NotifyOptions) => void
   setInputValue: (value: string) => void
   runSeriesGeneration: (intent: string) => void
   runTestsFromCommand: (value: string) => void
@@ -81,6 +85,7 @@ export const usePopupManager = ({
   isGenerating,
   lastUserIntentRef,
   pushHistory,
+  notify,
   setInputValue,
   runSeriesGeneration,
   runTestsFromCommand,
@@ -108,9 +113,11 @@ export const usePopupManager = ({
   const [popupState, setPopupState] = useState<PopupState>(null)
 
   const openModelPopup = useCallback(() => {
+    const recentModelIds = getRecentSessionModels()
+    const { options } = buildModelPopupOptions({ query: '', modelOptions, recentModelIds })
     const defaultIndex = Math.max(
       0,
-      modelOptions.findIndex((option) => option.id === currentModel),
+      options.findIndex((option) => option.id === currentModel),
     )
     setPopupState({ type: 'model', query: '', selectionIndex: defaultIndex })
   }, [currentModel, modelOptions])
@@ -272,12 +279,13 @@ export const usePopupManager = ({
       if (!option) {
         return
       }
+      recordRecentSessionModel(option.id)
       setCurrentModel(option.id)
-      pushHistory(`Model set to ${option.id}`)
+      notify(`Selected model: ${option.label} (${option.id})`, { kind: 'info' })
       setInputValue('')
       setPopupState(null)
     },
-    [setCurrentModel, pushHistory, setInputValue],
+    [notify, setCurrentModel, setInputValue],
   )
 
   const handleModelPopupSubmit = useCallback(

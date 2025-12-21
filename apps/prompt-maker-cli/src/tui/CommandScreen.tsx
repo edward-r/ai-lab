@@ -63,8 +63,10 @@ import {
   getPreferredModelId,
   loadModelOptions,
 } from './model-options'
-import { filterModelOptions, resolveModelPopupQuery } from './model-filter'
-import { getLastSessionModel, setLastSessionModel } from './model-session'
+import { resolveModelPopupQuery } from './model-filter'
+import { buildModelPopupOptions } from './model-popup-options'
+import { formatProviderStatusChip } from './provider-chip'
+import { getLastSessionModel, getRecentSessionModels, setLastSessionModel } from './model-session'
 import { checkProviderStatus } from './provider-status'
 import type {
   HistoryEntry,
@@ -545,6 +547,7 @@ export const CommandScreen = memo(
         isGenerating,
         lastUserIntentRef,
         pushHistory: pushHistoryProxy,
+        notify,
         setInputValue,
         runSeriesGeneration,
         runTestsFromCommand: runTestsFromCommandProxy,
@@ -569,18 +572,14 @@ export const CommandScreen = memo(
       const isPopupOpen = popupState !== null
       const trimmedIntentFilePath = intentFilePath.trim()
 
-      const providerChips = useMemo(() => {
-        const providers: ModelProvider[] = ['openai', 'gemini']
-        return providers.map((provider) => {
-          const status = providerStatuses[provider]
-          const suffix =
-            status.status === 'ok' ? 'ok' : status.status === 'missing' ? 'missing-key' : 'error'
-          return `[${provider}:${suffix}]`
-        })
-      }, [providerStatuses])
+      const providerChip = useMemo(
+        () => formatProviderStatusChip(currentModel, providerStatuses),
+        [currentModel, providerStatuses],
+      )
 
       const enhancedStatusChips = useMemo(() => {
-        const chips = [...statusChips, ...providerChips]
+        const chips = [...statusChips, providerChip]
+
         if (trimmedIntentFilePath) {
           chips.push('[intent:file]')
           chips.push(`[file:${path.basename(trimmedIntentFilePath)}]`)
@@ -591,7 +590,7 @@ export const CommandScreen = memo(
           chips.push('[instr:on]')
         }
         return chips
-      }, [providerChips, statusChips, trimmedIntentFilePath, trimmedMetaInstructions])
+      }, [providerChip, statusChips, trimmedIntentFilePath, trimmedMetaInstructions])
 
       useEffect(() => {
         if (!onPopupVisibilityChange) {
@@ -1220,12 +1219,21 @@ export const CommandScreen = memo(
         debouncedModelPopupQuery,
       )
 
-      const modelPopupOptions = useMemo(() => {
+      const modelPopupData = useMemo(() => {
         if (popupState?.type !== 'model') {
-          return []
+          return { options: [], recentCount: 0 }
         }
-        return filterModelOptions(effectiveModelPopupQuery, modelOptions)
+
+        const recentModelIds = getRecentSessionModels()
+        return buildModelPopupOptions({
+          query: effectiveModelPopupQuery,
+          modelOptions,
+          recentModelIds,
+        })
       }, [effectiveModelPopupQuery, modelOptions, popupState?.type])
+
+      const modelPopupOptions = modelPopupData.options
+      const modelPopupRecentCount = modelPopupData.recentCount
 
       const reasoningPopupVisibleRows = Math.max(1, POPUP_HEIGHTS.reasoning - 5)
 
@@ -2276,6 +2284,8 @@ export const CommandScreen = memo(
                   query={popupState.query}
                   options={modelPopupOptions}
                   selectedIndex={modelPopupSelection}
+                  recentCount={modelPopupRecentCount}
+                  maxHeight={overlayHeight}
                   providerStatuses={providerStatuses}
                   onQueryChange={handleModelPopupQueryChange}
                   onSubmit={handleModelPopupSubmit}
