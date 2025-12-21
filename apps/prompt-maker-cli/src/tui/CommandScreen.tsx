@@ -673,7 +673,7 @@ export const CommandScreen = memo(
         terminalRows,
       ])
 
-      const { history, pushHistory, resetHistory, scroll } = useCommandHistory({
+      const { history, pushHistory, resetHistory, clearHistory, scroll } = useCommandHistory({
         initialEntries: WELCOME_HISTORY,
         visibleRows: historyRows,
       })
@@ -1916,6 +1916,7 @@ export const CommandScreen = memo(
             return
           }
           const resolvedPath = path.resolve(process.cwd(), targetFile)
+          clearHistory()
           setIsTestCommandRunning(true)
           setLastTestFile(targetFile)
           setPopupState((prev) => (prev?.type === 'test' ? null : prev))
@@ -1955,7 +1956,7 @@ export const CommandScreen = memo(
             setIsTestCommandRunning(false)
           }
         },
-        [isTestCommandRunning, lastTestFile, pushHistory],
+        [clearHistory, isTestCommandRunning, lastTestFile, pushHistory],
       )
 
       const handleTestPopupSubmit = useCallback(

@@ -190,6 +190,43 @@ describe('useGenerationPipeline', () => {
     expect(result.current.statusChips).toEqual(expect.arrayContaining(['[tokens:1.2k]']))
   })
 
+  it('animates the status chip while tests run', () => {
+    jest.useFakeTimers()
+
+    const pushHistory = jest.fn()
+    const { result, rerender } = renderHook(
+      ({ isTestCommandRunning }: { isTestCommandRunning: boolean }) =>
+        useGenerationPipeline({
+          ...baseOptions,
+          pushHistory,
+          currentModel: 'gpt-4o-mini',
+          isTestCommandRunning,
+        }),
+      { initialProps: { isTestCommandRunning: false } },
+    )
+
+    expect(result.current.statusChips[0]).toBe('[status:Idle]')
+
+    rerender({ isTestCommandRunning: true })
+
+    const firstFrame = result.current.statusChips[0]
+    expect(firstFrame).toContain('Running tests')
+
+    act(() => {
+      jest.advanceTimersByTime(120)
+    })
+
+    const secondFrame = result.current.statusChips[0]
+    expect(secondFrame).toContain('Running tests')
+    expect(secondFrame).not.toEqual(firstFrame)
+
+    rerender({ isTestCommandRunning: false })
+
+    expect(result.current.statusChips[0]).toBe('[status:Idle]')
+
+    jest.useRealTimers()
+  })
+
   it('passes meta instructions to the generation pipeline', async () => {
     providerStatusModule.checkModelProviderStatus.mockResolvedValue({
       provider: 'openai',

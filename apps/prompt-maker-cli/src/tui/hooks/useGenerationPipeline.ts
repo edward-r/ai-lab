@@ -226,8 +226,10 @@ export const useGenerationPipeline = ({
     }
   }, [submitRefinement])
 
+  const isBusy = isGenerating || isTestCommandRunning
+
   useEffect(() => {
-    if (!isGenerating) {
+    if (!isBusy) {
       setSpinnerIndex(0)
       return
     }
@@ -235,7 +237,7 @@ export const useGenerationPipeline = ({
       setSpinnerIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
     }, 120)
     return () => clearInterval(timer)
-  }, [isGenerating])
+  }, [isBusy])
 
   const handleStreamEvent = useCallback(
     (event: StreamEventInput) => {
@@ -721,9 +723,15 @@ export const useGenerationPipeline = ({
   )
 
   const statusChips = useMemo(() => {
-    const statusChip = isGenerating
-      ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${statusMessage}]`
-      : `[status:${statusMessage}]`
+    const effectiveStatusMessage = isGenerating
+      ? statusMessage
+      : isTestCommandRunning
+        ? 'Running tests'
+        : statusMessage
+
+    const statusChip = isBusy
+      ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${effectiveStatusMessage}]`
+      : `[status:${effectiveStatusMessage}]`
     const chips = [statusChip, `[${currentModel}]`]
     if (latestTelemetry) {
       chips.push(`[tokens:${formatCompactTokens(latestTelemetry.totalTokens)}]`)
@@ -742,6 +750,7 @@ export const useGenerationPipeline = ({
 
     return chips
   }, [
+    isBusy,
     isGenerating,
     spinnerIndex,
     statusMessage,

@@ -41,4 +41,28 @@ describe('useCommandHistory', () => {
 
     expect(result.current.history).toEqual(initialEntries)
   })
+
+  it('clears history to an empty buffer', () => {
+    const initialEntries: HistoryEntry[] = [
+      { id: 'seed-0', content: 'Welcome', kind: 'system' },
+      { id: 'seed-1', content: 'Tip', kind: 'system' },
+    ]
+
+    const { result } = renderHook(() =>
+      useCommandHistory({
+        initialEntries,
+        visibleRows: 10,
+      }),
+    )
+
+    act(() => {
+      result.current.pushHistory('User message', 'user')
+    })
+
+    act(() => {
+      result.current.clearHistory()
+    })
+
+    expect(result.current.history).toEqual([])
+  })
 })
