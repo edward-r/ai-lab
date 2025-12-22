@@ -1,3 +1,16 @@
+/*
+ * Command palette filtering.
+ *
+ * The CommandScreen has a command palette ("/command") with fuzzy-ish matching.
+ * This file is intentionally pure so we can unit test and refactor the UI safely.
+ *
+ * Key UX rules (preserved by tests):
+ * - Empty query returns all commands in their configured order.
+ * - Matches are case-insensitive.
+ * - Prefix matches (id/alias/label) are ranked above substring matches.
+ * - When scores tie, original order is preserved (stable ordering).
+ */
+
 import type { CommandDescriptor } from './types'
 
 type ScoredCommand = {
