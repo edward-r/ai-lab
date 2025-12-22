@@ -12,7 +12,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Box, Text, useApp, useInput, useStdout } from 'ink'
+import { Box, Text, useApp, useStdout } from 'ink'
 
 import { useCommandScreen } from './useCommandScreen'
 
@@ -34,6 +34,7 @@ import { useTerminalEffects } from './hooks/useTerminalEffects'
 import { usePopupSelectionClamp } from './hooks/usePopupSelectionClamp'
 import { useHistoryScrollKeys } from './hooks/useHistoryScrollKeys'
 import { useCommandScreenLayout } from './hooks/useCommandScreenLayout'
+import { useCommandScreenViewModel } from './hooks/useCommandScreenViewModel'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -48,7 +49,7 @@ import { useCommandHistory } from '../../hooks/useCommandHistory'
 import { usePersistentCommandHistory } from '../../hooks/usePersistentCommandHistory'
 import { usePopupManager } from '../../hooks/usePopupManager'
 import { formatProviderStatusChip } from '../../provider-chip'
-import type { HistoryEntry, PopupKind } from '../../types'
+import type { HistoryEntry } from '../../types'
 import { useContextDispatch, useContextState } from '../../context-store'
 import type { NotifyOptions } from '../../notifier'
 
@@ -413,12 +414,10 @@ export const CommandScreen = memo(
         overlayHeight,
         inputBarHint,
         inputBarDebugLine,
-        inputBarRows,
         isAwaitingTransportInput,
         historyRows,
       } = useCommandScreenLayout({
         terminalRows,
-        terminalColumns,
         reservedRows,
         helpOpen,
         isPopupOpen,
@@ -635,92 +634,92 @@ export const CommandScreen = memo(
         onTestDraftChange: handleTestPopupDraftChange,
       } = useMiscPopupDraftHandlers({ setPopupState, consumeSuppressedTextInputChange })
 
+      const {
+        transportMessage,
+        historyPaneProps,
+        popupAreaProps,
+        commandMenuPaneProps,
+        commandInputProps,
+      } = useCommandScreenViewModel({
+        isAwaitingTransportInput,
+        history,
+        historyRows,
+        scrollOffset,
+        popupState,
+        helpOpen,
+        overlayHeight,
+        modelPopupOptions,
+        modelPopupSelection,
+        modelPopupRecentCount,
+        providerStatuses,
+        onModelPopupQueryChange: handleModelPopupQueryChange,
+        onModelPopupSubmit: handleModelPopupSubmit,
+        files,
+        filePopupSuggestions,
+        filePopupSuggestionSelectionIndex,
+        filePopupSuggestionsFocused,
+        onFilePopupDraftChange: handleFilePopupDraftChange,
+        onAddFile: handleAddFile,
+        urls,
+        onUrlPopupDraftChange: handleUrlPopupDraftChange,
+        onAddUrl: handleAddUrl,
+        historyPopupItems,
+        onHistoryPopupDraftChange: handleHistoryPopupDraftChange,
+        onHistoryPopupSubmit: handleHistoryPopupSubmit,
+        intentPopupSuggestions,
+        intentPopupSuggestionSelectionIndex,
+        intentPopupSuggestionsFocused,
+        onIntentPopupDraftChange: handleIntentPopupDraftChange,
+        onIntentFileSubmit: handleIntentFileSubmit,
+        onInstructionsDraftChange: handleInstructionsPopupDraftChange,
+        onInstructionsSubmit: handleInstructionsSubmit,
+        isGenerating,
+        onSeriesDraftChange: handleSeriesPopupDraftChange,
+        onSeriesSubmit: handleSeriesIntentSubmitWithHistory,
+        isTestCommandRunning,
+        onTestDraftChange: handleTestPopupDraftChange,
+        onTestSubmit: onTestPopupSubmit,
+        tokenUsageRun,
+        tokenUsageBreakdown,
+        statusChips: enhancedStatusChips,
+        reasoningPopupLines,
+        reasoningPopupVisibleRows,
+        smartContextEnabled,
+        smartContextRoot,
+        smartPopupSuggestions,
+        smartPopupSuggestionSelectionIndex,
+        smartPopupSuggestionsFocused,
+        onSmartPopupDraftChange: handleSmartPopupDraftChange,
+        onSmartRootSubmit: handleSmartRootSubmit,
+        isCommandMenuActive,
+        menuHeight,
+        visibleCommands,
+        commandSelectionIndex,
+        inputValue: inputBarValue,
+        onInputChange: handleInputChange,
+        onInputSubmit: handleSubmit,
+        isPasteActive,
+        hint: inputBarHint,
+        debugLine: inputBarDebugLine,
+        tokenLabel,
+        debugKeysEnabled,
+        onDebugKeyEvent: handleDebugKeyEvent,
+        isPopupOpen,
+        isAwaitingRefinement,
+      })
+
       return (
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
-          {isAwaitingTransportInput ? (
+          {transportMessage ? (
             <Box flexShrink={0}>
-              <Text color="yellow">
-                Waiting for interactive transport input (send refine/finish).
-              </Text>
+              <Text color="yellow">{transportMessage}</Text>
             </Box>
           ) : null}
 
-          <HistoryPane lines={history} visibleRows={historyRows} scrollOffset={scrollOffset} />
-
-          <PopupArea
-            popupState={popupState}
-            helpOpen={helpOpen}
-            overlayHeight={overlayHeight}
-            modelPopupOptions={modelPopupOptions}
-            modelPopupSelection={modelPopupSelection}
-            modelPopupRecentCount={modelPopupRecentCount}
-            providerStatuses={providerStatuses}
-            onModelPopupQueryChange={handleModelPopupQueryChange}
-            onModelPopupSubmit={handleModelPopupSubmit}
-            files={files}
-            filePopupSuggestions={filePopupSuggestions}
-            filePopupSuggestionSelectionIndex={filePopupSuggestionSelectionIndex}
-            filePopupSuggestionsFocused={filePopupSuggestionsFocused}
-            onFilePopupDraftChange={handleFilePopupDraftChange}
-            onAddFile={handleAddFile}
-            urls={urls}
-            onUrlPopupDraftChange={handleUrlPopupDraftChange}
-            onAddUrl={handleAddUrl}
-            historyPopupItems={historyPopupItems}
-            onHistoryPopupDraftChange={handleHistoryPopupDraftChange}
-            onHistoryPopupSubmit={handleHistoryPopupSubmit}
-            intentPopupSuggestions={intentPopupSuggestions}
-            intentPopupSuggestionSelectionIndex={intentPopupSuggestionSelectionIndex}
-            intentPopupSuggestionsFocused={intentPopupSuggestionsFocused}
-            onIntentPopupDraftChange={handleIntentPopupDraftChange}
-            onIntentFileSubmit={handleIntentFileSubmit}
-            onInstructionsDraftChange={handleInstructionsPopupDraftChange}
-            onInstructionsSubmit={handleInstructionsSubmit}
-            isGenerating={isGenerating}
-            onSeriesDraftChange={handleSeriesPopupDraftChange}
-            onSeriesSubmit={handleSeriesIntentSubmitWithHistory}
-            isTestCommandRunning={isTestCommandRunning}
-            onTestDraftChange={handleTestPopupDraftChange}
-            onTestSubmit={onTestPopupSubmit}
-            tokenUsageRun={tokenUsageRun}
-            tokenUsageBreakdown={tokenUsageBreakdown}
-            statusChips={enhancedStatusChips}
-            reasoningPopupLines={reasoningPopupLines}
-            reasoningPopupVisibleRows={reasoningPopupVisibleRows}
-            smartContextEnabled={smartContextEnabled}
-            smartContextRoot={smartContextRoot}
-            smartPopupSuggestions={smartPopupSuggestions}
-            smartPopupSuggestionSelectionIndex={smartPopupSuggestionSelectionIndex}
-            smartPopupSuggestionsFocused={smartPopupSuggestionsFocused}
-            onSmartPopupDraftChange={handleSmartPopupDraftChange}
-            onSmartRootSubmit={handleSmartRootSubmit}
-          />
-
-          <CommandMenuPane
-            isActive={isCommandMenuActive}
-            height={menuHeight}
-            commands={visibleCommands}
-            selectedIndex={commandSelectionIndex}
-          />
-
-          <CommandInput
-            value={inputBarValue}
-            onChange={handleInputChange}
-            onSubmit={handleSubmit}
-            mode={isAwaitingRefinement ? 'refinement' : 'intent'}
-            isDisabled={isPopupOpen || helpOpen}
-            isPasteActive={isPasteActive}
-            statusChips={enhancedStatusChips}
-            hint={inputBarHint}
-            debugLine={inputBarDebugLine}
-            tokenLabel={tokenLabel}
-            onDebugKeyEvent={debugKeysEnabled ? handleDebugKeyEvent : undefined}
-            placeholder={
-              isAwaitingRefinement
-                ? 'Describe refinement (or empty to finish)...'
-                : 'Describe your goal or type /command'
-            }
-          />
+          <HistoryPane {...historyPaneProps} />
+          <PopupArea {...popupAreaProps} />
+          <CommandMenuPane {...commandMenuPaneProps} />
+          <CommandInput {...commandInputProps} />
         </Box>
       )
     },

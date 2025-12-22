@@ -8,7 +8,6 @@ import type { InteractiveAwaitingMode } from '../../../generation-pipeline-reduc
 
 export type UseCommandScreenLayoutOptions = {
   terminalRows: number
-  terminalColumns: number
   reservedRows: number
 
   helpOpen: boolean
@@ -44,7 +43,6 @@ export type UseCommandScreenLayoutResult = {
 
 export const useCommandScreenLayout = ({
   terminalRows,
-  terminalColumns,
   reservedRows,
   helpOpen,
   isPopupOpen,
