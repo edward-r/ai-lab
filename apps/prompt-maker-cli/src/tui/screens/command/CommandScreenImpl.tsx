@@ -13,7 +13,6 @@ import {
   useState,
 } from 'react'
 import { Box, Text, useApp, useInput, useStdout } from 'ink'
-import wrapAnsi from 'wrap-ansi'
 
 import { useCommandScreen } from './useCommandScreen'
 
@@ -26,6 +25,8 @@ import { useContextPopupGlue } from './hooks/useContextPopupGlue'
 import { useHistoryPopupGlue } from './hooks/useHistoryPopupGlue'
 import { useIntentPopupGlue } from './hooks/useIntentPopupGlue'
 import { useMiscPopupDraftHandlers } from './hooks/useMiscPopupDraftHandlers'
+import { useModelPopupData } from './hooks/useModelPopupData'
+import { useReasoningPopup } from './hooks/useReasoningPopup'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -39,14 +40,10 @@ import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from '../../config'
 import { parseAbsolutePathFromInput, isCommandInput } from '../../drag-drop-path'
 import { resolveIntentSource } from '../../intent-source'
 import { useCommandHistory } from '../../hooks/useCommandHistory'
-import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { usePersistentCommandHistory } from '../../hooks/usePersistentCommandHistory'
 import { useGenerationPipeline } from '../../hooks/useGenerationPipeline'
 import { usePopupManager } from '../../hooks/usePopupManager'
-import { resolveModelPopupQuery } from '../../model-filter'
-import { buildModelPopupOptions } from '../../model-popup-options'
 import { formatProviderStatusChip } from '../../provider-chip'
-import { getRecentSessionModels } from '../../model-session'
 import type { HistoryEntry, PopupKind } from '../../types'
 import { useContextDispatch, useContextState } from '../../context-store'
 import { planSessionCommand } from '../../new-command'
@@ -679,55 +676,16 @@ export const CommandScreen = memo(
         onIntentPopupDraftChange: handleIntentPopupDraftChange,
       } = useIntentPopupGlue({ popupState, setPopupState })
 
-      const modelPopupQuery = popupState?.type === 'model' ? popupState.query : ''
-      const debouncedModelPopupQuery = useDebouncedValue(modelPopupQuery, 75)
-      const effectiveModelPopupQuery = resolveModelPopupQuery(
-        modelPopupQuery,
-        debouncedModelPopupQuery,
-      )
+      const { modelPopupOptions, modelPopupRecentCount, modelPopupSelection } = useModelPopupData({
+        popupState,
+        modelOptions,
+      })
 
-      const modelPopupData = useMemo(() => {
-        if (popupState?.type !== 'model') {
-          return { options: [], recentCount: 0 }
-        }
-
-        const recentModelIds = getRecentSessionModels()
-        return buildModelPopupOptions({
-          query: effectiveModelPopupQuery,
-          modelOptions,
-          recentModelIds,
-        })
-      }, [effectiveModelPopupQuery, modelOptions, popupState?.type])
-
-      const modelPopupOptions = modelPopupData.options
-      const modelPopupRecentCount = modelPopupData.recentCount
-
-      const reasoningPopupVisibleRows = Math.max(1, POPUP_HEIGHTS.reasoning - 5)
-
-      const reasoningPopupLines = useMemo(() => {
-        const reasoning = lastReasoning?.trim() ?? ''
-        if (!reasoning) {
-          return []
-        }
-
-        const entries: HistoryEntry[] = []
-        const wrapWidth = Math.max(40, terminalColumns - 6)
-        let entryIndex = 0
-
-        reasoning.split('\n').forEach((line) => {
-          const wrapped = wrapAnsi(line, wrapWidth, { trim: false, hard: true })
-          wrapped.split('\n').forEach((wrappedLine) => {
-            entries.push({
-              id: `reasoning-${entryIndex}`,
-              content: wrappedLine,
-              kind: 'system',
-            })
-            entryIndex += 1
-          })
-        })
-
-        return entries
-      }, [lastReasoning, terminalColumns])
+      const { reasoningPopupVisibleRows, reasoningPopupLines } = useReasoningPopup({
+        lastReasoning,
+        terminalColumns,
+        popupHeight: POPUP_HEIGHTS.reasoning,
+      })
 
       usePopupKeyboardShortcuts({
         popupState,
@@ -851,11 +809,6 @@ export const CommandScreen = memo(
         onInstructionsDraftChange: handleInstructionsPopupDraftChange,
         onTestDraftChange: handleTestPopupDraftChange,
       } = useMiscPopupDraftHandlers({ setPopupState, consumeSuppressedTextInputChange })
-
-      const modelPopupSelection =
-        popupState?.type === 'model'
-          ? Math.min(popupState.selectionIndex, Math.max(modelPopupOptions.length - 1, 0))
-          : 0
 
       return (
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
