@@ -53,7 +53,9 @@ export const InputBar: React.FC<InputBarProps> = ({
   tokenLabel,
   onDebugKeyEvent,
 }) => {
-  const presentation = resolveInputBarPresentation(mode)
+  // `resolveInputBarPresentation` is pure but involves string/config mapping.
+  // Memoizing it keeps the render path a bit more predictable.
+  const presentation = React.useMemo(() => resolveInputBarPresentation(mode), [mode])
 
   const summary = React.useMemo(() => {
     const segments = resolveIndicatorSegments(statusChips)
