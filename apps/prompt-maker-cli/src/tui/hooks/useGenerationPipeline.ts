@@ -1,9 +1,15 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import wrapAnsi from 'wrap-ansi'
+
+import {
+  INITIAL_GENERATION_PIPELINE_STATE,
+  generationPipelineReducer,
+  type InteractiveAwaitingMode,
+} from '../generation-pipeline-reducer'
 
 import {
   maybeCopyToClipboard,
@@ -171,18 +177,51 @@ export const useGenerationPipeline = ({
   onReasoningUpdate,
   onLastGeneratedPromptUpdate,
 }: UseGenerationPipelineOptions) => {
-  const [isGenerating, setIsGenerating] = useState(false)
   const [spinnerIndex, setSpinnerIndex] = useState(0)
-  type InteractiveAwaitingMode = 'transport' | 'tty'
 
-  const [statusMessage, setStatusMessage] = useState('Idle')
-  const [isAwaitingRefinement, setIsAwaitingRefinement] = useState(false)
-  const [awaitingInteractiveMode, setAwaitingInteractiveMode] =
-    useState<InteractiveAwaitingMode | null>(null)
-  const [latestTelemetry, setLatestTelemetry] = useState<
-    GeneratePipelineResult['telemetry'] | null
-  >(null)
+  const [pipelineState, dispatch] = useReducer(
+    generationPipelineReducer,
+    INITIAL_GENERATION_PIPELINE_STATE,
+  )
+
+  const {
+    isGenerating,
+    statusMessage,
+    isAwaitingRefinement,
+    awaitingInteractiveMode,
+    latestTelemetry,
+  } = pipelineState
   const normalizedMetaInstructions = metaInstructions.trim()
+
+  // “Stale closure” explanation (plain-English):
+  // React callbacks capture the variables that were in scope when they were created.
+  // If we keep a callback stable (so we don’t recreate it every render), it would
+  // otherwise keep using old values.
+  //
+  // Example: if `handleStreamEvent` closed over an old `terminalColumns`, it would
+  // keep wrapping text to the wrong width after the terminal is resized.
+  //
+  // Solution used here: keep the callback stable, but read changing values from refs.
+  const pushHistoryRef = useRef(pushHistory)
+  const tokenUsageStoreRef = useRef(tokenUsageStore)
+  const terminalColumnsRef = useRef(terminalColumns)
+  const interactiveTransportPathRef = useRef(interactiveTransportPath)
+
+  useEffect(() => {
+    pushHistoryRef.current = pushHistory
+  }, [pushHistory])
+
+  useEffect(() => {
+    tokenUsageStoreRef.current = tokenUsageStore
+  }, [tokenUsageStore])
+
+  useEffect(() => {
+    terminalColumnsRef.current = terminalColumns
+  }, [terminalColumns])
+
+  useEffect(() => {
+    interactiveTransportPathRef.current = interactiveTransportPath
+  }, [interactiveTransportPath])
 
   const activeRunIdRef = useRef<string | null>(null)
   const lastGeneratedPromptUpdateRef = useRef<((prompt: string) => void) | null>(
@@ -207,25 +246,58 @@ export const useGenerationPipeline = ({
     isGeneratingRef.current = isGenerating
   }, [isGenerating])
 
-  const submitRefinement = useCallback((text: string): void => {
-    const pending = pendingRefinementRef.current
-    if (!pending) {
-      return
-    }
-    pendingRefinementRef.current = null
-    setIsAwaitingRefinement(false)
-    pending.resolveText(text)
+  const setAwaitingInteractiveMode = useCallback(
+    (nextMode: InteractiveAwaitingMode | null, nextStatusMessage?: string): void => {
+      dispatch({
+        type: 'set-awaiting-interactive',
+        awaitingInteractiveMode: nextMode,
+        ...(nextStatusMessage ? { statusMessage: nextStatusMessage } : {}),
+      })
+    },
+    [],
+  )
+
+  const setAwaitingRefinement = useCallback((next: boolean): void => {
+    dispatch({ type: 'set-awaiting-refinement', isAwaitingRefinement: next })
   }, [])
+
+  const setLatestTelemetry = useCallback(
+    (telemetry: GeneratePipelineResult['telemetry'] | null) => {
+      dispatch({ type: 'set-telemetry', telemetry })
+    },
+    [],
+  )
+
+  const setStatusMessage = useCallback((message: string): void => {
+    dispatch({ type: 'set-status', statusMessage: message })
+  }, [])
+
+  const submitRefinement = useCallback(
+    (text: string): void => {
+      const pending = pendingRefinementRef.current
+      if (!pending) {
+        return
+      }
+      pendingRefinementRef.current = null
+      setAwaitingRefinement(false)
+      pending.resolveText(text)
+    },
+    [setAwaitingRefinement],
+  )
 
   useEffect(() => {
     if (isGenerating) {
       return
     }
+
+    // Cleanup is important:
+    // - Without it, a pending refinement promise could keep the UI in a “waiting” state.
+    // - It also prevents “runaway updates” after generation stops.
     submitRefinement('')
-    setIsAwaitingRefinement(false)
+    setAwaitingRefinement(false)
     setAwaitingInteractiveMode(null)
     transportAwaitingHintShownRef.current = false
-  }, [isGenerating, submitRefinement])
+  }, [isGenerating, setAwaitingInteractiveMode, setAwaitingRefinement, submitRefinement])
 
   useEffect(() => {
     return () => {
@@ -248,21 +320,25 @@ export const useGenerationPipeline = ({
 
   const handleStreamEvent = useCallback(
     (event: StreamEventInput) => {
+      const pushHistoryLatest = pushHistoryRef.current
+      const tokenUsageStoreLatest = tokenUsageStoreRef.current
+      const wrapWidth = Math.max(40, terminalColumnsRef.current - 6)
+
       switch (event.event) {
         case 'progress.update': {
           const scope = event.scope ? `[${event.scope}] ` : ''
           const message = `${scope}${event.label} (${event.state})`
-          pushHistory(message, 'progress')
+          pushHistoryLatest(message, 'progress')
           setStatusMessage(message)
           return
         }
         case 'upload.state': {
           const action = event.state === 'start' ? 'Uploading' : 'Uploaded'
-          pushHistory(`${action} ${event.detail.kind}: ${event.detail.filePath}`, 'progress')
+          pushHistoryLatest(`${action} ${event.detail.kind}: ${event.detail.filePath}`, 'progress')
           return
         }
         case 'generation.iteration.start':
-          pushHistory(`Iteration ${event.iteration} started`, 'progress')
+          pushHistoryLatest(`Iteration ${event.iteration} started`, 'progress')
           return
         case 'generation.iteration.complete': {
           const reasoningTokens = event.reasoningTokens ?? 0
@@ -272,22 +348,21 @@ export const useGenerationPipeline = ({
               : ` (${event.tokens} tokens)`
 
           const activeRunId = activeRunIdRef.current
-          if (activeRunId && tokenUsageStore) {
-            tokenUsageStore.recordIteration(activeRunId, {
+          if (activeRunId && tokenUsageStoreLatest) {
+            tokenUsageStoreLatest.recordIteration(activeRunId, {
               iteration: event.iteration,
               promptTokens: event.tokens,
               reasoningTokens,
             })
           }
 
-          pushHistory(`Iteration ${event.iteration} complete${tokenLabel}`, 'progress')
-          pushHistory(`Prompt (iteration ${event.iteration}):`, 'system')
+          pushHistoryLatest(`Iteration ${event.iteration} complete${tokenLabel}`, 'progress')
+          pushHistoryLatest(`Prompt (iteration ${event.iteration}):`, 'system')
 
-          const wrapWidth = Math.max(40, terminalColumns - 6)
           event.prompt.split('\n').forEach((line) => {
             const wrapped = wrapAnsi(line, wrapWidth, { trim: false, hard: true })
             wrapped.split('\n').forEach((wrappedLine) => {
-              pushHistory(wrappedLine, 'system')
+              pushHistoryLatest(wrappedLine, 'system')
             })
           })
 
@@ -297,10 +372,10 @@ export const useGenerationPipeline = ({
           const telemetry = event.telemetry
           setLatestTelemetry(telemetry)
           const activeRunId = activeRunIdRef.current
-          if (activeRunId && tokenUsageStore) {
-            tokenUsageStore.recordTelemetry(activeRunId, telemetry)
+          if (activeRunId && tokenUsageStoreLatest) {
+            tokenUsageStoreLatest.recordTelemetry(activeRunId, telemetry)
           }
-          pushHistory(
+          pushHistoryLatest(
             `Telemetry · total ${telemetry.totalTokens} · intent ${telemetry.intentTokens} · files ${telemetry.fileTokens} · system ${telemetry.systemTokens}`,
             'progress',
           )
@@ -308,51 +383,58 @@ export const useGenerationPipeline = ({
         }
         case 'generation.final':
           setAwaitingInteractiveMode(null)
-          pushHistory('Generation stream finalized.', 'progress')
+          pushHistoryLatest('Generation stream finalized.', 'progress')
           return
+
         case 'transport.listening':
-          pushHistory(`Transport listening on ${event.path}`, 'progress')
+          pushHistoryLatest(`Transport listening on ${event.path}`, 'progress')
           return
+
         case 'transport.client.connected':
-          pushHistory('Transport client connected.', 'progress')
+          pushHistoryLatest('Transport client connected.', 'progress')
           return
+
         case 'transport.client.disconnected':
-          pushHistory('Transport client disconnected.', 'progress')
+          pushHistoryLatest('Transport client disconnected.', 'progress')
           return
+
         case 'interactive.awaiting': {
           const normalizedMode =
             event.mode === 'transport' || event.mode === 'tty' ? event.mode : null
-
-          setAwaitingInteractiveMode(normalizedMode)
 
           const waitingMessage =
             normalizedMode === 'transport'
               ? 'Waiting for interactive transport input…'
               : 'Waiting for interactive input…'
-          pushHistory(waitingMessage, 'progress')
-          setStatusMessage(waitingMessage)
 
+          // One dispatch updates both mode + message.
+          setAwaitingInteractiveMode(normalizedMode, waitingMessage)
+          pushHistoryLatest(waitingMessage, 'progress')
+
+          const transportPath = interactiveTransportPathRef.current
           if (
             normalizedMode === 'transport' &&
-            interactiveTransportPath &&
+            transportPath &&
             !transportAwaitingHintShownRef.current
           ) {
-            pushHistory('Tip: connect a client and send refine/finish to continue.', 'system')
+            pushHistoryLatest('Tip: connect a client and send refine/finish to continue.', 'system')
             transportAwaitingHintShownRef.current = true
           }
 
           return
         }
-        case 'interactive.state':
-          setAwaitingInteractiveMode(null)
-          setStatusMessage(`Interactive ${event.phase}`)
-          pushHistory(`Interactive ${event.phase} (iteration ${event.iteration})`, 'progress')
+        case 'interactive.state': {
+          const message = `Interactive ${event.phase}`
+          setAwaitingInteractiveMode(null, message)
+          pushHistoryLatest(`Interactive ${event.phase} (iteration ${event.iteration})`, 'progress')
           return
+        }
+
         default:
           return
       }
     },
-    [interactiveTransportPath, pushHistory, terminalColumns, tokenUsageStore],
+    [setAwaitingInteractiveMode, setLatestTelemetry, setStatusMessage],
   )
 
   const interactiveDelegate: InteractiveDelegate = useMemo(
@@ -369,8 +451,8 @@ export const useGenerationPipeline = ({
           submitRefinement('')
         }
 
-        setIsAwaitingRefinement(true)
-        pushHistory(
+        setAwaitingRefinement(true)
+        pushHistoryRef.current(
           `Refine the prompt above (iteration ${iteration}): describe changes or press Enter on empty line to finish.`,
           'system',
         )
@@ -387,11 +469,13 @@ export const useGenerationPipeline = ({
                     return
                   }
                   if (!trimmed) {
-                    pushHistory('Interactive refinement complete.', 'system')
+                    pushHistoryRef.current('Interactive refinement complete.', 'system')
+
                     resolve({ type: 'finish' })
                     return
                   }
-                  pushHistory(`> [refine] ${trimmed}`, 'user')
+                  pushHistoryRef.current(`> [refine] ${trimmed}`, 'user')
+
                   resolve({ type: 'refine', instruction: trimmed })
                 },
               }
@@ -402,35 +486,40 @@ export const useGenerationPipeline = ({
             pendingRefinementRef.current = null
           }
           if (refinementRequestIdRef.current === requestId) {
-            setIsAwaitingRefinement(false)
+            setAwaitingRefinement(false)
           }
         }
       },
     }),
-    [pushHistory, submitRefinement],
+    [submitRefinement, setAwaitingRefinement],
   )
+
+  const onProviderStatusUpdateRef = useRef(onProviderStatusUpdate)
+  useEffect(() => {
+    onProviderStatusUpdateRef.current = onProviderStatusUpdate
+  }, [onProviderStatusUpdate])
 
   const ensureProviderReady = useCallback(
     async (modelId: string): Promise<boolean> => {
       try {
         const status = await checkModelProviderStatus(modelId)
-        onProviderStatusUpdate?.(status)
+        onProviderStatusUpdateRef.current?.(status)
         if (status.status === 'ok') {
           return true
         }
         const providerLabel = MODEL_PROVIDER_LABELS[status.provider]
-        pushHistory(
+        pushHistoryRef.current(
           `Generation aborted: ${providerLabel} unavailable (${status.message}).`,
           'system',
         )
         return false
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown provider check error.'
-        pushHistory(`Generation aborted: provider check failed (${message}).`, 'system')
+        pushHistoryRef.current(`Generation aborted: provider check failed (${message}).`, 'system')
         return false
       }
     },
-    [onProviderStatusUpdate, pushHistory],
+    [pushHistoryRef],
   )
 
   const runGeneration = useCallback(
@@ -438,7 +527,7 @@ export const useGenerationPipeline = ({
       const trimmedIntent = intentInput.intent?.trim() ?? ''
       const trimmedIntentFile = intentInput.intentFile?.trim() ?? ''
       if (!trimmedIntent && !trimmedIntentFile) {
-        pushHistory('No intent provided. Enter text or set an intent file.', 'system')
+        pushHistoryRef.current('No intent provided. Enter text or set an intent file.', 'system')
         return
       }
       const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
@@ -447,17 +536,21 @@ export const useGenerationPipeline = ({
         return
       }
 
-      activeRunIdRef.current = tokenUsageStore ? tokenUsageStore.startRun(normalizedModel) : null
+      activeRunIdRef.current = tokenUsageStoreRef.current
+        ? tokenUsageStoreRef.current.startRun(normalizedModel)
+        : null
       setLatestTelemetry(null)
       onReasoningUpdate?.(null)
 
-      setIsGenerating(true)
-      setAwaitingInteractiveMode(null)
+      dispatch({ type: 'generation-start', statusMessage: 'Preparing generation…' })
       transportAwaitingHintShownRef.current = false
-      setStatusMessage('Preparing generation…')
-      pushHistory('Starting generation…')
+      pushHistoryRef.current('Starting generation…')
+
+      let stopStatusMessage: string | undefined
+
       try {
-        const usesTransportInteractive = Boolean(interactiveTransportPath)
+        const transportPath = interactiveTransportPathRef.current
+        const usesTransportInteractive = Boolean(transportPath)
 
         const usesTuiInteractiveDelegate = !usesTransportInteractive && !jsonOutputEnabled
 
@@ -494,8 +587,8 @@ export const useGenerationPipeline = ({
         if (smartContextEnabled && smartContextRoot) {
           args.smartContextRoot = smartContextRoot
         }
-        if (interactiveTransportPath) {
-          args.interactiveTransport = interactiveTransportPath
+        if (transportPath) {
+          args.interactiveTransport = transportPath
         }
 
         const options: GeneratePipelineOptions = {
@@ -507,48 +600,55 @@ export const useGenerationPipeline = ({
         onReasoningUpdate?.(result.reasoning ?? null)
         setStatusMessage('Finalizing prompt…')
         const iterationLabel = result.iterations ? ` · ${result.iterations} iterations` : ''
-        pushHistory(`Final prompt (${result.model}${iterationLabel}):`, 'system')
-        pushHistory(result.finalPrompt, 'system')
+        pushHistoryRef.current(`Final prompt (${result.model}${iterationLabel}):`, 'system')
+        pushHistoryRef.current(result.finalPrompt, 'system')
+
         lastGeneratedPromptUpdateRef.current?.(result.finalPrompt)
         if (result.telemetry) {
           setLatestTelemetry(result.telemetry)
           const activeRunId = activeRunIdRef.current
-          if (activeRunId && tokenUsageStore) {
-            tokenUsageStore.recordTelemetry(activeRunId, result.telemetry)
+          if (activeRunId && tokenUsageStoreRef.current) {
+            tokenUsageStoreRef.current.recordTelemetry(activeRunId, result.telemetry)
           }
-          pushHistory(
+          pushHistoryRef.current(
             `Telemetry · total ${result.telemetry.totalTokens} · intent ${result.telemetry.intentTokens} · files ${result.telemetry.fileTokens} · system ${result.telemetry.systemTokens}`,
             'system',
           )
         }
         if (jsonOutputEnabled) {
-          pushHistory('JSON payload:', 'system')
+          pushHistoryRef.current('JSON payload:', 'system')
           const prettyPayload = JSON.stringify(result.payload, null, 2)
-          const wrapWidth = Math.max(40, terminalColumns - 6)
+          const wrapWidth = Math.max(40, terminalColumnsRef.current - 6)
           prettyPayload.split('\n').forEach((line) => {
             const wrapped = wrapAnsi(line, wrapWidth, { trim: false, hard: true })
             wrapped.split('\n').forEach((wrappedLine) => {
-              pushHistory(wrappedLine, 'system')
+              pushHistoryRef.current(wrappedLine, 'system')
             })
           })
         }
+
         if (copyEnabled) {
           await maybeCopyToClipboard(true, result.finalPrompt, false)
-          pushHistory('Copied prompt to clipboard.', 'system')
+          pushHistoryRef.current('Copied prompt to clipboard.', 'system')
         }
+
         if (chatGptEnabled) {
           await maybeOpenChatGpt(true, result.finalPrompt, false)
-          pushHistory('Opened ChatGPT with generated prompt.', 'system')
+          pushHistoryRef.current('Opened ChatGPT with generated prompt.', 'system')
         }
-        setStatusMessage('Complete')
+
+        stopStatusMessage = 'Complete'
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown generation error.'
-        pushHistory(`Generation failed: ${message}`)
+        pushHistoryRef.current(`Generation failed: ${message}`)
         onReasoningUpdate?.(null)
-        setStatusMessage('Failed')
+        stopStatusMessage = 'Failed'
       } finally {
         submitRefinement('')
-        setIsGenerating(false)
+        dispatch({
+          type: 'generation-stop',
+          ...(stopStatusMessage ? { statusMessage: stopStatusMessage } : {}),
+        })
       }
     },
     [
@@ -564,13 +664,9 @@ export const useGenerationPipeline = ({
       smartContextEnabled,
       smartContextRoot,
       normalizedMetaInstructions,
-      interactiveTransportPath,
-      terminalColumns,
       handleStreamEvent,
       interactiveDelegate,
       submitRefinement,
-      pushHistory,
-      tokenUsageStore,
       ensureProviderReady,
       onReasoningUpdate,
     ],
@@ -581,16 +677,19 @@ export const useGenerationPipeline = ({
       let targetModel = currentModel.trim() || 'gpt-4o-mini'
       if (videos.length > 0 && !isGemini(targetModel)) {
         targetModel = 'gemini-3-pro-preview'
-        pushHistory('[series] Switching to gemini-3-pro-preview for video support.', 'progress')
+        pushHistoryRef.current(
+          '[series] Switching to gemini-3-pro-preview for video support.',
+          'progress',
+        )
       }
+
       const providerReady = await ensureProviderReady(targetModel)
       if (!providerReady) {
         return
       }
 
-      setIsGenerating(true)
-      setStatusMessage('Series: resolving context…')
-      pushHistory('[series] Starting series generation…', 'progress')
+      dispatch({ type: 'generation-start', statusMessage: 'Series: resolving context…' })
+      pushHistoryRef.current('[series] Starting series generation…', 'progress')
 
       const seriesDir = path.join(
         path.resolve(process.cwd(), 'generated', 'series'),
@@ -603,24 +702,29 @@ export const useGenerationPipeline = ({
       } catch (error) {
         canWriteFiles = false
         const message = error instanceof Error ? error.message : 'Unknown filesystem error.'
-        pushHistory(`[series] Failed to prepare output directory: ${message}`, 'progress')
+        pushHistoryRef.current(
+          `[series] Failed to prepare output directory: ${message}`,
+          'progress',
+        )
       }
 
       try {
         let resolvedContext = await resolveFileContext(Array.from(files) as string[])
         if (resolvedContext.length > 0) {
-          pushHistory(
+          pushHistoryRef.current(
             `[series] Added ${resolvedContext.length} file context entr${resolvedContext.length === 1 ? 'y' : 'ies'}.`,
             'progress',
           )
         }
 
         if (urls.length > 0) {
-          pushHistory(`[series] Fetching ${urls.length} URL source(s)…`, 'progress')
+          pushHistoryRef.current(`[series] Fetching ${urls.length} URL source(s)…`, 'progress')
+
           try {
             const urlFiles = await resolveUrlContext(urls, {
               onProgress: (message: string) => {
-                pushHistory(`[series] ${message}`, 'progress')
+                pushHistoryRef.current(`[series] ${message}`, 'progress')
+
                 setStatusMessage(`Series: ${message}`)
               },
             })
@@ -629,7 +733,7 @@ export const useGenerationPipeline = ({
             }
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown URL context error.'
-            pushHistory(`[series] URL context failed: ${message}`, 'progress')
+            pushHistoryRef.current(`[series] URL context failed: ${message}`, 'progress')
           }
         }
 
@@ -637,7 +741,7 @@ export const useGenerationPipeline = ({
           if (notify) {
             notify('Smart context: resolving…', { kind: 'progress' })
           } else {
-            pushHistory('[series] Resolving smart context…', 'progress')
+            pushHistoryRef.current('[series] Resolving smart context…', 'progress')
           }
 
           try {
@@ -648,7 +752,7 @@ export const useGenerationPipeline = ({
                 if (notify) {
                   notify(`Smart context: ${message}`, { kind: 'progress' })
                 } else {
-                  pushHistory(`[series] ${message}`, 'progress')
+                  pushHistoryRef.current(`[series] ${message}`, 'progress')
                 }
                 setStatusMessage(`Series: ${message}`)
               },
@@ -659,15 +763,21 @@ export const useGenerationPipeline = ({
             }
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown smart context error.'
-            pushHistory(`[series] Smart context failed: ${message}`, 'progress')
+            pushHistoryRef.current(`[series] Smart context failed: ${message}`, 'progress')
           }
         }
 
-        pushHistory(`[series] Context ready (${resolvedContext.length} file(s)).`, 'progress')
+        pushHistoryRef.current(
+          `[series] Context ready (${resolvedContext.length} file(s)).`,
+          'progress',
+        )
 
         const handleUploadState: UploadStateChange = (state, detail) => {
           const action = state === 'start' ? 'Uploading' : 'Uploaded'
-          pushHistory(`[series] ${action} ${detail.kind}: ${detail.filePath}`, 'progress')
+          pushHistoryRef.current(
+            `[series] ${action} ${detail.kind}: ${detail.filePath}`,
+            'progress',
+          )
         }
 
         const request: PromptGenerationRequest = {
@@ -690,7 +800,7 @@ export const useGenerationPipeline = ({
           try {
             writeResult = await writeSeriesArtifacts(seriesDir, series)
             writeResult.errors.forEach((entry) => {
-              pushHistory(
+              pushHistoryRef.current(
                 `[series] Failed to write ${entry.fileName}: ${entry.message}`,
                 'progress',
               )
@@ -698,45 +808,52 @@ export const useGenerationPipeline = ({
           } catch (error) {
             canWriteFiles = false
             const message = error instanceof Error ? error.message : 'Unknown filesystem error.'
-            pushHistory(`[series] Failed to write series artifacts: ${message}`, 'progress')
+            pushHistoryRef.current(
+              `[series] Failed to write series artifacts: ${message}`,
+              'progress',
+            )
           }
         }
 
-        pushHistory('[series] Overview ready.', 'progress')
+        pushHistoryRef.current('[series] Overview ready.', 'progress')
 
         series.atomicPrompts.forEach((step, index) => {
           const stepNumber = index + 1
           const validationSection = extractValidationSection(step.content)
 
           if (validationSection) {
-            pushHistory(
+            pushHistoryRef.current(
               `[Step ${stepNumber}: ${step.title}] Validation section:\n${validationSection}`,
               'system',
             )
+
             return
           }
 
-          pushHistory(`[Step ${stepNumber}: ${step.title}] (no Validation section found)`, 'system')
+          pushHistoryRef.current(
+            `[Step ${stepNumber}: ${step.title}] (no Validation section found)`,
+            'system',
+          )
         })
 
         if (canWriteFiles) {
           const relativeDir = path.relative(process.cwd(), seriesDir) || seriesDir
           const writtenCount = writeResult?.writtenCount ?? 0
-          pushHistory(
+          pushHistoryRef.current(
             `[Series] Saved ${writtenCount}/${totalPrompts} prompts to ${relativeDir}`,
             'system',
           )
         } else {
-          pushHistory(`[Series] Generated ${totalPrompts} prompts (not saved)`, 'system')
+          pushHistoryRef.current(`[Series] Generated ${totalPrompts} prompts (not saved)`, 'system')
         }
 
-        setStatusMessage('Series complete')
+        dispatch({ type: 'generation-stop', statusMessage: 'Series complete' })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown series generation error.'
-        pushHistory(`[series] Failed: ${message}`, 'progress')
-        setStatusMessage('Series failed')
+        pushHistoryRef.current(`[series] Failed: ${message}`, 'progress')
+        dispatch({ type: 'generation-stop', statusMessage: 'Series failed' })
       } finally {
-        setIsGenerating(false)
+        dispatch({ type: 'generation-stop' })
       }
     },
     [
@@ -749,8 +866,6 @@ export const useGenerationPipeline = ({
       smartContextRoot,
       normalizedMetaInstructions,
       notify,
-      pushHistory,
-      setStatusMessage,
       ensureProviderReady,
     ],
   )
