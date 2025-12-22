@@ -21,6 +21,7 @@ import { useModelProviderState } from './hooks/useModelProviderState'
 import { usePasteManager } from './hooks/usePasteManager'
 import { usePopupKeyboardShortcuts } from './hooks/usePopupKeyboardShortcuts'
 import { usePromptTestRunner } from './hooks/usePromptTestRunner'
+import { useCommandMenuManager } from './hooks/useCommandMenuManager'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -31,9 +32,7 @@ import { PopupArea } from './components/PopupArea'
 import { estimateInputBarRows } from '../../components/core/InputBar'
 import type { DebugKeyEvent } from '../../components/core/MultilineTextInput'
 import { stripTerminalPasteArtifacts } from '../../components/core/bracketed-paste'
-import { resolveCommandMenuKeyAction } from '../../components/core/command-menu-keymap'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from '../../config'
-import { filterCommandDescriptors, resolveCommandMenuSearchState } from '../../command-filter'
 import { parseAbsolutePathFromInput, isCommandInput } from '../../drag-drop-path'
 import {
   filterDirectorySuggestions,
@@ -143,8 +142,6 @@ export const CommandScreen = memo(
         return normalized !== '0' && normalized !== 'false'
       }, [])
 
-      const lastCommandMenuSignalRef = useRef<number>(0)
-
       const handleDebugKeyEvent = useCallback(
         (event: DebugKeyEvent): void => {
           if (!debugKeysEnabled) {
@@ -218,6 +215,11 @@ export const CommandScreen = memo(
         clearHistoryRef.current()
       }, [])
 
+      const scrollToRef = useRef<(row: number) => void>(() => {})
+      const scrollToProxy = useCallback((row: number) => {
+        scrollToRef.current(row)
+      }, [])
+
       const { isTestCommandRunning, lastTestFile, runTestsFromCommand, onTestPopupSubmit } =
         usePromptTestRunner({
           defaultTestFile: DEFAULT_TEST_FILE,
@@ -243,33 +245,6 @@ export const CommandScreen = memo(
       const syncTypedIntentRef = useCallback((intent: string) => {
         lastTypedIntentRef.current = intent
       }, [])
-
-      const trimmedInput = inputValue.trimStart()
-      const isCommandMode = isCommandInput(inputValue, fs.existsSync)
-      const commandQuery = isCommandMode ? trimmedInput.slice(1).trimStart() : ''
-      const parsedCommand = useMemo<{ keyword: string; args: string }>(() => {
-        if (!commandQuery) {
-          return { keyword: '', args: '' }
-        }
-
-        const parts = commandQuery.split(/\s+/).filter((part) => part.length > 0)
-        if (parts.length === 0) {
-          return { keyword: '', args: '' }
-        }
-        const keyword = parts[0] ?? ''
-        const rest = parts.slice(1)
-        return { keyword, args: rest.join(' ') }
-      }, [commandQuery])
-
-      const commandArgsRaw = parsedCommand.args
-
-      const commandMenuSearchState = useMemo(
-        () => resolveCommandMenuSearchState({ commandQuery, commands: COMMAND_DESCRIPTORS }),
-        [commandQuery],
-      )
-
-      const commandMenuFilterQuery = commandMenuSearchState.filterQuery
-      const commandMenuArgsRaw = commandMenuSearchState.treatRemainderAsArgs ? commandArgsRaw : ''
 
       const trimmedMetaInstructions = metaInstructions.trim()
 
@@ -421,22 +396,28 @@ export const CommandScreen = memo(
         }
       }, [onPopupVisibilityChange])
 
-      const commandMatches = useMemo(() => {
-        if (!isCommandMode) {
-          return COMMAND_DESCRIPTORS
-        }
+      const {
+        isCommandMode,
+        commandMenuArgsRaw,
+        visibleCommands,
+        isCommandMenuActive,
+        menuHeight,
+        selectedCommand,
+      } = useCommandMenuManager({
+        inputValue,
+        existsSync: (candidate: string) => fs.existsSync(candidate),
+        popupState,
+        helpOpen,
+        ...(commandMenuSignal !== undefined ? { commandMenuSignal } : {}),
+        commands: COMMAND_DESCRIPTORS,
+        commandMenuHeight: COMMAND_MENU_HEIGHT,
+        commandSelectionIndex,
+        setCommandSelectionIndex,
+        setInputValue,
+        setPopupState,
+        scrollTo: scrollToProxy,
+      })
 
-        return filterCommandDescriptors({
-          query: commandMenuFilterQuery,
-          commands: COMMAND_DESCRIPTORS,
-        })
-      }, [commandMenuFilterQuery, isCommandMode])
-
-      const visibleCommands = commandMatches
-      const isCommandMenuActive = isCommandMode && !isPopupOpen && !helpOpen
-      const menuHeight = isCommandMenuActive
-        ? Math.min(COMMAND_MENU_HEIGHT, Math.max(visibleCommands.length, 1) + 2)
-        : 0
       const overlayHeight = helpOpen
         ? 0
         : popupState
@@ -547,34 +528,9 @@ export const CommandScreen = memo(
         pushHistory(plan.message, 'system')
       }, [isGenerating, lastGeneratedPrompt, pushHistory, resetSessionState, setMetaInstructions])
 
-      useEffect(() => {
-        pushHistoryRef.current = pushHistory
-        clearHistoryRef.current = clearHistory
-      }, [clearHistory, pushHistory])
-
-      useEffect(() => {
-        setCommandSelectionIndex(0)
-      }, [commandMenuFilterQuery, isCommandMode])
-
-      useEffect(() => {
-        if (!commandMenuSignal || commandMenuSignal === lastCommandMenuSignalRef.current) {
-          return
-        }
-
-        lastCommandMenuSignalRef.current = commandMenuSignal
-        setPopupState(null)
-        setInputValue('/')
-        setCommandSelectionIndex(0)
-        scrollTo(Number.MAX_SAFE_INTEGER)
-      }, [commandMenuSignal, scrollTo])
-
-      useEffect(() => {
-        if (!commandMatches.length) {
-          setCommandSelectionIndex(0)
-          return
-        }
-        setCommandSelectionIndex((prev) => Math.min(prev, commandMatches.length - 1))
-      }, [commandMatches.length])
+      pushHistoryRef.current = pushHistory
+      clearHistoryRef.current = clearHistory
+      scrollToRef.current = scrollTo
 
       useEffect(() => {
         if (!stdout) {
@@ -651,31 +607,6 @@ export const CommandScreen = memo(
         { isActive: !isCommandMenuActive && !isPopupOpen && !helpOpen },
       )
 
-      useInput(
-        (_input, key) => {
-          if (!isCommandMenuActive) {
-            return
-          }
-
-          const action = resolveCommandMenuKeyAction({
-            key,
-            selectedIndex: commandSelectionIndex,
-            itemCount: visibleCommands.length,
-          })
-
-          if (action.type === 'close') {
-            setInputValue('')
-            setCommandSelectionIndex(0)
-            return
-          }
-
-          if (action.type === 'change-selection') {
-            setCommandSelectionIndex(action.nextIndex)
-          }
-        },
-        { isActive: isCommandMenuActive && !helpOpen },
-      )
-
       const addFileToContext = useCallback(
         (value: string): void => {
           const trimmed = value.trim()
@@ -716,11 +647,6 @@ export const CommandScreen = memo(
         },
         { isActive: !isPopupOpen && !helpOpen },
       )
-
-      const selectedCommand =
-        isCommandMenuActive && visibleCommands.length > 0
-          ? visibleCommands[Math.min(commandSelectionIndex, visibleCommands.length - 1)]
-          : undefined
 
       const handleAddFile = useCallback(
         (value: string) => {
