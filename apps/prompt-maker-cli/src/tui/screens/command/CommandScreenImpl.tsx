@@ -27,6 +27,7 @@ import { useIntentPopupGlue } from './hooks/useIntentPopupGlue'
 import { useMiscPopupDraftHandlers } from './hooks/useMiscPopupDraftHandlers'
 import { useModelPopupData } from './hooks/useModelPopupData'
 import { useReasoningPopup } from './hooks/useReasoningPopup'
+import { useIntentSubmitHandler } from './hooks/useIntentSubmitHandler'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -38,7 +39,6 @@ import { estimateInputBarRows } from '../../components/core/InputBar'
 import type { DebugKeyEvent } from '../../components/core/MultilineTextInput'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from '../../config'
 import { parseAbsolutePathFromInput, isCommandInput } from '../../drag-drop-path'
-import { resolveIntentSource } from '../../intent-source'
 import { useCommandHistory } from '../../hooks/useCommandHistory'
 import { usePersistentCommandHistory } from '../../hooks/usePersistentCommandHistory'
 import { useGenerationPipeline } from '../../hooks/useGenerationPipeline'
@@ -712,85 +712,26 @@ export const CommandScreen = memo(
         reasoningPopupVisibleRows,
       })
 
-      const handleSubmit = useCallback(
-        (value: string) => {
-          const expandedValue = expandInputForSubmit(value)
-
-          if (isAwaitingRefinement) {
-            submitRefinement(expandedValue)
-            setInputValue('')
-            return
-          }
-
-          if (popupState) {
-            return
-          }
-
-          if (isCommandMenuActive) {
-            if (selectedCommand) {
-              const trimmedArgs = commandMenuArgsRaw.trim()
-              addCommandHistoryEntry(
-                `/${selectedCommand.id}${trimmedArgs ? ` ${trimmedArgs}` : ''}`,
-              )
-              if (selectedCommand.id === 'new') {
-                handleNewCommand(commandMenuArgsRaw)
-              } else if (selectedCommand.id === 'reuse') {
-                handleReuseCommand()
-              } else {
-                handleCommandSelection(selectedCommand.id, commandMenuArgsRaw)
-              }
-            }
-            setInputValue('')
-            return
-          }
-
-          if (isCommandMode) {
-            setInputValue('')
-            return
-          }
-
-          const trimmed = expandedValue.trim()
-          const intentSource = resolveIntentSource(trimmed, intentFilePath)
-          if (intentSource.kind === 'empty') {
-            setInputValue('')
-            return
-          }
-          if (isGenerating) {
-            pushHistory('Generation already running. Please wait.', 'system')
-            setInputValue('')
-            return
-          }
-          if (intentSource.kind === 'file') {
-            pushHistory(`> [intent file] ${intentSource.intentFile}`, 'user')
-            if (trimmed.length > 0) {
-              pushHistory('Typed intent ignored because an intent file is active.', 'system')
-            }
-            setInputValue('')
-            void runGeneration({ intentFile: intentSource.intentFile })
-            return
-          }
-          addCommandHistoryEntry(intentSource.intent)
-          pushHistory(`> ${intentSource.intent}`, 'user')
-          lastUserIntentRef.current = intentSource.intent
-          setInputValue('')
-          void runGeneration({ intent: intentSource.intent })
-        },
-        [
-          addCommandHistoryEntry,
-          handleCommandSelection,
-          isCommandMenuActive,
-          isCommandMode,
-          isAwaitingRefinement,
-          submitRefinement,
-          popupState,
-          selectedCommand,
-          isGenerating,
-          runGeneration,
-          pushHistory,
-          commandMenuArgsRaw,
-          intentFilePath,
-        ],
-      )
+      const handleSubmit = useIntentSubmitHandler({
+        popupState,
+        isAwaitingRefinement,
+        submitRefinement,
+        isCommandMenuActive,
+        selectedCommandId: selectedCommand?.id ?? null,
+        commandMenuArgsRaw,
+        isCommandMode,
+        intentFilePath,
+        isGenerating,
+        expandInputForSubmit,
+        setInputValue,
+        pushHistory,
+        addCommandHistoryEntry,
+        runGeneration,
+        handleCommandSelection,
+        handleNewCommand,
+        handleReuseCommand,
+        lastUserIntentRef,
+      })
 
       const handleSeriesIntentSubmitWithHistory = useCallback(
         (value: string) => {
