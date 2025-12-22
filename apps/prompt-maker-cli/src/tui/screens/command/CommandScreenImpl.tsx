@@ -23,6 +23,9 @@ import { usePopupKeyboardShortcuts } from './hooks/usePopupKeyboardShortcuts'
 import { usePromptTestRunner } from './hooks/usePromptTestRunner'
 import { useCommandMenuManager } from './hooks/useCommandMenuManager'
 import { useContextPopupGlue } from './hooks/useContextPopupGlue'
+import { useHistoryPopupGlue } from './hooks/useHistoryPopupGlue'
+import { useIntentPopupGlue } from './hooks/useIntentPopupGlue'
+import { useMiscPopupDraftHandlers } from './hooks/useMiscPopupDraftHandlers'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -32,10 +35,8 @@ import { PopupArea } from './components/PopupArea'
 
 import { estimateInputBarRows } from '../../components/core/InputBar'
 import type { DebugKeyEvent } from '../../components/core/MultilineTextInput'
-import { stripTerminalPasteArtifacts } from '../../components/core/bracketed-paste'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from '../../config'
 import { parseAbsolutePathFromInput, isCommandInput } from '../../drag-drop-path'
-import { filterIntentFileSuggestions } from '../../file-suggestions'
 import { resolveIntentSource } from '../../intent-source'
 import { useCommandHistory } from '../../hooks/useCommandHistory'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
@@ -657,56 +658,26 @@ export const CommandScreen = memo(
         },
       })
 
-      const historyPopupDraft = popupState?.type === 'history' ? popupState.draft : ''
+      const {
+        historyPopupItems,
+        onHistoryPopupDraftChange: handleHistoryPopupDraftChange,
+        onHistoryPopupSubmit: handleHistoryPopupSubmit,
+      } = useHistoryPopupGlue({
+        popupState,
+        setPopupState,
+        closePopup,
+        setInputValue,
+        consumeSuppressedTextInputChange,
+        suppressNextInput,
+        commandHistoryValues,
+      })
 
-      const historyPopupItems = useMemo(() => {
-        const trimmed = historyPopupDraft.trim().toLowerCase()
-        if (!trimmed) {
-          return commandHistoryValues
-        }
-        return commandHistoryValues.filter((value) => value.toLowerCase().includes(trimmed))
-      }, [commandHistoryValues, historyPopupDraft])
-
-      useEffect(() => {
-        if (popupState?.type !== 'history') {
-          return
-        }
-        setPopupState((prev) => {
-          if (prev?.type !== 'history') {
-            return prev
-          }
-          const maxIndex = Math.max(historyPopupItems.length - 1, 0)
-          const nextIndex = Math.min(prev.selectionIndex, maxIndex)
-          return prev.selectionIndex === nextIndex ? prev : { ...prev, selectionIndex: nextIndex }
-        })
-      }, [historyPopupItems.length, popupState?.type, setPopupState])
-
-      const intentPopupDraft = popupState?.type === 'intent' ? popupState.draft : ''
-      const intentPopupSuggestedItems =
-        popupState?.type === 'intent' ? popupState.suggestedItems : ([] as string[])
-      const intentPopupSuggestedFocused =
-        popupState?.type === 'intent' ? popupState.suggestedFocused : false
-      const intentPopupSuggestedSelectionIndex =
-        popupState?.type === 'intent' ? popupState.suggestedSelectionIndex : 0
-
-      const intentPopupSuggestions = useMemo(() => {
-        if (!intentPopupSuggestedItems.length) {
-          return []
-        }
-        return filterIntentFileSuggestions({
-          suggestions: intentPopupSuggestedItems,
-          query: intentPopupDraft,
-          limit: 200,
-        })
-      }, [intentPopupDraft, intentPopupSuggestedItems])
-
-      const intentPopupSuggestionSelectionIndex = Math.min(
-        intentPopupSuggestedSelectionIndex,
-        Math.max(intentPopupSuggestions.length - 1, 0),
-      )
-
-      const intentPopupSuggestionsFocused =
-        intentPopupSuggestedFocused && intentPopupSuggestions.length > 0
+      const {
+        intentPopupSuggestions,
+        intentPopupSuggestionSelectionIndex,
+        intentPopupSuggestionsFocused,
+        onIntentPopupDraftChange: handleIntentPopupDraftChange,
+      } = useIntentPopupGlue({ popupState, setPopupState })
 
       const modelPopupQuery = popupState?.type === 'model' ? popupState.query : ''
       const debouncedModelPopupQuery = useDebouncedValue(modelPopupQuery, 75)
@@ -757,28 +728,6 @@ export const CommandScreen = memo(
 
         return entries
       }, [lastReasoning, terminalColumns])
-
-      useEffect(() => {
-        if (popupState?.type !== 'intent') {
-          return
-        }
-        if (!intentPopupSuggestedFocused) {
-          return
-        }
-        if (intentPopupSuggestions.length > 0) {
-          return
-        }
-        setPopupState((prev) =>
-          prev?.type === 'intent'
-            ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
-            : prev,
-        )
-      }, [
-        intentPopupSuggestedFocused,
-        intentPopupSuggestions.length,
-        popupState?.type,
-        setPopupState,
-      ])
 
       usePopupKeyboardShortcuts({
         popupState,
@@ -885,48 +834,6 @@ export const CommandScreen = memo(
         ],
       )
 
-      const handleModelPopupQueryChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) =>
-            prev?.type === 'model' ? { ...prev, query: next, selectionIndex: 0 } : prev,
-          )
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
-      )
-
-      const handleHistoryPopupDraftChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) =>
-            prev?.type === 'history' ? { ...prev, draft: next, selectionIndex: 0 } : prev,
-          )
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
-      )
-
-      const handleHistoryPopupSubmit = useCallback(
-        (value: string) => {
-          if (popupState?.type !== 'history') {
-            return
-          }
-          const trimmed = value.trim()
-          const fallback = historyPopupItems[popupState.selectionIndex] ?? ''
-          const selection = trimmed || fallback
-          if (!selection.trim()) {
-            return
-          }
-          suppressNextInputRef.current = true
-          setInputValue(selection)
-          closePopup()
-        },
-        [closePopup, historyPopupItems, popupState, setInputValue],
-      )
-
       const handleSeriesIntentSubmitWithHistory = useCallback(
         (value: string) => {
           const trimmed = value.trim()
@@ -938,52 +845,12 @@ export const CommandScreen = memo(
         [addCommandHistoryEntry, handleSeriesIntentSubmit],
       )
 
-      const handleIntentPopupDraftChange = useCallback(
-        (next: string) => {
-          const sanitized = stripTerminalPasteArtifacts(next)
-          setPopupState((prev) =>
-            prev?.type === 'intent'
-              ? {
-                  ...prev,
-                  draft: sanitized,
-                  suggestedSelectionIndex: 0,
-                  suggestedFocused: false,
-                }
-              : prev,
-          )
-        },
-        [setPopupState],
-      )
-
-      const handleSeriesPopupDraftChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) => (prev?.type === 'series' ? { ...prev, draft: next } : prev))
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
-      )
-
-      const handleInstructionsPopupDraftChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) => (prev?.type === 'instructions' ? { ...prev, draft: next } : prev))
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
-      )
-
-      const handleTestPopupDraftChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) => (prev?.type === 'test' ? { ...prev, draft: next } : prev))
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
-      )
+      const {
+        onModelPopupQueryChange: handleModelPopupQueryChange,
+        onSeriesDraftChange: handleSeriesPopupDraftChange,
+        onInstructionsDraftChange: handleInstructionsPopupDraftChange,
+        onTestDraftChange: handleTestPopupDraftChange,
+      } = useMiscPopupDraftHandlers({ setPopupState, consumeSuppressedTextInputChange })
 
       const modelPopupSelection =
         popupState?.type === 'model'
