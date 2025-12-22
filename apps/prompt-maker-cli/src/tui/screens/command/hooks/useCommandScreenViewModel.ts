@@ -1,13 +1,7 @@
 import { useMemo } from 'react'
 
 import type { DebugKeyEvent } from '../../../components/core/MultilineTextInput'
-import type {
-  CommandDescriptor,
-  HistoryEntry,
-  ModelOption,
-  PopupState,
-  ProviderStatusMap,
-} from '../../../types'
+import type { HistoryEntry, ModelOption, PopupState, ProviderStatusMap } from '../../../types'
 import type { TokenUsageBreakdown, TokenUsageRun } from '../../../token-usage-store'
 
 import type { CommandInputProps } from '../components/CommandInput'
@@ -16,92 +10,119 @@ import type { HistoryPaneProps } from '../components/HistoryPane'
 import type { PopupAreaProps } from '../components/PopupArea'
 
 export type UseCommandScreenViewModelOptions = {
-  // Transport
-  isAwaitingTransportInput: boolean
+  transport: {
+    isAwaitingTransportInput: boolean
+  }
 
-  // History pane
-  history: HistoryEntry[]
-  historyRows: number
-  scrollOffset: number
+  panes: {
+    history: HistoryPaneProps
+    menu: CommandMenuPaneProps
+  }
 
-  // Popup area
-  popupState: PopupState
-  helpOpen: boolean
-  overlayHeight: number
-  modelPopupOptions: ModelOption[]
-  modelPopupSelection: number
-  modelPopupRecentCount: number
-  providerStatuses: ProviderStatusMap
-  onModelPopupQueryChange: (next: string) => void
-  onModelPopupSubmit: (option?: ModelOption) => void
+  popup: {
+    base: {
+      popupState: PopupState
+      helpOpen: boolean
+      overlayHeight: number
+    }
 
-  files: string[]
-  filePopupSuggestions: string[]
-  filePopupSuggestionSelectionIndex: number
-  filePopupSuggestionsFocused: boolean
-  onFilePopupDraftChange: (next: string) => void
-  onAddFile: (value: string) => void
+    model: {
+      modelPopupOptions: ModelOption[]
+      modelPopupSelection: number
+      modelPopupRecentCount: number
+      providerStatuses: ProviderStatusMap
+      onModelPopupQueryChange: (next: string) => void
+      onModelPopupSubmit: (option?: ModelOption) => void
+    }
 
-  urls: string[]
-  onUrlPopupDraftChange: (next: string) => void
-  onAddUrl: (value: string) => void
+    context: {
+      files: string[]
+      filePopupSuggestions: string[]
+      filePopupSuggestionSelectionIndex: number
+      filePopupSuggestionsFocused: boolean
+      onFilePopupDraftChange: (next: string) => void
+      onAddFile: (value: string) => void
 
-  historyPopupItems: string[]
-  onHistoryPopupDraftChange: (next: string) => void
-  onHistoryPopupSubmit: (value: string) => void
+      urls: string[]
+      onUrlPopupDraftChange: (next: string) => void
+      onAddUrl: (value: string) => void
 
-  intentPopupSuggestions: string[]
-  intentPopupSuggestionSelectionIndex: number
-  intentPopupSuggestionsFocused: boolean
-  onIntentPopupDraftChange: (next: string) => void
-  onIntentFileSubmit: (value: string) => void
+      smartContextEnabled: boolean
+      smartContextRoot: string | null
+      smartPopupSuggestions: string[]
+      smartPopupSuggestionSelectionIndex: number
+      smartPopupSuggestionsFocused: boolean
+      onSmartPopupDraftChange: (next: string) => void
+      onSmartRootSubmit: (value: string) => void
+    }
 
-  onInstructionsDraftChange: (next: string) => void
-  onInstructionsSubmit: (value: string) => void
+    history: {
+      historyPopupItems: string[]
+      onHistoryPopupDraftChange: (next: string) => void
+      onHistoryPopupSubmit: (value: string) => void
+    }
 
-  isGenerating: boolean
-  onSeriesDraftChange: (next: string) => void
-  onSeriesSubmit: (value: string) => void
+    intent: {
+      intentPopupSuggestions: string[]
+      intentPopupSuggestionSelectionIndex: number
+      intentPopupSuggestionsFocused: boolean
+      onIntentPopupDraftChange: (next: string) => void
+      onIntentFileSubmit: (value: string) => void
+    }
 
-  isTestCommandRunning: boolean
-  onTestDraftChange: (next: string) => void
-  onTestSubmit: (value: string) => void
+    instructions: {
+      onInstructionsDraftChange: (next: string) => void
+      onInstructionsSubmit: (value: string) => void
+    }
 
-  tokenUsageRun: TokenUsageRun | null
-  tokenUsageBreakdown: TokenUsageBreakdown | null
+    series: {
+      isGenerating: boolean
+      onSeriesDraftChange: (next: string) => void
+      onSeriesSubmit: (value: string) => void
+    }
 
-  statusChips: string[]
+    test: {
+      isTestCommandRunning: boolean
+      onTestDraftChange: (next: string) => void
+      onTestSubmit: (value: string) => void
+    }
 
-  reasoningPopupLines: HistoryEntry[]
-  reasoningPopupVisibleRows: number
+    tokens: {
+      tokenUsageRun: TokenUsageRun | null
+      tokenUsageBreakdown: TokenUsageBreakdown | null
+    }
 
-  smartContextEnabled: boolean
-  smartContextRoot: string | null
-  smartPopupSuggestions: string[]
-  smartPopupSuggestionSelectionIndex: number
-  smartPopupSuggestionsFocused: boolean
-  onSmartPopupDraftChange: (next: string) => void
-  onSmartRootSubmit: (value: string) => void
+    settings: {
+      statusChips: string[]
+    }
 
-  // Command menu
-  isCommandMenuActive: boolean
-  menuHeight: number
-  visibleCommands: readonly CommandDescriptor[]
-  commandSelectionIndex: number
+    reasoning: {
+      reasoningPopupLines: HistoryEntry[]
+      reasoningPopupVisibleRows: number
+    }
+  }
 
-  // Input bar
-  inputValue: string
-  onInputChange: (next: string) => void
-  onInputSubmit: (value: string) => void
-  isPasteActive: boolean
-  hint: string | undefined
-  debugLine: string | undefined
-  tokenLabel: (token: string) => string | null
-  debugKeysEnabled: boolean
-  onDebugKeyEvent: (event: DebugKeyEvent) => void
+  input: {
+    base: {
+      value: string
+      onChange: (next: string) => void
+      onSubmit: (value: string) => void
+      isPasteActive: boolean
+      hint: string | undefined
+      debugLine: string | undefined
+      tokenLabel: (token: string) => string | null
+      debugKeysEnabled: boolean
+      onDebugKeyEvent: (event: DebugKeyEvent) => void
+    }
 
-  isPopupOpen: boolean
-  isAwaitingRefinement: boolean
+    state: {
+      isPopupOpen: boolean
+      helpOpen: boolean
+      isAwaitingRefinement: boolean
+    }
+
+    statusChips: string[]
+  }
 }
 
 export type UseCommandScreenViewModelResult = {
@@ -113,222 +134,65 @@ export type UseCommandScreenViewModelResult = {
 }
 
 export const useCommandScreenViewModel = ({
-  isAwaitingTransportInput,
-  history,
-  historyRows,
-  scrollOffset,
-  popupState,
-  helpOpen,
-  overlayHeight,
-  modelPopupOptions,
-  modelPopupSelection,
-  modelPopupRecentCount,
-  providerStatuses,
-  onModelPopupQueryChange,
-  onModelPopupSubmit,
-  files,
-  filePopupSuggestions,
-  filePopupSuggestionSelectionIndex,
-  filePopupSuggestionsFocused,
-  onFilePopupDraftChange,
-  onAddFile,
-  urls,
-  onUrlPopupDraftChange,
-  onAddUrl,
-  historyPopupItems,
-  onHistoryPopupDraftChange,
-  onHistoryPopupSubmit,
-  intentPopupSuggestions,
-  intentPopupSuggestionSelectionIndex,
-  intentPopupSuggestionsFocused,
-  onIntentPopupDraftChange,
-  onIntentFileSubmit,
-  onInstructionsDraftChange,
-  onInstructionsSubmit,
-  isGenerating,
-  onSeriesDraftChange,
-  onSeriesSubmit,
-  isTestCommandRunning,
-  onTestDraftChange,
-  onTestSubmit,
-  tokenUsageRun,
-  tokenUsageBreakdown,
-  statusChips,
-  reasoningPopupLines,
-  reasoningPopupVisibleRows,
-  smartContextEnabled,
-  smartContextRoot,
-  smartPopupSuggestions,
-  smartPopupSuggestionSelectionIndex,
-  smartPopupSuggestionsFocused,
-  onSmartPopupDraftChange,
-  onSmartRootSubmit,
-  isCommandMenuActive,
-  menuHeight,
-  visibleCommands,
-  commandSelectionIndex,
-  inputValue,
-  onInputChange,
-  onInputSubmit,
-  isPasteActive,
-  hint,
-  debugLine,
-  tokenLabel,
-  debugKeysEnabled,
-  onDebugKeyEvent,
-  isPopupOpen,
-  isAwaitingRefinement,
+  transport,
+  panes,
+  popup,
+  input,
 }: UseCommandScreenViewModelOptions): UseCommandScreenViewModelResult => {
-  const transportMessage = isAwaitingTransportInput
+  const transportMessage = transport.isAwaitingTransportInput
     ? 'Waiting for interactive transport input (send refine/finish).'
     : null
 
-  const historyPaneProps = useMemo<HistoryPaneProps>(
-    () => ({ lines: history, visibleRows: historyRows, scrollOffset }),
-    [history, historyRows, scrollOffset],
-  )
+  const historyPaneProps = panes.history
+  const commandMenuPaneProps = panes.menu
 
   const popupAreaProps = useMemo<PopupAreaProps>(
     () => ({
-      popupState,
-      helpOpen,
-      overlayHeight,
-      modelPopupOptions,
-      modelPopupSelection,
-      modelPopupRecentCount,
-      providerStatuses,
-      onModelPopupQueryChange,
-      onModelPopupSubmit,
-      files,
-      filePopupSuggestions,
-      filePopupSuggestionSelectionIndex,
-      filePopupSuggestionsFocused,
-      onFilePopupDraftChange,
-      onAddFile,
-      urls,
-      onUrlPopupDraftChange,
-      onAddUrl,
-      historyPopupItems,
-      onHistoryPopupDraftChange,
-      onHistoryPopupSubmit,
-      intentPopupSuggestions,
-      intentPopupSuggestionSelectionIndex,
-      intentPopupSuggestionsFocused,
-      onIntentPopupDraftChange,
-      onIntentFileSubmit,
-      onInstructionsDraftChange,
-      onInstructionsSubmit,
-      isGenerating,
-      onSeriesDraftChange,
-      onSeriesSubmit,
-      isTestCommandRunning,
-      onTestDraftChange,
-      onTestSubmit,
-      tokenUsageRun,
-      tokenUsageBreakdown,
-      statusChips,
-      reasoningPopupLines,
-      reasoningPopupVisibleRows,
-      smartContextEnabled,
-      smartContextRoot,
-      smartPopupSuggestions,
-      smartPopupSuggestionSelectionIndex,
-      smartPopupSuggestionsFocused,
-      onSmartPopupDraftChange,
-      onSmartRootSubmit,
+      ...popup.base,
+      ...popup.model,
+      ...popup.context,
+      ...popup.history,
+      ...popup.intent,
+      ...popup.instructions,
+      ...popup.series,
+      ...popup.test,
+      ...popup.tokens,
+      ...popup.settings,
+      ...popup.reasoning,
     }),
     [
-      filePopupSuggestionSelectionIndex,
-      filePopupSuggestions,
-      filePopupSuggestionsFocused,
-      files,
-      helpOpen,
-      historyPopupItems,
-      intentPopupSuggestionSelectionIndex,
-      intentPopupSuggestions,
-      intentPopupSuggestionsFocused,
-      isGenerating,
-      isTestCommandRunning,
-      modelPopupOptions,
-      modelPopupRecentCount,
-      modelPopupSelection,
-      onAddFile,
-      onAddUrl,
-      onFilePopupDraftChange,
-      onHistoryPopupDraftChange,
-      onHistoryPopupSubmit,
-      onInstructionsDraftChange,
-      onInstructionsSubmit,
-      onIntentFileSubmit,
-      onIntentPopupDraftChange,
-      onModelPopupQueryChange,
-      onModelPopupSubmit,
-      onSeriesDraftChange,
-      onSeriesSubmit,
-      onSmartPopupDraftChange,
-      onSmartRootSubmit,
-      onTestDraftChange,
-      onTestSubmit,
-      onUrlPopupDraftChange,
-      overlayHeight,
-      popupState,
-      providerStatuses,
-      reasoningPopupLines,
-      reasoningPopupVisibleRows,
-      smartContextEnabled,
-      smartContextRoot,
-      smartPopupSuggestionSelectionIndex,
-      smartPopupSuggestions,
-      smartPopupSuggestionsFocused,
-      statusChips,
-      tokenUsageBreakdown,
-      tokenUsageRun,
-      urls,
+      popup.base,
+      popup.context,
+      popup.history,
+      popup.instructions,
+      popup.intent,
+      popup.model,
+      popup.reasoning,
+      popup.series,
+      popup.settings,
+      popup.test,
+      popup.tokens,
     ],
-  )
-
-  const commandMenuPaneProps = useMemo<CommandMenuPaneProps>(
-    () => ({
-      isActive: isCommandMenuActive,
-      height: menuHeight,
-      commands: visibleCommands,
-      selectedIndex: commandSelectionIndex,
-    }),
-    [commandSelectionIndex, isCommandMenuActive, menuHeight, visibleCommands],
   )
 
   const commandInputProps = useMemo<CommandInputProps>(
     () => ({
-      value: inputValue,
-      onChange: onInputChange,
-      onSubmit: onInputSubmit,
-      mode: isAwaitingRefinement ? 'refinement' : 'intent',
-      isDisabled: isPopupOpen || helpOpen,
-      isPasteActive,
-      statusChips,
-      hint,
-      debugLine,
-      tokenLabel,
-      onDebugKeyEvent: debugKeysEnabled ? onDebugKeyEvent : undefined,
-      placeholder: isAwaitingRefinement
+      value: input.base.value,
+      onChange: input.base.onChange,
+      onSubmit: input.base.onSubmit,
+      mode: input.state.isAwaitingRefinement ? 'refinement' : 'intent',
+      isDisabled: input.state.isPopupOpen || input.state.helpOpen,
+      isPasteActive: input.base.isPasteActive,
+      statusChips: input.statusChips,
+      hint: input.base.hint,
+      debugLine: input.base.debugLine,
+      tokenLabel: input.base.tokenLabel,
+      onDebugKeyEvent: input.base.debugKeysEnabled ? input.base.onDebugKeyEvent : undefined,
+      placeholder: input.state.isAwaitingRefinement
         ? 'Describe refinement (or empty to finish)...'
         : 'Describe your goal or type /command',
     }),
-    [
-      debugKeysEnabled,
-      debugLine,
-      helpOpen,
-      hint,
-      inputValue,
-      isAwaitingRefinement,
-      isPasteActive,
-      isPopupOpen,
-      onDebugKeyEvent,
-      onInputChange,
-      onInputSubmit,
-      statusChips,
-      tokenLabel,
-    ],
+    [input],
   )
 
   return {
