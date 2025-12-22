@@ -1,6 +1,13 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useReducer, useRef } from 'react'
+
+import {
+  INITIAL_POPUP_MANAGER_STATE,
+  popupReducer,
+  type PopupAction,
+  type SetStateAction,
+} from '../popup-reducer'
 
 import { TOGGLE_LABELS } from '../config'
 import {
@@ -76,6 +83,16 @@ export type UsePopupManagerOptions = {
 
 const JSON_INTERACTIVE_ERROR = 'JSON output is unavailable while interactive transport is enabled.'
 
+/*
+ * Popup state management for the Ink TUI.
+ *
+ * This hook wires UI actions (open/close/submit) to a pure reducer:
+ * `apps/prompt-maker-cli/src/tui/popup-reducer.ts`.
+ *
+ * Keeping the reducer in a separate module lets us unit test popup transitions
+ * without a TTY and keeps this hook focused on effects (async scans, commands).
+ */
+
 export const usePopupManager = ({
   currentModel,
   modelOptions,
@@ -111,7 +128,26 @@ export const usePopupManager = ({
   setPopupState: React.Dispatch<React.SetStateAction<PopupState>>
   actions: PopupManagerActions
 } => {
-  const [popupState, setPopupState] = useState<PopupState>(null)
+  const scanIdRef = useRef(0)
+
+  const nextScanId = useCallback((): number => {
+    scanIdRef.current += 1
+    return scanIdRef.current
+  }, [])
+
+  const [popupManagerState, dispatch] = useReducer(popupReducer, INITIAL_POPUP_MANAGER_STATE)
+
+  const popupState = popupManagerState.popupState
+
+  // Compatibility shim: keeps the existing `setPopupState(prev => ...)` call sites working.
+  // Internally we treat it as a reducer action.
+  const setPopupState = useCallback<React.Dispatch<SetStateAction<PopupState>>>((next) => {
+    dispatch({ type: 'set', next } satisfies PopupAction)
+  }, [])
+
+  const closePopup = useCallback(() => {
+    dispatch({ type: 'close' })
+  }, [])
 
   const openModelPopup = useCallback(() => {
     const recentModelIds = getRecentSessionModels()
@@ -120,7 +156,8 @@ export const usePopupManager = ({
       0,
       options.findIndex((option) => option.id === currentModel),
     )
-    setPopupState({ type: 'model', query: '', selectionIndex: defaultIndex })
+
+    dispatch({ type: 'open-model', query: '', selectionIndex: defaultIndex })
   }, [currentModel, modelOptions])
 
   const openTogglePopup = useCallback(
@@ -133,34 +170,29 @@ export const usePopupManager = ({
             : field === 'chatgpt'
               ? chatGptEnabled
               : jsonOutputEnabled
-      setPopupState({ type: 'toggle', field, selectionIndex: currentValue ? 0 : 1 })
+
+      dispatch({
+        type: 'open-toggle',
+        field,
+        selectionIndex: currentValue ? 0 : 1,
+      })
     },
     [polishEnabled, copyEnabled, chatGptEnabled, jsonOutputEnabled],
   )
 
   const openFilePopup = useCallback(() => {
-    setPopupState({
-      type: 'file',
-      draft: '',
-      selectionIndex: 0,
-      suggestedItems: [],
-      suggestedSelectionIndex: 0,
-      suggestedFocused: false,
-    })
+    const scanId = nextScanId()
+    dispatch({ type: 'open-file', scanId })
 
     const scan = async (): Promise<void> => {
       try {
         const suggestions = await discoverFileSuggestions({ cwd: process.cwd(), limit: 200 })
-        setPopupState((prev) =>
-          prev?.type === 'file'
-            ? {
-                ...prev,
-                suggestedItems: suggestions,
-                suggestedSelectionIndex: 0,
-                suggestedFocused: false,
-              }
-            : prev,
-        )
+        dispatch({
+          type: 'scan-suggestions-success',
+          kind: 'file',
+          scanId,
+          suggestions,
+        })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
         pushHistory(`[file] Failed to scan workspace: ${message}`, 'system')
@@ -168,38 +200,31 @@ export const usePopupManager = ({
     }
 
     void scan()
-  }, [pushHistory])
+  }, [nextScanId, pushHistory])
 
   const openUrlPopup = useCallback(() => {
-    setPopupState({ type: 'url', draft: '', selectionIndex: 0 })
+    dispatch({ type: 'open-url' })
   }, [])
 
   const openHistoryPopup = useCallback(() => {
-    setPopupState({ type: 'history', draft: '', selectionIndex: 0 })
+    dispatch({ type: 'open-history' })
   }, [])
 
   const openSmartPopup = useCallback(() => {
-    setPopupState({
-      type: 'smart',
-      draft: smartContextRoot ?? '',
-      suggestedItems: [],
-      suggestedSelectionIndex: 0,
-      suggestedFocused: false,
-    })
+    const draft = smartContextRoot ?? ''
+    const scanId = nextScanId()
+
+    dispatch({ type: 'open-smart', scanId, draft })
 
     const scan = async (): Promise<void> => {
       try {
         const suggestions = await discoverDirectorySuggestions({ cwd: process.cwd(), limit: 200 })
-        setPopupState((prev) =>
-          prev?.type === 'smart'
-            ? {
-                ...prev,
-                suggestedItems: suggestions,
-                suggestedSelectionIndex: 0,
-                suggestedFocused: false,
-              }
-            : prev,
-        )
+        dispatch({
+          type: 'scan-suggestions-success',
+          kind: 'smart',
+          scanId,
+          suggestions,
+        })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
         pushHistory(`[smart] Failed to scan workspace: ${message}`, 'system')
@@ -207,46 +232,37 @@ export const usePopupManager = ({
     }
 
     void scan()
-  }, [pushHistory, smartContextRoot])
+  }, [nextScanId, pushHistory, smartContextRoot])
 
   const openTokensPopup = useCallback(() => {
-    setPopupState({ type: 'tokens' })
+    dispatch({ type: 'open-tokens' })
   }, [])
 
   const openSettingsPopup = useCallback(() => {
-    setPopupState({ type: 'settings' })
+    dispatch({ type: 'open-settings' })
   }, [])
 
   const openReasoningPopup = useCallback(() => {
-    setPopupState({ type: 'reasoning', scrollOffset: 0 })
+    dispatch({ type: 'open-reasoning', scrollOffset: 0 })
   }, [])
 
   const openTestPopup = useCallback(() => {
-    setPopupState({ type: 'test', draft: lastTestFile ?? defaultTestFile })
+    dispatch({ type: 'open-test', draft: lastTestFile ?? defaultTestFile })
   }, [defaultTestFile, lastTestFile])
 
   const openIntentPopup = useCallback(() => {
-    setPopupState({
-      type: 'intent',
-      draft: intentFilePath,
-      suggestedItems: [],
-      suggestedSelectionIndex: 0,
-      suggestedFocused: false,
-    })
+    const scanId = nextScanId()
+    dispatch({ type: 'open-intent', scanId, draft: intentFilePath })
 
     const scan = async (): Promise<void> => {
       try {
         const suggestions = await discoverIntentFileSuggestions({ cwd: process.cwd(), limit: 200 })
-        setPopupState((prev) =>
-          prev?.type === 'intent'
-            ? {
-                ...prev,
-                suggestedItems: suggestions,
-                suggestedSelectionIndex: 0,
-                suggestedFocused: false,
-              }
-            : prev,
-        )
+        dispatch({
+          type: 'scan-suggestions-success',
+          kind: 'intent',
+          scanId,
+          suggestions,
+        })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
         pushHistory(`[intent] Failed to scan workspace: ${message}`, 'system')
@@ -254,10 +270,10 @@ export const usePopupManager = ({
     }
 
     void scan()
-  }, [intentFilePath, pushHistory])
+  }, [intentFilePath, nextScanId, pushHistory])
 
   const openInstructionsPopup = useCallback(() => {
-    setPopupState({ type: 'instructions', draft: metaInstructions })
+    dispatch({ type: 'open-instructions', draft: metaInstructions })
   }, [metaInstructions])
 
   const openSeriesPopup = useCallback(
@@ -266,18 +282,15 @@ export const usePopupManager = ({
       const defaultHint = trimmedIntentFile
         ? 'Draft prefills from typed/last intent; if empty, loads the intent file.'
         : 'Draft prefills from typed/last intent (or pass /series <intent>).'
-      setPopupState({
-        type: 'series',
+
+      dispatch({
+        type: 'open-series',
         draft: initialDraft ?? '',
         hint: hintOverride ?? defaultHint,
       })
     },
     [intentFilePath],
   )
-
-  const closePopup = useCallback(() => {
-    setPopupState(null)
-  }, [])
 
   const applyModelSelection = useCallback(
     (option?: ModelOption) => {
@@ -288,9 +301,9 @@ export const usePopupManager = ({
       setCurrentModel(option.id)
       notify(`Selected model: ${option.label} (${option.id})`, { kind: 'info' })
       setInputValue('')
-      setPopupState(null)
+      closePopup()
     },
-    [notify, setCurrentModel, setInputValue],
+    [closePopup, notify, setCurrentModel, setInputValue],
   )
 
   const handleModelPopupSubmit = useCallback(
@@ -302,12 +315,14 @@ export const usePopupManager = ({
 
   const applyToggleSelection = useCallback(
     (field: ToggleField, value: boolean) => {
+      // Guardrail: JSON output and interactive transport both want to “own” stdout.
       if (field === 'json' && value && interactiveTransportPath) {
         pushHistory(JSON_INTERACTIVE_ERROR, 'system')
         setInputValue('')
-        setPopupState(null)
+        closePopup()
         return
       }
+
       if (field === 'json') {
         setJsonOutputEnabled(value)
         notify(
@@ -317,7 +332,7 @@ export const usePopupManager = ({
           { kind: value ? 'info' : 'warning' },
         )
         setInputValue('')
-        setPopupState(null)
+        closePopup()
         return
       }
 
@@ -333,16 +348,18 @@ export const usePopupManager = ({
 
       pushHistory(message)
       setInputValue('')
-      setPopupState(null)
+      closePopup()
     },
     [
+      closePopup,
       interactiveTransportPath,
+      notify,
       pushHistory,
-      setInputValue,
-      setPolishEnabled,
-      setCopyEnabled,
       setChatGptEnabled,
+      setCopyEnabled,
+      setInputValue,
       setJsonOutputEnabled,
+      setPolishEnabled,
     ],
   )
 
@@ -354,9 +371,9 @@ export const usePopupManager = ({
         trimmed ? `Intent file set to ${trimmed}` : 'Intent file cleared; using typed intent.',
       )
       setInputValue('')
-      setPopupState(null)
+      closePopup()
     },
-    [pushHistory, setInputValue, setIntentFilePath],
+    [closePopup, pushHistory, setInputValue, setIntentFilePath],
   )
 
   const handleInstructionsSubmit = useCallback(
@@ -365,9 +382,9 @@ export const usePopupManager = ({
       setMetaInstructions(trimmed)
       pushHistory(trimmed ? `[instr] ${trimmed}` : '[instr] cleared')
       setInputValue('')
-      setPopupState(null)
+      closePopup()
     },
-    [pushHistory, setInputValue, setMetaInstructions],
+    [closePopup, pushHistory, setInputValue, setMetaInstructions],
   )
 
   const handleSeriesIntentSubmit = useCallback(
@@ -381,7 +398,7 @@ export const usePopupManager = ({
       syncTypedIntentRef(trimmed)
       pushHistory(`> /series ${trimmed}`, 'user')
       setInputValue('')
-      setPopupState(null)
+      closePopup()
       void runSeriesGeneration(trimmed)
     },
     [lastUserIntentRef, pushHistory, runSeriesGeneration, setInputValue, syncTypedIntentRef],
@@ -599,10 +616,10 @@ export const usePopupManager = ({
     ],
   )
 
-  return {
-    popupState,
-    setPopupState,
-    actions: {
+  // Memoizing the actions object keeps `actions` referentially stable.
+  // This reduces avoidable rerenders in components that receive `actions`.
+  const actions = useMemo<PopupManagerActions>(
+    () => ({
       openModelPopup,
       openTogglePopup,
       openFilePopup,
@@ -623,6 +640,34 @@ export const usePopupManager = ({
       handleIntentFileSubmit,
       handleInstructionsSubmit,
       handleSeriesIntentSubmit,
-    },
+    }),
+    [
+      applyToggleSelection,
+      closePopup,
+      handleCommandSelection,
+      handleInstructionsSubmit,
+      handleIntentFileSubmit,
+      handleModelPopupSubmit,
+      handleSeriesIntentSubmit,
+      openFilePopup,
+      openHistoryPopup,
+      openInstructionsPopup,
+      openIntentPopup,
+      openModelPopup,
+      openReasoningPopup,
+      openSeriesPopup,
+      openSettingsPopup,
+      openSmartPopup,
+      openTestPopup,
+      openTogglePopup,
+      openTokensPopup,
+      openUrlPopup,
+    ],
+  )
+
+  return {
+    popupState,
+    setPopupState,
+    actions,
   }
 }
