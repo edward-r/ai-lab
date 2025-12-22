@@ -20,6 +20,7 @@ import { useCommandScreen } from './useCommandScreen'
 import { useModelProviderState } from './hooks/useModelProviderState'
 import { usePasteManager } from './hooks/usePasteManager'
 import { usePopupKeyboardShortcuts } from './hooks/usePopupKeyboardShortcuts'
+import { usePromptTestRunner } from './hooks/usePromptTestRunner'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -49,8 +50,7 @@ import { resolveModelPopupQuery } from '../../model-filter'
 import { buildModelPopupOptions } from '../../model-popup-options'
 import { formatProviderStatusChip } from '../../provider-chip'
 import { getRecentSessionModels } from '../../model-session'
-import type { HistoryEntry, ModelOption, PopupKind } from '../../types'
-import { runPromptTestSuite, type PromptTestRunReporter } from '../../../test-command'
+import type { HistoryEntry, PopupKind } from '../../types'
 import { useContextDispatch, useContextState } from '../../context-store'
 import { planSessionCommand } from '../../new-command'
 import type { NotifyOptions } from '../../notifier'
@@ -160,8 +160,6 @@ export const CommandScreen = memo(
       const [copyEnabled, setCopyEnabled] = useState(false)
       const [chatGptEnabled, setChatGptEnabled] = useState(false)
       const [jsonOutputEnabled, setJsonOutputEnabled] = useState(false)
-      const [isTestCommandRunning, setIsTestCommandRunning] = useState(false)
-      const [lastTestFile, setLastTestFile] = useState<string | null>(null)
       const suppressNextInputRef = useRef(false)
 
       const tokenUsageStoreRef = useRef<ReturnType<typeof createTokenUsageStore> | null>(null)
@@ -210,10 +208,26 @@ export const CommandScreen = memo(
         [commandHistoryEntries],
       )
 
-      const runTestsFromCommandRef = useRef<(value: string) => void>(() => {})
-      const runTestsFromCommandProxy = useCallback((value: string) => {
-        runTestsFromCommandRef.current(value)
+      const closeTestPopupRef = useRef<() => void>(() => {})
+      const closeTestPopupProxy = useCallback(() => {
+        closeTestPopupRef.current()
       }, [])
+
+      const clearHistoryRef = useRef<() => void>(() => {})
+      const clearHistoryProxy = useCallback(() => {
+        clearHistoryRef.current()
+      }, [])
+
+      const { isTestCommandRunning, lastTestFile, runTestsFromCommand, onTestPopupSubmit } =
+        usePromptTestRunner({
+          defaultTestFile: DEFAULT_TEST_FILE,
+          pushHistory: pushHistoryProxy,
+          clearHistory: clearHistoryProxy,
+          closeTestPopup: closeTestPopupProxy,
+          addCommandHistoryEntry,
+        })
+
+      const runTestsFromCommandProxy = runTestsFromCommand
 
       useImperativeHandle(ref, () => ({
         suppressNextInput: () => {
@@ -352,6 +366,10 @@ export const CommandScreen = memo(
         getLatestTypedIntent,
         syncTypedIntentRef,
       })
+
+      closeTestPopupRef.current = () => {
+        setPopupState((prev) => (prev?.type === 'test' ? null : prev))
+      }
 
       const isPopupOpen = popupState !== null
       const trimmedIntentFilePath = intentFilePath.trim()
@@ -531,7 +549,8 @@ export const CommandScreen = memo(
 
       useEffect(() => {
         pushHistoryRef.current = pushHistory
-      }, [pushHistory])
+        clearHistoryRef.current = clearHistory
+      }, [clearHistory, pushHistory])
 
       useEffect(() => {
         setCommandSelectionIndex(0)
@@ -1061,75 +1080,6 @@ export const CommandScreen = memo(
         reasoningPopupVisibleRows,
       })
 
-      const runTestsFromCommand = useCallback(
-        async (fileArg?: string) => {
-          const normalized = fileArg?.trim() ?? ''
-          const targetFile = normalized || lastTestFile || DEFAULT_TEST_FILE
-          if (!targetFile) {
-            pushHistory('No test file specified. Use /test <file>.', 'system')
-            return
-          }
-          if (isTestCommandRunning) {
-            pushHistory('Test run already in progress. Please wait.', 'system')
-            return
-          }
-          const resolvedPath = path.resolve(process.cwd(), targetFile)
-          clearHistory()
-          setIsTestCommandRunning(true)
-          setLastTestFile(targetFile)
-          setPopupState((prev) => (prev?.type === 'test' ? null : prev))
-          pushHistory(`[tests] Running ${resolvedPath}`, 'progress')
-          try {
-            const reporter: PromptTestRunReporter = {
-              onSuiteLoaded: (suite, loadedPath) => {
-                pushHistory(
-                  `[tests] Loaded ${suite.tests.length} test(s) from ${loadedPath}`,
-                  'progress',
-                )
-              },
-              onTestStart: (ordinal, test) => {
-                pushHistory(`[tests] (${ordinal}) ${test.name}`, 'progress')
-              },
-              onTestComplete: (_ordinal, result) => {
-                const status = result.pass ? 'PASS' : 'FAIL'
-                const reason = result.reason ? ` · ${result.reason}` : ''
-                pushHistory(
-                  `[tests] ${status} ${result.name}${reason}`,
-                  result.pass ? 'system' : 'progress',
-                )
-              },
-              onComplete: (results) => {
-                const passed = results.filter((result) => result.pass).length
-                const failed = results.length - passed
-                const kind: HistoryEntry['kind'] = failed > 0 ? 'progress' : 'system'
-                pushHistory(`[tests] Summary · passed ${passed} · failed ${failed}`, kind)
-              },
-            }
-            await runPromptTestSuite(resolvedPath, { reporter })
-            pushHistory('[tests] Complete.', 'progress')
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown test execution error.'
-            pushHistory(`[tests] Failed: ${message}`, 'progress')
-          } finally {
-            setIsTestCommandRunning(false)
-          }
-        },
-        [clearHistory, isTestCommandRunning, lastTestFile, pushHistory],
-      )
-
-      const handleTestPopupSubmit = useCallback(
-        (value: string) => {
-          const trimmed = value.trim()
-          addCommandHistoryEntry(`/test${trimmed ? ` ${trimmed}` : ''}`)
-          void runTestsFromCommand(value)
-        },
-        [addCommandHistoryEntry, runTestsFromCommand],
-      )
-
-      useEffect(() => {
-        runTestsFromCommandRef.current = runTestsFromCommand
-      }, [runTestsFromCommand])
-
       const handleSubmit = useCallback(
         (value: string) => {
           const expandedValue = expandInputForSubmit(value)
@@ -1415,7 +1365,7 @@ export const CommandScreen = memo(
             onSeriesSubmit={handleSeriesIntentSubmitWithHistory}
             isTestCommandRunning={isTestCommandRunning}
             onTestDraftChange={handleTestPopupDraftChange}
-            onTestSubmit={handleTestPopupSubmit}
+            onTestSubmit={onTestPopupSubmit}
             tokenUsageRun={tokenUsageStoreRef.current?.getLatestRun() ?? null}
             tokenUsageBreakdown={tokenUsageStoreRef.current?.getLatestBreakdown() ?? null}
             statusChips={enhancedStatusChips}
