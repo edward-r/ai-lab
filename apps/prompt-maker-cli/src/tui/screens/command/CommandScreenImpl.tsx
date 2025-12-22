@@ -28,6 +28,12 @@ import { useMiscPopupDraftHandlers } from './hooks/useMiscPopupDraftHandlers'
 import { useModelPopupData } from './hooks/useModelPopupData'
 import { useReasoningPopup } from './hooks/useReasoningPopup'
 import { useIntentSubmitHandler } from './hooks/useIntentSubmitHandler'
+import { useCommandGenerationPipeline } from './hooks/useCommandGenerationPipeline'
+import { useSessionCommands } from './hooks/useSessionCommands'
+import { useTerminalEffects } from './hooks/useTerminalEffects'
+import { usePopupSelectionClamp } from './hooks/usePopupSelectionClamp'
+import { useHistoryScrollKeys } from './hooks/useHistoryScrollKeys'
+import { useCommandScreenLayout } from './hooks/useCommandScreenLayout'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -35,20 +41,16 @@ import { CommandMenuPane } from './components/CommandMenuPane'
 import { HistoryPane } from './components/HistoryPane'
 import { PopupArea } from './components/PopupArea'
 
-import { estimateInputBarRows } from '../../components/core/InputBar'
 import type { DebugKeyEvent } from '../../components/core/MultilineTextInput'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from '../../config'
 import { parseAbsolutePathFromInput, isCommandInput } from '../../drag-drop-path'
 import { useCommandHistory } from '../../hooks/useCommandHistory'
 import { usePersistentCommandHistory } from '../../hooks/usePersistentCommandHistory'
-import { useGenerationPipeline } from '../../hooks/useGenerationPipeline'
 import { usePopupManager } from '../../hooks/usePopupManager'
 import { formatProviderStatusChip } from '../../provider-chip'
 import type { HistoryEntry, PopupKind } from '../../types'
 import { useContextDispatch, useContextState } from '../../context-store'
-import { planSessionCommand } from '../../new-command'
 import type { NotifyOptions } from '../../notifier'
-import { createTokenUsageStore } from '../../token-usage-store'
 
 const APP_STATIC_ROWS = 7
 const COMMAND_SCREEN_OVERHEAD_ROWS = 3
@@ -153,11 +155,6 @@ export const CommandScreen = memo(
       const [chatGptEnabled, setChatGptEnabled] = useState(false)
       const [jsonOutputEnabled, setJsonOutputEnabled] = useState(false)
       const suppressNextInputRef = useRef(false)
-
-      const tokenUsageStoreRef = useRef<ReturnType<typeof createTokenUsageStore> | null>(null)
-      if (!tokenUsageStoreRef.current) {
-        tokenUsageStoreRef.current = createTokenUsageStore()
-      }
 
       const consumeSuppressedTextInputChange = useCallback((): boolean => {
         if (!suppressNextInputRef.current) {
@@ -267,7 +264,9 @@ export const CommandScreen = memo(
         isAwaitingRefinement,
         submitRefinement,
         awaitingInteractiveMode,
-      } = useGenerationPipeline({
+        tokenUsageRun,
+        tokenUsageBreakdown,
+      } = useCommandGenerationPipeline({
         pushHistory: pushHistoryProxy,
         notify,
         files,
@@ -276,21 +275,18 @@ export const CommandScreen = memo(
         videos,
         smartContextEnabled,
         smartContextRoot,
+        metaInstructions,
         currentModel,
         interactiveTransportPath,
         terminalColumns,
-        metaInstructions: trimmedMetaInstructions,
         polishEnabled,
         jsonOutputEnabled,
         copyEnabled,
         chatGptEnabled,
         isTestCommandRunning,
-        tokenUsageStore: tokenUsageStoreRef.current,
         onProviderStatusUpdate: updateProviderStatus,
         onReasoningUpdate: setLastReasoning,
-        onLastGeneratedPromptUpdate: (prompt: string) => {
-          setLastGeneratedPrompt(prompt)
-        },
+        onLastGeneratedPromptUpdate: setLastGeneratedPrompt,
       })
 
       const {
@@ -413,60 +409,35 @@ export const CommandScreen = memo(
         scrollTo: scrollToProxy,
       })
 
-      const overlayHeight = helpOpen
-        ? 0
-        : popupState
-          ? POPUP_HEIGHTS[popupState.type as PopupKind]
-          : menuHeight
+      const {
+        overlayHeight,
+        inputBarHint,
+        inputBarDebugLine,
+        inputBarRows,
+        isAwaitingTransportInput,
+        historyRows,
+      } = useCommandScreenLayout({
+        terminalRows,
+        terminalColumns,
+        reservedRows,
+        helpOpen,
+        isPopupOpen,
+        popupState,
+        menuHeight,
+        popupHeights: POPUP_HEIGHTS,
+        inputValue,
+        droppedFilePath,
+        debugKeysEnabled,
+        debugKeyLine,
+        interactiveTransportPath,
+        isGenerating,
+        awaitingInteractiveMode,
+        isCommandMenuActive,
+        appStaticRows: APP_STATIC_ROWS,
+        commandScreenOverheadRows: COMMAND_SCREEN_OVERHEAD_ROWS,
+      })
 
       const inputBarValue = inputValue
-      const inputBarHint = useMemo(() => {
-        if (isPopupOpen || helpOpen || !droppedFilePath) {
-          return undefined
-        }
-        return `Press Tab to add ${path.basename(droppedFilePath)} to context`
-      }, [droppedFilePath, helpOpen, isPopupOpen])
-
-      const inputBarDebugLine = useMemo(() => {
-        if (!debugKeysEnabled) {
-          return undefined
-        }
-        return debugKeyLine ?? 'dbg: press Backspace'
-      }, [debugKeyLine, debugKeysEnabled])
-
-      const inputBarRows = useMemo(
-        () =>
-          estimateInputBarRows({
-            value: inputBarValue,
-            hint: inputBarHint,
-            debugLine: inputBarDebugLine,
-          }),
-        [inputBarDebugLine, inputBarHint, inputBarValue],
-      )
-
-      const isAwaitingTransportInput =
-        isGenerating && Boolean(interactiveTransportPath) && awaitingInteractiveMode === 'transport'
-
-      const historyRows = useMemo(() => {
-        const overlaySpacingRows = !helpOpen && (popupState || isCommandMenuActive) ? 1 : 0
-        const baseChromeRows = APP_STATIC_ROWS + COMMAND_SCREEN_OVERHEAD_ROWS + inputBarRows
-        const transportHeaderRows = interactiveTransportPath ? 1 : 0
-        const transportAwaitingRows = isAwaitingTransportInput ? 1 : 0
-        const parentRows = baseChromeRows + transportHeaderRows + transportAwaitingRows
-        const availableRows =
-          terminalRows - overlayHeight - parentRows - overlaySpacingRows - reservedRows
-        return Math.max(1, availableRows)
-      }, [
-        helpOpen,
-        inputBarRows,
-        interactiveTransportPath,
-        isAwaitingTransportInput,
-        isCommandMenuActive,
-        overlayHeight,
-        popupState,
-        reservedRows,
-        terminalRows,
-      ])
 
       const { history, pushHistory, resetHistory, clearHistory, scroll } = useCommandHistory({
         initialEntries: EMPTY_HISTORY,
@@ -474,133 +445,46 @@ export const CommandScreen = memo(
       })
       const { offset: scrollOffset, scrollTo, scrollBy } = scroll
 
-      const resetSessionState = useCallback(() => {
-        resetContext()
-        setIntentFilePath('')
-        lastUserIntentRef.current = null
-        lastTypedIntentRef.current = ''
-        setInputValue('')
-        setPopupState(null)
-        resetHistory()
-        scrollTo(Number.MAX_SAFE_INTEGER)
-      }, [resetContext, resetHistory, scrollTo, setIntentFilePath, setPopupState])
-
-      const handleNewCommand = useCallback(
-        (argsRaw: string) => {
-          if (isGenerating) {
-            pushHistory('[new] Cannot reset while generation is running.', 'system')
-            return
-          }
-
-          resetSessionState()
-          const plan = planSessionCommand({ commandId: 'new', lastGeneratedPrompt: null })
-          pushHistory(plan.message, 'system')
-
-          if (argsRaw.includes('--reuse')) {
-            pushHistory('[new] Tip: use /reuse to reuse the last prompt.', 'system')
-          }
-        },
-        [isGenerating, pushHistory, resetSessionState],
-      )
-
-      const handleReuseCommand = useCallback(() => {
-        if (isGenerating) {
-          pushHistory('[reuse] Cannot reset while generation is running.', 'system')
-          return
-        }
-
-        const previousPrompt = lastGeneratedPrompt
-        resetSessionState()
-        const plan = planSessionCommand({
-          commandId: 'reuse',
-          lastGeneratedPrompt: previousPrompt,
-        })
-
-        if (plan.type === 'reset-and-load-meta') {
-          setMetaInstructions(plan.metaInstructions)
-        }
-
-        pushHistory(plan.message, 'system')
-      }, [isGenerating, lastGeneratedPrompt, pushHistory, resetSessionState, setMetaInstructions])
+      const { handleNewCommand, handleReuseCommand } = useSessionCommands({
+        isGenerating,
+        lastGeneratedPrompt,
+        resetContext,
+        resetHistory,
+        scrollTo,
+        setInputValue,
+        setPopupState,
+        setIntentFilePath,
+        setMetaInstructions,
+        lastUserIntentRef,
+        lastTypedIntentRef,
+        pushHistory,
+      })
 
       pushHistoryRef.current = pushHistory
       clearHistoryRef.current = clearHistory
       scrollToRef.current = scrollTo
 
-      useEffect(() => {
-        if (!stdout) {
-          return undefined
-        }
-        stdout.write('\x1bc')
-        stdout.write('\x1b[?2004h')
-        return () => {
-          stdout.write('\x1b[?2004l')
-        }
-      }, [stdout])
+      useTerminalEffects({
+        stdout,
+        setTerminalSize,
+        interactiveTransportPath,
+        history,
+        pushHistory,
+      })
 
-      useEffect(() => {
-        if (!interactiveTransportPath) {
-          return
-        }
-        const transportLine = `Interactive transport listening on ${interactiveTransportPath}`
-        if (history.some((entry) => entry.content === transportLine)) {
-          return
-        }
-        pushHistory(transportLine, 'system')
-      }, [history, interactiveTransportPath, pushHistory])
+      usePopupSelectionClamp({
+        setPopupState,
+        filesLength: files.length,
+        urlsLength: urls.length,
+      })
 
-      useEffect(() => {
-        if (!stdout) {
-          return undefined
-        }
-        const handleResize = (): void => {
-          setTerminalSize(stdout.rows, stdout.columns)
-        }
-        stdout.on('resize', handleResize)
-        return () => {
-          stdout.off('resize', handleResize)
-        }
-      }, [setTerminalSize, stdout])
-
-      useEffect(() => {
-        setPopupState((prev) => {
-          if (!prev) {
-            return prev
-          }
-          if (prev.type === 'file') {
-            const maxIndex = Math.max(files.length - 1, 0)
-            const nextIndex = Math.min(prev.selectionIndex, maxIndex)
-            return prev.selectionIndex === nextIndex ? prev : { ...prev, selectionIndex: nextIndex }
-          }
-          if (prev.type === 'url') {
-            const maxIndex = Math.max(urls.length - 1, 0)
-            const nextIndex = Math.min(prev.selectionIndex, maxIndex)
-            return prev.selectionIndex === nextIndex ? prev : { ...prev, selectionIndex: nextIndex }
-          }
-          return prev
-        })
-      }, [files.length, urls.length])
-
-      useInput(
-        (_, key) => {
-          if (key.upArrow) {
-            scrollBy(-1)
-            return
-          }
-          if (key.downArrow) {
-            scrollBy(1)
-            return
-          }
-          if (key.pageUp) {
-            scrollBy(-historyRows)
-            return
-          }
-          if (key.pageDown) {
-            scrollBy(historyRows)
-          }
-        },
-        { isActive: !isCommandMenuActive && !isPopupOpen && !helpOpen },
-      )
+      useHistoryScrollKeys({
+        isCommandMenuActive,
+        isPopupOpen,
+        helpOpen,
+        historyRows,
+        scrollBy,
+      })
 
       const {
         filePopupSuggestions,
@@ -798,8 +682,8 @@ export const CommandScreen = memo(
             isTestCommandRunning={isTestCommandRunning}
             onTestDraftChange={handleTestPopupDraftChange}
             onTestSubmit={onTestPopupSubmit}
-            tokenUsageRun={tokenUsageStoreRef.current?.getLatestRun() ?? null}
-            tokenUsageBreakdown={tokenUsageStoreRef.current?.getLatestBreakdown() ?? null}
+            tokenUsageRun={tokenUsageRun}
+            tokenUsageBreakdown={tokenUsageBreakdown}
             statusChips={enhancedStatusChips}
             reasoningPopupLines={reasoningPopupLines}
             reasoningPopupVisibleRows={reasoningPopupVisibleRows}
