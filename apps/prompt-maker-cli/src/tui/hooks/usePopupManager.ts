@@ -401,7 +401,14 @@ export const usePopupManager = ({
       closePopup()
       void runSeriesGeneration(trimmed)
     },
-    [lastUserIntentRef, pushHistory, runSeriesGeneration, setInputValue, syncTypedIntentRef],
+    [
+      closePopup,
+      lastUserIntentRef,
+      pushHistory,
+      runSeriesGeneration,
+      setInputValue,
+      syncTypedIntentRef,
+    ],
   )
 
   const handleCommandSelection = useCallback(

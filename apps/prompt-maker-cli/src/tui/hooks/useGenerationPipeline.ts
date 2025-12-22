@@ -669,6 +669,8 @@ export const useGenerationPipeline = ({
       submitRefinement,
       ensureProviderReady,
       onReasoningUpdate,
+      setLatestTelemetry,
+      setStatusMessage,
     ],
   )
 
@@ -867,6 +869,7 @@ export const useGenerationPipeline = ({
       normalizedMetaInstructions,
       notify,
       ensureProviderReady,
+      setStatusMessage,
     ],
   )
 
