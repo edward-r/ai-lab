@@ -18,21 +18,18 @@ import wrapAnsi from 'wrap-ansi'
 import { useCommandScreen } from './useCommandScreen'
 
 import { useModelProviderState } from './hooks/useModelProviderState'
+import { usePasteManager } from './hooks/usePasteManager'
 import { usePopupKeyboardShortcuts } from './hooks/usePopupKeyboardShortcuts'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
-import { dropMissingPasteTokens, expandPasteTokens } from './utils/paste-tokens'
 import { CommandMenuPane } from './components/CommandMenuPane'
 import { HistoryPane } from './components/HistoryPane'
 import { PopupArea } from './components/PopupArea'
 
 import { estimateInputBarRows } from '../../components/core/InputBar'
 import type { DebugKeyEvent } from '../../components/core/MultilineTextInput'
-import {
-  stripBracketedPasteControlSequences,
-  stripTerminalPasteArtifacts,
-} from '../../components/core/bracketed-paste'
+import { stripTerminalPasteArtifacts } from '../../components/core/bracketed-paste'
 import { resolveCommandMenuKeyAction } from '../../components/core/command-menu-keymap'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from '../../config'
 import { filterCommandDescriptors, resolveCommandMenuSearchState } from '../../command-filter'
@@ -43,14 +40,6 @@ import {
   filterIntentFileSuggestions,
 } from '../../file-suggestions'
 import { resolveIntentSource } from '../../intent-source'
-import {
-  consumeBracketedPasteChunk,
-  createBracketedPasteState,
-  createPastedSnippet,
-  detectPastedSnippetFromInputChange,
-  type BracketedPasteState,
-  type PastedSnippet,
-} from '../../paste-snippet'
 import { useCommandHistory } from '../../hooks/useCommandHistory'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { usePersistentCommandHistory } from '../../hooks/usePersistentCommandHistory'
@@ -60,7 +49,7 @@ import { resolveModelPopupQuery } from '../../model-filter'
 import { buildModelPopupOptions } from '../../model-popup-options'
 import { formatProviderStatusChip } from '../../provider-chip'
 import { getRecentSessionModels } from '../../model-session'
-import type { HistoryEntry, ModelOption, PopupKind, ProviderStatusMap } from '../../types'
+import type { HistoryEntry, ModelOption, PopupKind } from '../../types'
 import { runPromptTestSuite, type PromptTestRunReporter } from '../../../test-command'
 import { useContextDispatch, useContextState } from '../../context-store'
 import { planSessionCommand } from '../../new-command'
@@ -154,16 +143,6 @@ export const CommandScreen = memo(
         return normalized !== '0' && normalized !== 'false'
       }, [])
 
-      const inputValueRef = useRef('')
-      inputValueRef.current = inputValue
-
-      const PASTE_TOKEN_START = 0xe000
-      const PASTE_TOKEN_END = 0xf8ff
-      const pastedSnippetTokensRef = useRef<Map<string, PastedSnippet>>(new Map())
-      const nextPasteTokenRef = useRef(PASTE_TOKEN_START)
-
-      const suppressTextInputDuringPasteRef = useRef(false)
-      const bracketedPasteStateRef = useRef<BracketedPasteState>(createBracketedPasteState())
       const lastCommandMenuSignalRef = useRef<number>(0)
 
       const handleDebugKeyEvent = useCallback(
@@ -198,40 +177,9 @@ export const CommandScreen = memo(
         return true
       }, [])
 
-      const resetPasteTokens = useCallback((): void => {
-        pastedSnippetTokensRef.current.clear()
-        nextPasteTokenRef.current = PASTE_TOKEN_START
+      const suppressNextInput = useCallback(() => {
+        suppressNextInputRef.current = true
       }, [])
-
-      useEffect(() => {
-        if (inputValue.length > 0) {
-          return
-        }
-        resetPasteTokens()
-      }, [inputValue.length, resetPasteTokens])
-
-      const tokenLabel = useCallback((token: string) => {
-        return pastedSnippetTokensRef.current.get(token)?.label ?? null
-      }, [])
-
-      const allocatePasteToken = useCallback((): string => {
-        const map = pastedSnippetTokensRef.current
-        let nextCodePoint = nextPasteTokenRef.current
-
-        while (nextCodePoint <= PASTE_TOKEN_END) {
-          const token = String.fromCharCode(nextCodePoint)
-          nextCodePoint += 1
-          if (!map.has(token)) {
-            nextPasteTokenRef.current = nextCodePoint
-            return token
-          }
-        }
-
-        resetPasteTokens()
-        const fallback = String.fromCharCode(PASTE_TOKEN_START)
-        nextPasteTokenRef.current = PASTE_TOKEN_START + 1
-        return fallback
-      }, [resetPasteTokens])
 
       const updateLastTypedIntent = useCallback((next: string): void => {
         if (isCommandInput(next, fs.existsSync)) {
@@ -239,38 +187,6 @@ export const CommandScreen = memo(
         }
         lastTypedIntentRef.current = next
       }, [])
-
-      const appendInlinePaste = useCallback(
-        (raw: string): void => {
-          const normalized = stripBracketedPasteControlSequences(
-            raw
-              .replace(/\r\n/g, '\n')
-              .replace(/\r/g, '\n')
-              .replace(/\u0000/g, ''),
-          )
-          const snippet = createPastedSnippet(normalized)
-
-          suppressNextInputRef.current = true
-
-          if (snippet) {
-            const token = allocatePasteToken()
-            pastedSnippetTokensRef.current.set(token, snippet)
-            setInputValue((prev) => {
-              const next = prev + token
-              updateLastTypedIntent(next)
-              return next
-            })
-            return
-          }
-
-          setInputValue((prev) => {
-            const next = prev + normalized
-            updateLastTypedIntent(next)
-            return next
-          })
-        },
-        [allocatePasteToken, updateLastTypedIntent],
-      )
 
       const pushHistoryRef = useRef<(content: string, kind?: HistoryEntry['kind']) => void>(
         () => {},
@@ -439,6 +355,17 @@ export const CommandScreen = memo(
 
       const isPopupOpen = popupState !== null
       const trimmedIntentFilePath = intentFilePath.trim()
+
+      const { tokenLabel, handleInputChange, expandInputForSubmit } = usePasteManager({
+        inputValue,
+        popupState,
+        helpOpen,
+        setInputValue,
+        setPasteActive,
+        consumeSuppressedTextInputChange,
+        suppressNextInput,
+        updateLastTypedIntent,
+      })
 
       const providerChip = useMemo(
         () => formatProviderStatusChip(currentModel, providerStatuses),
@@ -683,32 +610,6 @@ export const CommandScreen = memo(
           return prev
         })
       }, [files.length, urls.length])
-
-      useInput(
-        (input) => {
-          if (popupState || helpOpen) {
-            return
-          }
-
-          const result = consumeBracketedPasteChunk(bracketedPasteStateRef.current, input)
-          bracketedPasteStateRef.current = result.state
-
-          const nextPasteActive = result.state.isActive
-          const prevPasteActive = suppressTextInputDuringPasteRef.current
-          suppressTextInputDuringPasteRef.current = nextPasteActive
-          if (prevPasteActive !== nextPasteActive) {
-            setPasteActive(nextPasteActive)
-          }
-
-          if (result.completed.length === 0) {
-            return
-          }
-
-          const latestPaste = result.completed[result.completed.length - 1] ?? ''
-          appendInlinePaste(latestPaste)
-        },
-        { isActive: !helpOpen },
-      )
 
       useInput(
         (_, key) => {
@@ -1231,7 +1132,7 @@ export const CommandScreen = memo(
 
       const handleSubmit = useCallback(
         (value: string) => {
-          const expandedValue = expandPasteTokens(value, pastedSnippetTokensRef.current)
+          const expandedValue = expandInputForSubmit(value)
 
           if (isAwaitingRefinement) {
             submitRefinement(expandedValue)
@@ -1306,56 +1207,6 @@ export const CommandScreen = memo(
           pushHistory,
           commandMenuArgsRaw,
           intentFilePath,
-        ],
-      )
-
-      const handleInputChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          if (popupState) {
-            return
-          }
-          if (suppressTextInputDuringPasteRef.current) {
-            return
-          }
-
-          const previous = inputValueRef.current
-          const normalizedNext = stripBracketedPasteControlSequences(
-            next
-              .replace(/\r\n/g, '\n')
-              .replace(/\r/g, '\n')
-              .replace(/\u0000/g, ''),
-          )
-          const detection = detectPastedSnippetFromInputChange(previous, normalizedNext)
-
-          if (detection) {
-            const token = allocatePasteToken()
-            pastedSnippetTokensRef.current.set(token, detection.snippet)
-
-            const replaced =
-              detection.normalizedNextValue.slice(0, detection.range.start) +
-              token +
-              detection.normalizedNextValue.slice(detection.range.end)
-
-            dropMissingPasteTokens(previous, replaced, pastedSnippetTokensRef.current)
-            setInputValue(replaced)
-            updateLastTypedIntent(replaced)
-            return
-          }
-
-          dropMissingPasteTokens(previous, normalizedNext, pastedSnippetTokensRef.current)
-          setInputValue(normalizedNext)
-          updateLastTypedIntent(normalizedNext)
-        },
-        [
-          allocatePasteToken,
-          consumeSuppressedTextInputChange,
-          popupState,
-          setInputValue,
-          updateLastTypedIntent,
-          stripBracketedPasteControlSequences,
         ],
       )
 
