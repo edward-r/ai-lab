@@ -22,6 +22,7 @@ import { usePasteManager } from './hooks/usePasteManager'
 import { usePopupKeyboardShortcuts } from './hooks/usePopupKeyboardShortcuts'
 import { usePromptTestRunner } from './hooks/usePromptTestRunner'
 import { useCommandMenuManager } from './hooks/useCommandMenuManager'
+import { useContextPopupGlue } from './hooks/useContextPopupGlue'
 
 import { CommandInput } from './components/CommandInput'
 import { formatDebugKeyEvent } from './utils/debug-keys'
@@ -34,11 +35,7 @@ import type { DebugKeyEvent } from '../../components/core/MultilineTextInput'
 import { stripTerminalPasteArtifacts } from '../../components/core/bracketed-paste'
 import { COMMAND_DESCRIPTORS, POPUP_HEIGHTS } from '../../config'
 import { parseAbsolutePathFromInput, isCommandInput } from '../../drag-drop-path'
-import {
-  filterDirectorySuggestions,
-  filterFileSuggestions,
-  filterIntentFileSuggestions,
-} from '../../file-suggestions'
+import { filterIntentFileSuggestions } from '../../file-suggestions'
 import { resolveIntentSource } from '../../intent-source'
 import { useCommandHistory } from '../../hooks/useCommandHistory'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
@@ -607,161 +604,58 @@ export const CommandScreen = memo(
         { isActive: !isCommandMenuActive && !isPopupOpen && !helpOpen },
       )
 
-      const addFileToContext = useCallback(
-        (value: string): void => {
-          const trimmed = value.trim()
-          if (!trimmed) {
-            return
+      const {
+        filePopupSuggestions,
+        filePopupSuggestionSelectionIndex,
+        filePopupSuggestionsFocused,
+        onFilePopupDraftChange: handleFilePopupDraftChange,
+        onAddFile: handleAddFile,
+        onRemoveFile: handleRemoveFile,
+        onUrlPopupDraftChange: handleUrlPopupDraftChange,
+        onAddUrl: handleAddUrl,
+        onRemoveUrl: handleRemoveUrl,
+        smartPopupSuggestions,
+        smartPopupSuggestionSelectionIndex,
+        smartPopupSuggestionsFocused,
+        onSmartPopupDraftChange: handleSmartPopupDraftChange,
+        onSmartToggle: handleSmartToggle,
+        onSmartRootSubmit: handleSmartRootSubmit,
+      } = useContextPopupGlue({
+        inputValue,
+        popupState,
+        helpOpen,
+        isPopupOpen,
+        isCommandMode,
+        isCommandMenuActive,
+        isGenerating,
+        droppedFilePath,
+        files,
+        urls,
+        smartContextEnabled,
+        smartContextRoot,
+        addFile,
+        removeFile,
+        addUrl,
+        removeUrl,
+        toggleSmartContext,
+        setSmartRoot,
+        setInputValue,
+        setPopupState,
+        suppressNextInput,
+        notify: (message) => notify(message),
+        pushHistory,
+        addCommandHistoryEntry,
+        handleCommandSelection,
+        consumeSuppressedTextInputChange,
+        isFilePath: (candidate: string) => {
+          try {
+            const stats = fs.statSync(candidate)
+            return stats.isFile()
+          } catch {
+            return false
           }
-          if (files.includes(trimmed)) {
-            pushHistory(`Context file already added: ${trimmed}`)
-            return
-          }
-          addFile(trimmed)
-          pushHistory(`Context file added: ${trimmed}`)
         },
-        [addFile, files, pushHistory],
-      )
-
-      useInput(
-        (_input, key) => {
-          if (popupState || isCommandMenuActive || isCommandMode) {
-            return
-          }
-          if (!key.tab || key.shift) {
-            return
-          }
-          if (droppedFilePath) {
-            addFileToContext(droppedFilePath)
-            suppressNextInputRef.current = true
-            setInputValue('')
-            return
-          }
-          if (isGenerating) {
-            pushHistory('Generation already running. Please wait.', 'system')
-            return
-          }
-          const trimmedArgs = inputValue.trim()
-          addCommandHistoryEntry(`/series${trimmedArgs ? ` ${trimmedArgs}` : ''}`)
-          handleCommandSelection('series', inputValue)
-        },
-        { isActive: !isPopupOpen && !helpOpen },
-      )
-
-      const handleAddFile = useCallback(
-        (value: string) => {
-          const trimmed = value.trim()
-          if (!trimmed) {
-            return
-          }
-          addFileToContext(trimmed)
-          setPopupState((prev) =>
-            prev?.type === 'file'
-              ? {
-                  ...prev,
-                  draft: '',
-                  selectionIndex: Math.max(files.length, 0),
-                  suggestedFocused: false,
-                  suggestedSelectionIndex: 0,
-                }
-              : prev,
-          )
-        },
-        [addFileToContext, files.length, setPopupState],
-      )
-
-      useEffect(() => {
-        if (popupState?.type !== 'file') {
-          return
-        }
-
-        const candidate = parseAbsolutePathFromInput(popupState.draft)
-        if (!candidate) {
-          return
-        }
-
-        try {
-          const stats = fs.statSync(candidate)
-          if (!stats.isFile()) {
-            return
-          }
-        } catch {
-          return
-        }
-
-        handleAddFile(candidate)
-      }, [handleAddFile, popupState])
-
-      const handleRemoveFile = useCallback(
-        (index: number) => {
-          if (index < 0 || index >= files.length) {
-            return
-          }
-          const target = files[index]
-          removeFile(index)
-          pushHistory(`Context file removed: ${target}`)
-        },
-        [files, removeFile, pushHistory],
-      )
-
-      const handleAddUrl = useCallback(
-        (value: string) => {
-          const trimmed = value.trim()
-          if (!trimmed) {
-            return
-          }
-          addUrl(trimmed)
-          pushHistory(`Context URL added: ${trimmed}`)
-          setPopupState((prev) =>
-            prev?.type === 'url'
-              ? { ...prev, draft: '', selectionIndex: Math.max(urls.length, 0) }
-              : prev,
-          )
-        },
-        [addUrl, urls.length, pushHistory, setPopupState],
-      )
-
-      const handleRemoveUrl = useCallback(
-        (index: number) => {
-          if (index < 0 || index >= urls.length) {
-            return
-          }
-          const target = urls[index]
-          removeUrl(index)
-          pushHistory(`Context URL removed: ${target}`)
-        },
-        [urls, removeUrl, pushHistory],
-      )
-
-      const handleSmartToggle = useCallback(
-        (nextEnabled: boolean) => {
-          if (smartContextEnabled === nextEnabled) {
-            return
-          }
-          toggleSmartContext()
-          notify(`Smart context ${nextEnabled ? 'enabled' : 'disabled'}`)
-        },
-        [notify, smartContextEnabled, toggleSmartContext],
-      )
-
-      const handleSmartRootSubmit = useCallback(
-        (value: string) => {
-          const trimmed = value.trim()
-          setSmartRoot(trimmed)
-          notify(trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared')
-          setPopupState((prev) =>
-            prev?.type === 'smart'
-              ? {
-                  ...prev,
-                  draft: trimmed,
-                  suggestedFocused: false,
-                  suggestedSelectionIndex: 0,
-                }
-              : prev,
-          )
-        },
-        [notify, setSmartRoot],
-      )
+      })
 
       const historyPopupDraft = popupState?.type === 'history' ? popupState.draft : ''
 
@@ -786,62 +680,6 @@ export const CommandScreen = memo(
           return prev.selectionIndex === nextIndex ? prev : { ...prev, selectionIndex: nextIndex }
         })
       }, [historyPopupItems.length, popupState?.type, setPopupState])
-
-      const filePopupDraft = popupState?.type === 'file' ? popupState.draft : ''
-      const filePopupSuggestedItems = popupState?.type === 'file' ? popupState.suggestedItems : []
-      const filePopupSuggestedFocused =
-        popupState?.type === 'file' ? popupState.suggestedFocused : false
-      const filePopupSuggestedSelectionIndex =
-        popupState?.type === 'file' ? popupState.suggestedSelectionIndex : 0
-
-      const filePopupSuggestions = useMemo(() => {
-        if (!filePopupSuggestedItems.length) {
-          return []
-        }
-        return filterFileSuggestions({
-          suggestions: filePopupSuggestedItems,
-          query: filePopupDraft,
-          exclude: files,
-        })
-      }, [filePopupDraft, filePopupSuggestedItems, files])
-
-      const filePopupSuggestionSelectionIndex = Math.min(
-        filePopupSuggestedSelectionIndex,
-        Math.max(filePopupSuggestions.length - 1, 0),
-      )
-
-      const filePopupSuggestionsFocused =
-        filePopupSuggestedFocused && filePopupSuggestions.length > 0
-
-      const smartPopupDraft = popupState?.type === 'smart' ? popupState.draft : ''
-      const smartPopupSuggestedItems =
-        popupState?.type === 'smart' ? popupState.suggestedItems : ([] as string[])
-      const smartPopupSuggestedFocused =
-        popupState?.type === 'smart' ? popupState.suggestedFocused : false
-      const smartPopupSuggestedSelectionIndex =
-        popupState?.type === 'smart' ? popupState.suggestedSelectionIndex : 0
-
-      const smartPopupSuggestions = useMemo(() => {
-        if (!smartPopupSuggestedItems.length) {
-          return []
-        }
-
-        const excluded = smartContextRoot ? [smartContextRoot] : []
-
-        return filterDirectorySuggestions({
-          suggestions: smartPopupSuggestedItems,
-          query: smartPopupDraft,
-          exclude: excluded,
-        })
-      }, [smartContextRoot, smartPopupDraft, smartPopupSuggestedItems])
-
-      const smartPopupSuggestionSelectionIndex = Math.min(
-        smartPopupSuggestedSelectionIndex,
-        Math.max(smartPopupSuggestions.length - 1, 0),
-      )
-
-      const smartPopupSuggestionsFocused =
-        smartPopupSuggestedFocused && smartPopupSuggestions.length > 0
 
       const intentPopupDraft = popupState?.type === 'intent' ? popupState.draft : ''
       const intentPopupSuggestedItems =
@@ -919,45 +757,6 @@ export const CommandScreen = memo(
 
         return entries
       }, [lastReasoning, terminalColumns])
-
-      useEffect(() => {
-        if (popupState?.type !== 'file') {
-          return
-        }
-        if (!filePopupSuggestedFocused) {
-          return
-        }
-        if (filePopupSuggestions.length > 0) {
-          return
-        }
-        setPopupState((prev) =>
-          prev?.type === 'file'
-            ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
-            : prev,
-        )
-      }, [filePopupSuggestedFocused, filePopupSuggestions.length, popupState?.type, setPopupState])
-
-      useEffect(() => {
-        if (popupState?.type !== 'smart') {
-          return
-        }
-        if (!smartPopupSuggestedFocused) {
-          return
-        }
-        if (smartPopupSuggestions.length > 0) {
-          return
-        }
-        setPopupState((prev) =>
-          prev?.type === 'smart'
-            ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
-            : prev,
-        )
-      }, [
-        popupState?.type,
-        setPopupState,
-        smartPopupSuggestedFocused,
-        smartPopupSuggestions.length,
-      ])
 
       useEffect(() => {
         if (popupState?.type !== 'intent') {
@@ -1098,16 +897,6 @@ export const CommandScreen = memo(
         [consumeSuppressedTextInputChange, setPopupState],
       )
 
-      const handleUrlPopupDraftChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-          setPopupState((prev) => (prev?.type === 'url' ? { ...prev, draft: next } : prev))
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
-      )
-
       const handleHistoryPopupDraftChange = useCallback(
         (next: string) => {
           if (consumeSuppressedTextInputChange()) {
@@ -1147,28 +936,6 @@ export const CommandScreen = memo(
           handleSeriesIntentSubmit(value)
         },
         [addCommandHistoryEntry, handleSeriesIntentSubmit],
-      )
-
-      const handleFilePopupDraftChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-
-          const sanitized = stripTerminalPasteArtifacts(next)
-
-          setPopupState((prev) =>
-            prev?.type === 'file'
-              ? {
-                  ...prev,
-                  draft: sanitized,
-                  suggestedSelectionIndex: 0,
-                  suggestedFocused: false,
-                }
-              : prev,
-          )
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
       )
 
       const handleIntentPopupDraftChange = useCallback(
@@ -1214,28 +981,6 @@ export const CommandScreen = memo(
             return
           }
           setPopupState((prev) => (prev?.type === 'test' ? { ...prev, draft: next } : prev))
-        },
-        [consumeSuppressedTextInputChange, setPopupState],
-      )
-
-      const handleSmartPopupDraftChange = useCallback(
-        (next: string) => {
-          if (consumeSuppressedTextInputChange()) {
-            return
-          }
-
-          const sanitized = stripTerminalPasteArtifacts(next)
-
-          setPopupState((prev) =>
-            prev?.type === 'smart'
-              ? {
-                  ...prev,
-                  draft: sanitized,
-                  suggestedSelectionIndex: 0,
-                  suggestedFocused: false,
-                }
-              : prev,
-          )
         },
         [consumeSuppressedTextInputChange, setPopupState],
       )
