@@ -8,7 +8,11 @@ import { Box, Text } from 'ink'
 
 import { SingleLineTextInput } from '../../../components/core/SingleLineTextInput'
 import { useTheme } from '../../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../../theme/theme-types'
 
 export type TestRunnerFileInputProps = {
   filePath: string
@@ -32,7 +36,12 @@ export const TestRunnerFileInput = ({
   return (
     <>
       {isFocused ? <Text {...inkColorProps(theme.accent)}>Test File</Text> : <Text>Test File</Text>}
-      <Box borderStyle="round" paddingX={1} {...inkBorderColorProps(borderColor)}>
+      <Box
+        borderStyle="round"
+        paddingX={1}
+        {...inkBorderColorProps(borderColor)}
+        {...inkBackgroundColorProps(theme.panelBackground)}
+      >
         <SingleLineTextInput
           value={filePath}
           onChange={onChange}

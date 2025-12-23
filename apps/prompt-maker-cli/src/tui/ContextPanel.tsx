@@ -4,7 +4,7 @@ import { Box, Text, useInput } from 'ink'
 import { SingleLineTextInput } from './components/core/SingleLineTextInput'
 import { isBackspaceKey } from './components/core/text-input-keys'
 import { useTheme } from './theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from './theme/theme-types'
+import { inkBackgroundColorProps, inkBorderColorProps, inkColorProps } from './theme/theme-types'
 import { useContextDispatch, useContextState } from './context-store'
 
 export type ContextPanelFocus = 'files' | 'urls' | 'smart' | 'none'
@@ -117,6 +117,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.panelBackground)}
     >
       <SectionHeader label="File Context" focused={focus === 'files'} />
       <SingleLineTextInput

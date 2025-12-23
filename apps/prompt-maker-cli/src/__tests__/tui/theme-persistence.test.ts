@@ -73,6 +73,29 @@ describe('theme persistence', () => {
     expect(result.warnings[0]?.fallback).toBe(DEFAULT_THEME_NAME)
   })
 
+  test('auto themeMode is treated as system', async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pm-theme-persist-'))
+    const configPath = path.join(tempRoot, 'config.json')
+    const globalThemesDir = path.join(tempRoot, 'global-themes')
+
+    await writeJson(configPath, { themeMode: 'auto' })
+
+    process.env.PROMPT_MAKER_CLI_CONFIG = configPath
+
+    jest.resetModules()
+    const { loadThemeSelection } = await import('../../tui/theme/theme-settings-service')
+
+    const result = await loadThemeSelection({
+      themeLoadOptions: {
+        cwd: tempRoot,
+        stopAt: tempRoot,
+        globalThemesDir,
+      },
+    })
+
+    expect(result.selection.themeMode).toBe('system')
+  })
+
   test('saving updates config without rewriting other fields', async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pm-theme-persist-'))
     const configPath = path.join(tempRoot, 'config.json')

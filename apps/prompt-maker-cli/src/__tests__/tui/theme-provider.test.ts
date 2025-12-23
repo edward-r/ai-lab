@@ -12,7 +12,7 @@ const pmDarkTheme: ThemeDescriptor = {
   source: 'builtin',
   theme: {
     theme: {
-      background: '#000000',
+      background: { dark: '#000000', light: '#ffffff' },
       text: '#ffffff',
       mutedText: '#888888',
       border: '#444444',
@@ -157,6 +157,32 @@ describe('ThemeProvider', () => {
     })
 
     expect(result.current.mode).toBe('light')
+    expect(result.current.theme.background).toBe('#ffffff')
     expect(jest.mocked(saveThemeSelection)).toHaveBeenCalledWith({ themeMode: 'light' })
+  })
+
+  test('system mode uses env detection with dark fallback', async () => {
+    const envBefore = { ...process.env }
+    process.env = { ...envBefore, COLORFGBG: '15;7' }
+
+    const wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+      React.createElement(ThemeProvider, null, children)
+
+    const { result } = renderHook(() => useTheme(), { wrapper })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const ok = await result.current.setMode('system')
+      expect(ok).toBe(true)
+    })
+
+    expect(result.current.mode).toBe('system')
+    expect(result.current.theme.background).toBe('#ffffff')
+    expect(jest.mocked(saveThemeSelection)).toHaveBeenCalledWith({ themeMode: 'system' })
+
+    process.env = envBefore
   })
 })

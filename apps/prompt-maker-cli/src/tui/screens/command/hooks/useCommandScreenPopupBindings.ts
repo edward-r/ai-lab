@@ -5,6 +5,7 @@ import { useModelPopupData } from './useModelPopupData'
 import { usePopupKeyboardShortcuts } from './usePopupKeyboardShortcuts'
 import { useReasoningPopup } from './useReasoningPopup'
 import { useThemePopupGlue } from './useThemePopupGlue'
+import { useThemeModePopupGlue } from './useThemeModePopupGlue'
 
 import {
   useCommandScreenPasteBindings,
@@ -231,6 +232,12 @@ export const useCommandScreenPopupBindings = (
     closePopup: options.closePopup,
   })
 
+  const themeModePopup = useThemeModePopupGlue({
+    popupState: options.popupState,
+    setPopupState: options.setPopupState,
+    closePopup: options.closePopup,
+  })
+
   usePopupKeyboardShortcuts({
     popupState: options.popupState,
     helpOpen: options.helpOpen,
@@ -242,6 +249,9 @@ export const useCommandScreenPopupBindings = (
     themeCount: themePopup.themeCount,
     onThemeConfirm: themePopup.onThemeConfirm,
     onThemeCancel: themePopup.onThemeCancel,
+    themeModeCount: themeModePopup.optionCount,
+    onThemeModeConfirm: themeModePopup.onConfirm,
+    onThemeModeCancel: themeModePopup.onCancel,
     files: options.files,
     filePopupSuggestions: context.filePopupSuggestions,
     onRemoveFile: context.onRemoveFile,

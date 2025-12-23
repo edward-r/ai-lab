@@ -8,7 +8,11 @@ import type { TokenLabelLookup } from './tokenized-text'
 import { getLineCount } from './multiline-text-buffer'
 
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 export type InputBarProps = {
   value: string
@@ -78,7 +82,9 @@ export const InputBar: React.FC<InputBarProps> = ({
       borderStyle="round"
       paddingX={1}
       paddingY={0}
+      width="100%"
       {...inkBorderColorProps(borderColor)}
+      {...inkBackgroundColorProps(theme.panelBackground)}
     >
       <Text {...inkColorProps(labelColor)} bold={presentation.labelBold}>
         {presentation.label}

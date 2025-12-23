@@ -388,13 +388,16 @@ const expectString = (value: unknown, label: string): string => {
 
 const expectThemeMode = (value: unknown, label: string): ThemeMode => {
   if (typeof value !== 'string') {
-    throw new Error(`${label} must be one of light, dark, or system.`)
+    throw new Error(`${label} must be one of light, dark, system, or auto.`)
   }
   const normalized = value.trim().toLowerCase()
+  if (normalized === 'auto') {
+    return 'system'
+  }
   if (normalized === 'light' || normalized === 'dark' || normalized === 'system') {
     return normalized as ThemeMode
   }
-  throw new Error(`${label} must be one of light, dark, or system.`)
+  throw new Error(`${label} must be one of light, dark, system, or auto.`)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

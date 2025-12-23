@@ -30,6 +30,21 @@ describe('popupReducer', () => {
     expect(opened.activeScan).toBeNull()
   })
 
+  it('opens theme mode popup with initial mode', () => {
+    const opened = reduce(initialState(), {
+      type: 'open-theme-mode',
+      selectionIndex: 1,
+      initialMode: 'dark',
+    })
+
+    expect(opened.popupState).toEqual({
+      type: 'themeMode',
+      selectionIndex: 1,
+      initialMode: 'dark',
+    })
+    expect(opened.activeScan).toBeNull()
+  })
+
   it('opens image/video popups with scan state', () => {
     const afterImage = reduce(initialState(), { type: 'open-image', scanId: 1 })
     expect(afterImage.popupState).toEqual({

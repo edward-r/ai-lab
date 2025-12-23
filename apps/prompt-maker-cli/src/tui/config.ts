@@ -39,6 +39,11 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'settings', label: 'Settings', description: 'Show current settings (/settings)' },
   { id: 'theme', label: 'Theme', description: 'Switch TUI theme (/theme)' },
   {
+    id: 'theme-mode',
+    label: 'Theme Mode',
+    description: 'Switch theme mode (/theme-mode dark|light|system)',
+  },
+  {
     id: 'reasoning',
     label: 'Reasoning',
     description: 'Show last model reasoning (/reasoning or /why)',
@@ -68,6 +73,7 @@ export const POPUP_HEIGHTS = {
   tokens: 16,
   settings: 14,
   theme: 16,
+  themeMode: 8,
   reasoning: 18,
   test: 7,
   intent: 9,

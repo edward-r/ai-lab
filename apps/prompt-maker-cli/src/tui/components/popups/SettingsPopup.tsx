@@ -3,7 +3,11 @@ import { Box, Text } from 'ink'
 
 import { resolveIndicatorSegments, type IndicatorSegment } from '../core/status-indicators-layout'
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 import type { InkColorValue } from '../../theme/theme-types'
 
 export type SettingsPopupProps = {
@@ -39,6 +43,7 @@ export const SettingsPopup = ({ chips }: SettingsPopupProps) => {
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(theme.accent)}>Current Settings</Text>
       <Box marginTop={1} flexDirection="column">

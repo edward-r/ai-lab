@@ -106,6 +106,7 @@ export const SmartPopup = ({
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
       {...(typeof maxHeight === 'number' ? { height: maxHeight } : {})}
       overflow="hidden"
     >

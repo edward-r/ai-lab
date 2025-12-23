@@ -21,6 +21,7 @@ import { IntentFilePopup } from '../../../components/popups/IntentFilePopup'
 import { InstructionsPopup } from '../../../components/popups/InstructionsPopup'
 import { SeriesIntentPopup } from '../../../components/popups/SeriesIntentPopup'
 import { ThemePickerPopup } from '../../../components/popups/ThemePickerPopup'
+import { ThemeModePopup } from '../../../components/popups/ThemeModePopup'
 import type { HistoryEntry, ModelOption, PopupState, ProviderStatusMap } from '../../../types'
 import type { TokenUsageBreakdown, TokenUsageRun } from '../../../token-usage-store'
 
@@ -181,7 +182,13 @@ export const PopupArea = ({
   }
 
   return (
-    <Box marginBottom={1} height={overlayHeight} flexShrink={0} overflow="hidden">
+    <Box
+      marginBottom={1}
+      height={overlayHeight}
+      flexShrink={0}
+      overflow="hidden"
+      justifyContent="center"
+    >
       {popupState.type === 'model' ? (
         <ModelPopup
           query={popupState.query}
@@ -307,6 +314,11 @@ export const PopupArea = ({
           selectionIndex={popupState.selectionIndex}
           initialThemeName={popupState.initialThemeName}
           maxHeight={overlayHeight}
+        />
+      ) : popupState.type === 'themeMode' ? (
+        <ThemeModePopup
+          selectionIndex={popupState.selectionIndex}
+          initialMode={popupState.initialMode}
         />
       ) : popupState.type === 'reasoning' ? (
         <ReasoningPopup

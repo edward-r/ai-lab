@@ -23,7 +23,9 @@ export const CommandMenu = memo(({ commands, selectedIndex }: CommandMenuProps) 
       borderStyle="round"
       paddingX={1}
       paddingY={0}
+      width="100%"
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.panelBackground)}
     >
       <Text {...inkColorProps(theme.accent)}>Commands</Text>
       {commands.length === 0 ? (

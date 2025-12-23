@@ -2,7 +2,11 @@ import { Box, Text } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 export type TestPopupProps = {
   draft: string
@@ -21,6 +25,7 @@ export const TestPopup = ({ draft, isRunning, onDraftChange, onSubmitDraft }: Te
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(theme.accent)}>Prompt Tests</Text>
       <Box flexDirection="column" marginTop={1}>

@@ -2,7 +2,11 @@ import { Box, Text } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 export type SeriesIntentPopupProps = {
   draft: string
@@ -28,6 +32,7 @@ export const SeriesIntentPopup = ({
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(theme.accent)}>Series Intent</Text>
       <Box flexDirection="column" marginTop={1}>

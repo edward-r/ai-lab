@@ -2,7 +2,11 @@ import { Box, Text } from 'ink'
 
 import { ScrollableOutput } from '../core/ScrollableOutput'
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 import type { HistoryEntry } from '../../types'
 
 export type ReasoningPopupProps = {
@@ -22,6 +26,7 @@ export const ReasoningPopup = ({ lines, visibleRows, scrollOffset }: ReasoningPo
         paddingX={1}
         paddingY={0}
         {...inkBorderColorProps(theme.border)}
+        {...inkBackgroundColorProps(theme.popupBackground)}
       >
         <Text {...inkColorProps(theme.accent)}>Model Reasoning</Text>
         <Box marginTop={1}>
@@ -43,6 +48,7 @@ export const ReasoningPopup = ({ lines, visibleRows, scrollOffset }: ReasoningPo
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(theme.accent)}>Model Reasoning</Text>
       <Box marginTop={1} flexDirection="column" height={visibleRows} overflow="hidden">

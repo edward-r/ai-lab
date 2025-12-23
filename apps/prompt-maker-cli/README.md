@@ -8,6 +8,16 @@ Terminal-first interface for converting rough intent notes (and optional file/im
 - **History logging** – each command appends a JSONL record to `~/.config/prompt-maker-cli/history.jsonl` so you never lose a run.
 - **Separated reasoning** – models return `{ "reasoning": string, "prompt": string }`; set `DEBUG=1` (or `VERBOSE=1`) to stream the model’s reasoning to stderr.
 
+## TUI theming
+
+Inside the TUI (`prompt-maker-cli ui`):
+
+- `/theme` opens the theme picker.
+- `/theme-mode` switches the appearance mode (`dark`, `light`, or `system`).
+  - `system` tries to infer the terminal background via `TERM_BACKGROUND` (if set to `light`/`dark`) or `COLORFGBG`.
+  - If no reliable signal is available, it deterministically falls back to `dark`.
+  - Config also accepts `themeMode: "auto"` as an alias for `"system"`.
+
 ## Build + global install
 
 All commands assume you are at repo root (`/Users/eroberts/Projects/ai-lab`).

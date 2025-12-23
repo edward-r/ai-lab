@@ -16,6 +16,7 @@ import {
   discoverIntentFileSuggestions,
 } from '../file-suggestions'
 import type { NotifyOptions } from '../notifier'
+import type { ThemeMode } from '../theme/theme-types'
 import { buildModelPopupOptions } from '../model-popup-options'
 import { getRecentSessionModels, recordRecentSessionModel } from '../model-session'
 import type {
@@ -38,6 +39,7 @@ export type PopupManagerActions = {
   openTokensPopup: () => void
   openSettingsPopup: () => void
   openThemePopup: () => void
+  openThemeModePopup: () => void
   openReasoningPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
@@ -61,6 +63,7 @@ export type UsePopupManagerOptions = {
   currentModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
   activeThemeName: string
+  themeMode: ThemeMode
   themes: readonly ThemeOption[]
   smartContextRoot: string | null
   images: string[]
@@ -115,6 +118,7 @@ export const usePopupManager = ({
   currentModel,
   modelOptions,
   activeThemeName,
+  themeMode,
   themes,
   smartContextRoot,
   images,
@@ -326,6 +330,12 @@ export const usePopupManager = ({
 
     dispatch({ type: 'open-theme', selectionIndex, initialThemeName: activeThemeName })
   }, [activeThemeName, themes])
+
+  const openThemeModePopup = useCallback(() => {
+    const selectionIndex = themeMode === 'system' ? 0 : themeMode === 'dark' ? 1 : 2
+
+    dispatch({ type: 'open-theme-mode', selectionIndex, initialMode: themeMode })
+  }, [themeMode])
 
   const openReasoningPopup = useCallback(() => {
     dispatch({ type: 'open-reasoning', scrollOffset: 0 })
@@ -608,6 +618,10 @@ export const usePopupManager = ({
           openThemePopup()
           setInputValue('')
           return
+        case 'theme-mode':
+          openThemeModePopup()
+          setInputValue('')
+          return
         case 'reasoning':
           openReasoningPopup()
           setInputValue('')
@@ -737,6 +751,7 @@ export const usePopupManager = ({
       openSmartPopup,
       openTestPopup,
       openThemePopup,
+      openThemeModePopup,
       openTogglePopup,
       openTokensPopup,
       openUrlPopup,
@@ -765,6 +780,7 @@ export const usePopupManager = ({
       openTokensPopup,
       openSettingsPopup,
       openThemePopup,
+      openThemeModePopup,
       openReasoningPopup,
       openTestPopup,
       openIntentPopup,
@@ -798,6 +814,7 @@ export const usePopupManager = ({
       openSmartPopup,
       openTestPopup,
       openThemePopup,
+      openThemeModePopup,
       openTogglePopup,
       openTokensPopup,
       openUrlPopup,

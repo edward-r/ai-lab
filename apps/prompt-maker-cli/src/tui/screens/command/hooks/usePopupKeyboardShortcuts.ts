@@ -24,6 +24,11 @@ export type UsePopupKeyboardShortcutsOptions = {
   onThemeConfirm: () => void
   onThemeCancel: () => void
 
+  // theme mode
+  themeModeCount: number
+  onThemeModeConfirm: () => void
+  onThemeModeCancel: () => void
+
   // file
   files: string[]
   filePopupSuggestions: string[]
@@ -73,6 +78,9 @@ export const usePopupKeyboardShortcuts = ({
   themeCount,
   onThemeConfirm,
   onThemeCancel,
+  themeModeCount,
+  onThemeModeConfirm,
+  onThemeModeCancel,
   files,
 
   filePopupSuggestions,
@@ -209,6 +217,42 @@ export const usePopupKeyboardShortcuts = ({
 
         if (key.return) {
           onThemeConfirm()
+        }
+        return
+      }
+
+      if (popupState.type === 'themeMode') {
+        if ((key.leftArrow || key.upArrow) && themeModeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'themeMode'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex - 1 + themeModeCount) % themeModeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if ((key.rightArrow || key.downArrow) && themeModeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'themeMode'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex + 1) % themeModeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if (key.escape) {
+          onThemeModeCancel()
+          return
+        }
+
+        if (key.return) {
+          onThemeModeConfirm()
         }
         return
       }

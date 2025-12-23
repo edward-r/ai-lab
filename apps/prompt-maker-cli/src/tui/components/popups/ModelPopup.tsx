@@ -171,6 +171,7 @@ export const ModelPopup = ({
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Box flexDirection="row" justifyContent="space-between">
         <Text {...inkColorProps(theme.accent)}>Select model</Text>

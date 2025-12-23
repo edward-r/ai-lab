@@ -49,6 +49,7 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
     currentModel: 'gpt-4o-mini',
     modelOptions: defaultModelOptions,
     activeThemeName: 'pm-dark',
+    themeMode: 'dark',
     themes: [
       { name: 'pm-dark', label: 'Prompt Maker Dark' },
       { name: 'pm-light', label: 'Prompt Maker Light' },
@@ -137,6 +138,26 @@ describe('usePopupManager theme popup', () => {
       type: 'theme',
       selectionIndex: 1,
       initialThemeName: 'pm-light',
+    })
+  })
+})
+
+describe('usePopupManager theme mode popup', () => {
+  it('opens theme mode popup with current mode', () => {
+    const options = createOptions({
+      themeMode: 'system',
+    })
+
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openThemeModePopup()
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'themeMode',
+      selectionIndex: 0,
+      initialMode: 'system',
     })
   })
 })

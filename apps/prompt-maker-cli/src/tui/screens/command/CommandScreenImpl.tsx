@@ -9,7 +9,7 @@ import { useCommandScreenController } from './hooks/useCommandScreenController'
 
 import type { NotifyOptions } from '../../notifier'
 import { useTheme } from '../../theme/theme-provider'
-import { inkColorProps } from '../../theme/theme-types'
+import { inkBackgroundColorProps, inkColorProps } from '../../theme/theme-types'
 
 type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
@@ -58,7 +58,14 @@ export const CommandScreen = memo(
       const { theme } = useTheme()
 
       return (
-        <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
+        <Box
+          flexDirection="column"
+          flexGrow={1}
+          paddingX={1}
+          paddingY={1}
+          width="100%"
+          {...inkBackgroundColorProps(theme.background)}
+        >
           {transportMessage ? (
             <Box flexShrink={0}>
               <Text {...inkColorProps(theme.warning)}>{transportMessage}</Text>

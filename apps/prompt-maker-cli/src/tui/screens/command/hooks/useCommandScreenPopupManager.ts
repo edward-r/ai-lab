@@ -102,12 +102,13 @@ export const useCommandScreenPopupManager = ({
     [lastTypedIntentRef],
   )
 
-  const { activeThemeName, themes } = useTheme()
+  const { activeThemeName, mode, themes } = useTheme()
 
   const popupManager = usePopupManager({
     currentModel,
     modelOptions,
     activeThemeName,
+    themeMode: mode,
     themes: themes.map((theme) => ({ name: theme.name, label: theme.label })),
     smartContextRoot,
     images,

@@ -11,7 +11,11 @@ import {
 } from './help-overlay-scroll'
 
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 export type HelpOverlayProps = {
   activeView: 'generate' | 'tests'
@@ -94,6 +98,7 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ activeView: _activeVie
       height={height}
       overflow="hidden"
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Box justifyContent="space-between">
         <Text {...inkColorProps(theme.accent)}>Help</Text>

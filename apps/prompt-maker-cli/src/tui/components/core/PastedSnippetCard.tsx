@@ -2,7 +2,11 @@ import { Box, Text } from 'ink'
 
 import type { PastedSnippet } from '../../paste-snippet'
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 export type PastedSnippetCardProps = {
   snippet: PastedSnippet
@@ -18,6 +22,7 @@ export const PastedSnippetCard = ({ snippet }: PastedSnippetCardProps) => {
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(theme.warning)}>{snippet.label}</Text>
       {snippet.previewLines.map((line, index) => (

@@ -1,5 +1,6 @@
 import type { ModelProvider } from '../model-providers'
 import type { COMMAND_DESCRIPTORS, POPUP_HEIGHTS, TOGGLE_LABELS } from './config'
+import type { ThemeMode } from './theme/theme-types'
 
 export type CommandDescriptor = (typeof COMMAND_DESCRIPTORS)[number]
 export type ToggleField = keyof typeof TOGGLE_LABELS
@@ -63,6 +64,11 @@ export type PopupState =
   | { type: 'tokens' }
   | { type: 'settings' }
   | { type: 'theme'; selectionIndex: number; initialThemeName: string }
+  | {
+      type: 'themeMode'
+      selectionIndex: number
+      initialMode: ThemeMode
+    }
   | { type: 'reasoning'; scrollOffset: number }
   | { type: 'test'; draft: string }
   | {

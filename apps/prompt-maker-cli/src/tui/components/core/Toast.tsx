@@ -2,7 +2,11 @@ import { Box, Text } from 'ink'
 
 import type { ToastKind } from '../../notifier'
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 export type ToastProps = {
   message: string
@@ -63,6 +67,7 @@ export const Toast = ({ message, kind }: ToastProps) => {
       height={TOAST_HEIGHT}
       overflow="hidden"
       {...inkBorderColorProps(borderColor)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(titleColor)}>{chrome.title}</Text>
       <Text>{message}</Text>

@@ -26,6 +26,7 @@ export const TogglePopup = ({ field, selectionIndex }: TogglePopupProps) => {
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(theme.accent)}>{TOGGLE_LABELS[field]} Setting</Text>
       <Box flexDirection="column" marginTop={1}>

@@ -16,6 +16,7 @@
  */
 
 import type { PopupState, ToggleField } from './types'
+import type { ThemeMode } from './theme/theme-types'
 
 // Lightweight replacement for React's SetStateAction type.
 // Keeping it local avoids importing React into a pure helper.
@@ -42,6 +43,11 @@ export type PopupAction =
   | { type: 'open-tokens' }
   | { type: 'open-settings' }
   | { type: 'open-theme'; selectionIndex: number; initialThemeName: string }
+  | {
+      type: 'open-theme-mode'
+      selectionIndex: number
+      initialMode: ThemeMode
+    }
   | { type: 'open-reasoning'; scrollOffset: number }
   | { type: 'open-test'; draft: string }
   | { type: 'open-intent'; scanId: number; draft: string }
@@ -219,6 +225,16 @@ export const popupReducer = (state: PopupManagerState, action: PopupAction): Pop
           type: 'theme',
           selectionIndex: action.selectionIndex,
           initialThemeName: action.initialThemeName,
+        },
+        activeScan: null,
+      }
+
+    case 'open-theme-mode':
+      return {
+        popupState: {
+          type: 'themeMode',
+          selectionIndex: action.selectionIndex,
+          initialMode: action.initialMode,
         },
         activeScan: null,
       }

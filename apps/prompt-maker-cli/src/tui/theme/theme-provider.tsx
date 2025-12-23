@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
+import { detectTerminalAppearanceMode } from './terminal-appearance'
+
 import { DEFAULT_THEME_NAME, getThemeJson } from './theme-registry'
 import type { ThemeDescriptor } from './theme-loader'
 import { resolveTheme } from './theme-resolver'
@@ -51,9 +53,17 @@ const resolveThemeOrThrow = (themeJson: ThemeJson, mode: ThemeAppearanceMode): R
   resolveTheme(themeJson, mode)
 
 const resolveAppearanceMode = (mode: ThemeMode): ThemeAppearanceMode => {
-  // OpenCode detects terminal background and chooses a mode.
-  // We treat `system` as `dark` until that detection exists here.
-  return mode === 'light' ? 'light' : 'dark'
+  if (mode === 'light') {
+    return 'light'
+  }
+
+  if (mode === 'dark') {
+    return 'dark'
+  }
+
+  // Pragmatic "system" mode: if we can't reliably detect the terminal background,
+  // we deterministically fall back to `dark`.
+  return detectTerminalAppearanceMode(process.env) ?? 'dark'
 }
 
 const resolveThemeFromName = (params: {

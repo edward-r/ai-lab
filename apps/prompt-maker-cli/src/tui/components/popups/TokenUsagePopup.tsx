@@ -2,7 +2,11 @@ import { Box, Text } from 'ink'
 
 import type { TokenUsageBreakdown, TokenUsageRun } from '../../token-usage-store'
 import { useTheme } from '../../theme/theme-provider'
-import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 const formatNumber = (value: number): string => value.toLocaleString('en-US')
 
@@ -59,6 +63,7 @@ export const TokenUsagePopup = ({ run, breakdown }: TokenUsagePopupProps) => {
         paddingX={1}
         paddingY={0}
         {...inkBorderColorProps(theme.border)}
+        {...inkBackgroundColorProps(theme.popupBackground)}
       >
         <Text {...inkColorProps(theme.accent)}>Token Usage</Text>
         <Box marginTop={1}>
@@ -93,6 +98,7 @@ export const TokenUsagePopup = ({ run, breakdown }: TokenUsagePopupProps) => {
       paddingX={1}
       paddingY={0}
       {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Text {...inkColorProps(theme.accent)}>Token Usage</Text>
       <Box marginTop={1} flexDirection="column">
