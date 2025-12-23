@@ -17,7 +17,7 @@ export type ThemeMode = 'light' | 'dark' | 'system'
  * Ink accepts named colors (e.g. `cyanBright`) and can also accept 0–255 ANSI codes.
  * We keep this loose for now; later we can narrow based on the resolver we add.
  */
-export type InkColorValue = string | number
+export type InkColorValue = string | number | undefined
 
 export type ThemeSlot =
   | 'background'
@@ -58,6 +58,9 @@ export const REQUIRED_THEME_SLOTS: readonly ThemeSlot[] = [
 
 export type ResolvedTheme = Record<ThemeSlot, InkColorValue>
 
+// Concrete appearance mode after resolving `system`.
+export type ThemeAppearanceMode = Exclude<ThemeMode, 'system'>
+
 // Theme JSON model (structure only): modeled after OpenCode's TUI themes.
 
 export type ThemeColorVariant = {
@@ -79,5 +82,5 @@ export type ThemeColorValue = string | number | ThemeColorVariant
 
 export type ThemeJson<TSlots extends string = ThemeSlot> = {
   defs?: Record<string, ThemeColorValue>
-  theme: Record<TSlots, ThemeColorValue> & Record<string, ThemeColorValue>
+  theme: Partial<Record<TSlots, ThemeColorValue>> & Record<string, ThemeColorValue>
 }
