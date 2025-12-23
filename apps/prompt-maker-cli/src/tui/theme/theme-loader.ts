@@ -189,21 +189,23 @@ const discoverProjectThemesDirs = async (
   const discovered: string[] = []
 
   const resolvedStopAt = stopAt ? path.resolve(stopAt) : null
-  let current = path.resolve(cwd)
+  let current: string | null = path.resolve(cwd)
 
-  while (true) {
+  while (current !== null) {
     const candidate = path.join(current, '.prompt-maker-cli', 'themes')
     if (await pathExists(candidate)) {
       discovered.push(candidate)
     }
 
     if (resolvedStopAt && current === resolvedStopAt) {
-      break
+      current = null
+      continue
     }
 
     const parent = path.dirname(current)
     if (parent === current) {
-      break
+      current = null
+      continue
     }
 
     current = parent
