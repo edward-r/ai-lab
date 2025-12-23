@@ -18,6 +18,8 @@ export type UseCommandScreenContextPopupBindingsOptions = {
 
   files: string[]
   urls: string[]
+  images: string[]
+  videos: string[]
   smartContextEnabled: boolean
   smartContextRoot: string | null
 
@@ -25,6 +27,10 @@ export type UseCommandScreenContextPopupBindingsOptions = {
   removeFile: (index: number) => void
   addUrl: (value: string) => void
   removeUrl: (index: number) => void
+  addImage: (value: string) => void
+  removeImage: (index: number) => void
+  addVideo: (value: string) => void
+  removeVideo: (index: number) => void
   toggleSmartContext: () => void
   setSmartRoot: (value: string) => void
 
@@ -57,12 +63,18 @@ export const useCommandScreenContextPopupBindings = ({
   droppedFilePath,
   files,
   urls,
+  images,
+  videos,
   smartContextEnabled,
   smartContextRoot,
   addFile,
   removeFile,
   addUrl,
   removeUrl,
+  addImage,
+  removeImage,
+  addVideo,
+  removeVideo,
   toggleSmartContext,
   setSmartRoot,
   setInputValue,
@@ -85,12 +97,18 @@ export const useCommandScreenContextPopupBindings = ({
     droppedFilePath,
     files,
     urls,
+    images,
+    videos,
     smartContextEnabled,
     smartContextRoot,
     addFile,
     removeFile,
     addUrl,
     removeUrl,
+    addImage,
+    removeImage,
+    addVideo,
+    removeVideo,
     toggleSmartContext,
     setSmartRoot,
     setInputValue,

@@ -60,6 +60,8 @@ export const POPUP_HEIGHTS = {
   toggle: 6,
   file: 16,
   url: 12,
+  image: 16,
+  video: 16,
   history: 16,
   smart: 9,
   tokens: 16,

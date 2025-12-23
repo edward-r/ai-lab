@@ -36,6 +36,22 @@ export type PopupState =
       suggestedFocused: boolean
     }
   | { type: 'url'; draft: string; selectionIndex: number }
+  | {
+      type: 'image'
+      draft: string
+      selectionIndex: number
+      suggestedItems: string[]
+      suggestedSelectionIndex: number
+      suggestedFocused: boolean
+    }
+  | {
+      type: 'video'
+      draft: string
+      selectionIndex: number
+      suggestedItems: string[]
+      suggestedSelectionIndex: number
+      suggestedFocused: boolean
+    }
   | { type: 'history'; draft: string; selectionIndex: number }
   | {
       type: 'smart'

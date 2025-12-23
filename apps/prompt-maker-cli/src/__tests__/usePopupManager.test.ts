@@ -49,6 +49,10 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
     currentModel: 'gpt-4o-mini',
     modelOptions: defaultModelOptions,
     smartContextRoot: null,
+    images: [],
+    videos: [],
+    addImage: jest.fn(),
+    addVideo: jest.fn(),
     lastTestFile: null,
     defaultTestFile: 'prompt.test.ts',
     interactiveTransportPath: undefined,
@@ -185,6 +189,119 @@ describe('usePopupManager file popup', () => {
       '[file] Failed to scan workspace: boom',
       'system',
     )
+  })
+})
+
+describe('usePopupManager image popup', () => {
+  beforeEach(() => {
+    fileSuggestions.discoverFileSuggestions.mockReset()
+  })
+
+  it('initializes image popup with suggestion defaults', () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverFileSuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openImagePopup()
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'image',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('filters image popup suggestions after scanning', async () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverFileSuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openImagePopup()
+    })
+
+    await act(async () => {
+      deferred.resolve(['src/index.ts', 'diagram.png', 'clip.mp4', 'photo.JPG'])
+      await deferred.promise
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'image',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: ['diagram.png', 'photo.JPG'],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('attaches an image via command args', () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('image', 'diagram.png')
+    })
+
+    expect(options.addImage).toHaveBeenCalledWith('diagram.png')
+    expect(options.pushHistory).toHaveBeenCalledWith('[image] Attached: diagram.png', 'system')
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
+  })
+})
+
+describe('usePopupManager video popup', () => {
+  beforeEach(() => {
+    fileSuggestions.discoverFileSuggestions.mockReset()
+  })
+
+  it('filters video popup suggestions after scanning', async () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverFileSuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openVideoPopup()
+    })
+
+    await act(async () => {
+      deferred.resolve(['clip.mp4', 'diagram.png', 'movie.MOV', 'README.md'])
+      await deferred.promise
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'video',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: ['clip.mp4', 'movie.MOV'],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('attaches a video via command args', () => {
+    const options = createOptions()
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('video', 'clip.mp4')
+    })
+
+    expect(options.addVideo).toHaveBeenCalledWith('clip.mp4')
+    expect(options.pushHistory).toHaveBeenCalledWith('[video] Attached: clip.mp4', 'system')
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
   })
 })
 

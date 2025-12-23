@@ -21,7 +21,7 @@ import type { PopupState, ToggleField } from './types'
 // Keeping it local avoids importing React into a pure helper.
 export type SetStateAction<State> = State | ((prev: State) => State)
 
-export type PopupScanKind = 'file' | 'smart' | 'intent'
+export type PopupScanKind = 'file' | 'image' | 'video' | 'smart' | 'intent'
 
 export type PopupManagerState = {
   popupState: PopupState
@@ -35,6 +35,8 @@ export type PopupAction =
   | { type: 'open-toggle'; field: ToggleField; selectionIndex: number }
   | { type: 'open-file'; scanId: number }
   | { type: 'open-url' }
+  | { type: 'open-image'; scanId: number }
+  | { type: 'open-video'; scanId: number }
   | { type: 'open-history' }
   | { type: 'open-smart'; scanId: number; draft: string }
   | { type: 'open-tokens' }
@@ -50,6 +52,24 @@ export const INITIAL_POPUP_MANAGER_STATE: PopupManagerState = { popupState: null
 
 const buildFilePopupState = (): PopupState => ({
   type: 'file',
+  draft: '',
+  selectionIndex: 0,
+  suggestedItems: [],
+  suggestedSelectionIndex: 0,
+  suggestedFocused: false,
+})
+
+const buildImagePopupState = (): PopupState => ({
+  type: 'image',
+  draft: '',
+  selectionIndex: 0,
+  suggestedItems: [],
+  suggestedSelectionIndex: 0,
+  suggestedFocused: false,
+})
+
+const buildVideoPopupState = (): PopupState => ({
+  type: 'video',
   draft: '',
   selectionIndex: 0,
   suggestedItems: [],
@@ -79,6 +99,24 @@ const applySuggestions = (
   suggestions: string[],
 ): PopupState => {
   if (kind === 'file' && popupState?.type === 'file') {
+    return {
+      ...popupState,
+      suggestedItems: suggestions,
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    }
+  }
+
+  if (kind === 'image' && popupState?.type === 'image') {
+    return {
+      ...popupState,
+      suggestedItems: suggestions,
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    }
+  }
+
+  if (kind === 'video' && popupState?.type === 'video') {
     return {
       ...popupState,
       suggestedItems: suggestions,
@@ -146,6 +184,18 @@ export const popupReducer = (state: PopupManagerState, action: PopupAction): Pop
 
     case 'open-url':
       return { popupState: { type: 'url', draft: '', selectionIndex: 0 }, activeScan: null }
+
+    case 'open-image':
+      return {
+        popupState: buildImagePopupState(),
+        activeScan: { kind: 'image', id: action.scanId },
+      }
+
+    case 'open-video':
+      return {
+        popupState: buildVideoPopupState(),
+        activeScan: { kind: 'video', id: action.scanId },
+      }
 
     case 'open-history':
       return { popupState: { type: 'history', draft: '', selectionIndex: 0 }, activeScan: null }

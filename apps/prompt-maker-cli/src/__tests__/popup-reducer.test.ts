@@ -15,6 +15,54 @@ describe('popupReducer', () => {
     expect(closed).toEqual({ popupState: null, activeScan: null })
   })
 
+  it('opens image/video popups with scan state', () => {
+    const afterImage = reduce(initialState(), { type: 'open-image', scanId: 1 })
+    expect(afterImage.popupState).toEqual({
+      type: 'image',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+    expect(afterImage.activeScan).toEqual({ kind: 'image', id: 1 })
+
+    const afterVideo = reduce(afterImage, { type: 'open-video', scanId: 2 })
+    expect(afterVideo.popupState).toEqual({
+      type: 'video',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+    expect(afterVideo.activeScan).toEqual({ kind: 'video', id: 2 })
+  })
+
+  it('switching popups clears scan state', () => {
+    const afterImage = reduce(initialState(), { type: 'open-image', scanId: 1 })
+    expect(afterImage.popupState).toEqual({
+      type: 'image',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+    expect(afterImage.activeScan).toEqual({ kind: 'image', id: 1 })
+
+    const afterVideo = reduce(afterImage, { type: 'open-video', scanId: 2 })
+    expect(afterVideo.popupState).toEqual({
+      type: 'video',
+      draft: '',
+      selectionIndex: 0,
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+    expect(afterVideo.activeScan).toEqual({ kind: 'video', id: 2 })
+  })
+
   it('switching popups clears scan state', () => {
     const afterFile = reduce(initialState(), { type: 'open-file', scanId: 1 })
     expect(afterFile.popupState?.type).toBe('file')

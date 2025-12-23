@@ -190,6 +190,56 @@ describe('useGenerationPipeline', () => {
     expect(result.current.statusChips).toEqual(expect.arrayContaining(['[tokens:1.2k]']))
   })
 
+  it('surfaces upload state via toasts instead of history', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'ok',
+      message: 'ready',
+    })
+
+    const pushHistory = jest.fn()
+    const notify = jest.fn()
+
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        notify,
+        currentModel: 'gpt-4o-mini',
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runGeneration({ intent: 'Ship it' })
+    })
+
+    const optionsArg = generateCommandModule.runGeneratePipeline.mock.calls[0]?.[1] as unknown
+    const onStreamEvent =
+      typeof optionsArg === 'object' &&
+      optionsArg !== null &&
+      'onStreamEvent' in optionsArg &&
+      typeof (optionsArg as { onStreamEvent?: unknown }).onStreamEvent === 'function'
+        ? ((optionsArg as { onStreamEvent?: unknown }).onStreamEvent as (event: unknown) => void)
+        : null
+
+    expect(onStreamEvent).not.toBeNull()
+
+    await act(async () => {
+      onStreamEvent?.({
+        event: 'upload.state',
+        state: 'start',
+        detail: { kind: 'image', filePath: '/tmp/image.png' },
+      })
+    })
+
+    expect(notify).toHaveBeenCalledWith('Uploading image: /tmp/image.png', expect.any(Object))
+
+    const uploadHistoryCalls = pushHistory.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('Uploading image:'),
+    )
+    expect(uploadHistoryCalls).toHaveLength(0)
+  })
+
   it('surfaces transport waiting state in status', async () => {
     providerStatusModule.checkModelProviderStatus.mockResolvedValue({
       provider: 'openai',
@@ -321,6 +371,34 @@ describe('useGenerationPipeline', () => {
 
     expect(generateCommandModule.runGeneratePipeline).toHaveBeenCalledWith(
       expect.objectContaining({ metaInstructions: 'Be concise' }),
+      expect.any(Object),
+    )
+  })
+
+  it('passes image/video paths to the generation pipeline', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'ok',
+      message: 'ready',
+    })
+
+    const pushHistory = jest.fn()
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+        images: ['diagram.png'],
+        videos: ['clip.mp4'],
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runGeneration({ intent: 'Ship it' })
+    })
+
+    expect(generateCommandModule.runGeneratePipeline).toHaveBeenCalledWith(
+      expect.objectContaining({ images: ['diagram.png'], video: ['clip.mp4'] }),
       expect.any(Object),
     )
   })
