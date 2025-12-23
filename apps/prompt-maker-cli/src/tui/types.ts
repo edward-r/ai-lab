@@ -62,6 +62,7 @@ export type PopupState =
     }
   | { type: 'tokens' }
   | { type: 'settings' }
+  | { type: 'theme'; selectionIndex: number; initialThemeName: string }
   | { type: 'reasoning'; scrollOffset: number }
   | { type: 'test'; draft: string }
   | {

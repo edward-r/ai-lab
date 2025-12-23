@@ -48,6 +48,11 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
   const defaults: UsePopupManagerOptions = {
     currentModel: 'gpt-4o-mini',
     modelOptions: defaultModelOptions,
+    activeThemeName: 'pm-dark',
+    themes: [
+      { name: 'pm-dark', label: 'Prompt Maker Dark' },
+      { name: 'pm-light', label: 'Prompt Maker Light' },
+    ],
     smartContextRoot: null,
     images: [],
     videos: [],
@@ -111,6 +116,30 @@ const getFsMock = () =>
   jest.requireMock('node:fs/promises') as {
     readFile: jest.MockedFunction<(file: string, encoding: string) => Promise<string>>
   }
+
+describe('usePopupManager theme popup', () => {
+  it('opens theme popup with current selection', () => {
+    const options = createOptions({
+      activeThemeName: 'pm-light',
+      themes: [
+        { name: 'pm-dark', label: 'Prompt Maker Dark' },
+        { name: 'pm-light', label: 'Prompt Maker Light' },
+      ],
+    })
+
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.openThemePopup()
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'theme',
+      selectionIndex: 1,
+      initialThemeName: 'pm-light',
+    })
+  })
+})
 
 describe('usePopupManager file popup', () => {
   beforeEach(() => {

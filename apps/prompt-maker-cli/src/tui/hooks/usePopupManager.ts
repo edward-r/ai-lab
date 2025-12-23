@@ -37,6 +37,7 @@ export type PopupManagerActions = {
   openSmartPopup: () => void
   openTokensPopup: () => void
   openSettingsPopup: () => void
+  openThemePopup: () => void
   openReasoningPopup: () => void
   openTestPopup: () => void
   openIntentPopup: () => void
@@ -51,9 +52,16 @@ export type PopupManagerActions = {
   handleSeriesIntentSubmit: (value: string) => void
 }
 
+export type ThemeOption = {
+  name: string
+  label: string
+}
+
 export type UsePopupManagerOptions = {
   currentModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
+  activeThemeName: string
+  themes: readonly ThemeOption[]
   smartContextRoot: string | null
   images: string[]
   videos: string[]
@@ -106,6 +114,8 @@ const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mpe
 export const usePopupManager = ({
   currentModel,
   modelOptions,
+  activeThemeName,
+  themes,
   smartContextRoot,
   images,
   videos,
@@ -307,6 +317,15 @@ export const usePopupManager = ({
   const openSettingsPopup = useCallback(() => {
     dispatch({ type: 'open-settings' })
   }, [])
+
+  const openThemePopup = useCallback(() => {
+    const selectionIndex = Math.max(
+      0,
+      themes.findIndex((theme) => theme.name === activeThemeName),
+    )
+
+    dispatch({ type: 'open-theme', selectionIndex, initialThemeName: activeThemeName })
+  }, [activeThemeName, themes])
 
   const openReasoningPopup = useCallback(() => {
     dispatch({ type: 'open-reasoning', scrollOffset: 0 })
@@ -585,6 +604,10 @@ export const usePopupManager = ({
           openSettingsPopup()
           setInputValue('')
           return
+        case 'theme':
+          openThemePopup()
+          setInputValue('')
+          return
         case 'reasoning':
           openReasoningPopup()
           setInputValue('')
@@ -686,13 +709,17 @@ export const usePopupManager = ({
       }
     },
     [
+      addImage,
+      addVideo,
       applyToggleSelection,
       chatGptEnabled,
+      closePopup,
       copyEnabled,
       exitApp,
       getLatestTypedIntent,
       handleIntentFileSubmit,
       handleInstructionsSubmit,
+      images,
       intentFilePath,
       interactiveTransportPath,
       isGenerating,
@@ -700,6 +727,7 @@ export const usePopupManager = ({
       lastUserIntentRef,
       openFilePopup,
       openHistoryPopup,
+      openImagePopup,
       openInstructionsPopup,
       openIntentPopup,
       openModelPopup,
@@ -708,21 +736,17 @@ export const usePopupManager = ({
       openSettingsPopup,
       openSmartPopup,
       openTestPopup,
+      openThemePopup,
       openTogglePopup,
       openTokensPopup,
       openUrlPopup,
+      openVideoPopup,
       polishEnabled,
       pushHistory,
       runTestsFromCommand,
       setInputValue,
-      closePopup,
-      addImage,
-      addVideo,
-      images,
-      videos,
-      openImagePopup,
-      openVideoPopup,
       syncTypedIntentRef,
+      videos,
     ],
   )
 
@@ -740,6 +764,7 @@ export const usePopupManager = ({
       openSmartPopup,
       openTokensPopup,
       openSettingsPopup,
+      openThemePopup,
       openReasoningPopup,
       openTestPopup,
       openIntentPopup,
@@ -763,6 +788,7 @@ export const usePopupManager = ({
       handleSeriesIntentSubmit,
       openFilePopup,
       openHistoryPopup,
+      openImagePopup,
       openInstructionsPopup,
       openIntentPopup,
       openModelPopup,
@@ -771,10 +797,10 @@ export const usePopupManager = ({
       openSettingsPopup,
       openSmartPopup,
       openTestPopup,
+      openThemePopup,
       openTogglePopup,
       openTokensPopup,
       openUrlPopup,
-      openImagePopup,
       openVideoPopup,
     ],
   )

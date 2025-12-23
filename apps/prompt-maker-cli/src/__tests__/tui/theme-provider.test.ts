@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom'
 
 import type { ThemeDescriptor } from '../../tui/theme/theme-loader'
 import { ThemeProvider, useTheme } from '../../tui/theme/theme-provider'
-import { loadThemeSelection } from '../../tui/theme/theme-settings-service'
+import { loadThemeSelection, saveThemeSelection } from '../../tui/theme/theme-settings-service'
 
 const pmDarkTheme: ThemeDescriptor = {
   name: 'pm-dark',
@@ -85,9 +85,12 @@ describe('ThemeProvider', () => {
       selection: { themeName: 'pm-dark', themeMode: 'dark' },
       warnings: [],
     })
+
+    const mockedSave = jest.mocked(saveThemeSelection)
+    mockedSave.mockResolvedValue()
   })
 
-  test('provides theme and re-resolves on setTheme', async () => {
+  test('previewTheme swaps without persisting', async () => {
     const wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       React.createElement(ThemeProvider, null, children)
 
@@ -98,17 +101,45 @@ describe('ThemeProvider', () => {
     })
 
     expect(result.current.activeThemeName).toBe('pm-dark')
-    expect(result.current.theme.background).toBe('#000000')
 
     act(() => {
-      result.current.setTheme('pm-light')
+      const ok = result.current.previewTheme('pm-light')
+      expect(ok).toBe(true)
+    })
+
+    expect(result.current.activeThemeName).toBe('pm-light')
+    expect(jest.mocked(saveThemeSelection)).not.toHaveBeenCalled()
+
+    act(() => {
+      const ok = result.current.previewTheme('pm-dark')
+      expect(ok).toBe(true)
+    })
+
+    expect(result.current.activeThemeName).toBe('pm-dark')
+    expect(jest.mocked(saveThemeSelection)).not.toHaveBeenCalled()
+  })
+
+  test('setTheme re-resolves and persists', async () => {
+    const wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+      React.createElement(ThemeProvider, null, children)
+
+    const { result } = renderHook(() => useTheme(), { wrapper })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      const ok = await result.current.setTheme('pm-light')
+      expect(ok).toBe(true)
     })
 
     expect(result.current.activeThemeName).toBe('pm-light')
     expect(result.current.theme.background).toBe('#ffffff')
+    expect(jest.mocked(saveThemeSelection)).toHaveBeenCalledWith({ themeName: 'pm-light' })
   })
 
-  test('re-resolves on setMode', async () => {
+  test('setMode re-resolves and persists', async () => {
     const wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       React.createElement(ThemeProvider, null, children)
 
@@ -120,10 +151,12 @@ describe('ThemeProvider', () => {
 
     expect(result.current.mode).toBe('dark')
 
-    act(() => {
-      result.current.setMode('light')
+    await act(async () => {
+      const ok = await result.current.setMode('light')
+      expect(ok).toBe(true)
     })
 
     expect(result.current.mode).toBe('light')
+    expect(jest.mocked(saveThemeSelection)).toHaveBeenCalledWith({ themeMode: 'light' })
   })
 })

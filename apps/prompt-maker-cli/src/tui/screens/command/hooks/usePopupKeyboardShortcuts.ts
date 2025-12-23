@@ -19,6 +19,11 @@ export type UsePopupKeyboardShortcutsOptions = {
   // toggle
   applyToggleSelection: (field: 'polish' | 'copy' | 'chatgpt' | 'json', value: boolean) => void
 
+  // theme
+  themeCount: number
+  onThemeConfirm: () => void
+  onThemeCancel: () => void
+
   // file
   files: string[]
   filePopupSuggestions: string[]
@@ -65,7 +70,11 @@ export const usePopupKeyboardShortcuts = ({
   modelPopupOptions,
   onModelPopupSubmit,
   applyToggleSelection,
+  themeCount,
+  onThemeConfirm,
+  onThemeCancel,
   files,
+
   filePopupSuggestions,
   onRemoveFile,
   urls,
@@ -164,6 +173,42 @@ export const usePopupKeyboardShortcuts = ({
         }
         if (key.return) {
           applyToggleSelection(popupState.field, popupState.selectionIndex === 0)
+        }
+        return
+      }
+
+      if (popupState.type === 'theme') {
+        if (key.upArrow && themeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'theme'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex - 1 + themeCount) % themeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if (key.downArrow && themeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'theme'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex + 1) % themeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if (key.escape) {
+          onThemeCancel()
+          return
+        }
+
+        if (key.return) {
+          onThemeConfirm()
         }
         return
       }

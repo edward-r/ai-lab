@@ -41,6 +41,7 @@ export type PopupAction =
   | { type: 'open-smart'; scanId: number; draft: string }
   | { type: 'open-tokens' }
   | { type: 'open-settings' }
+  | { type: 'open-theme'; selectionIndex: number; initialThemeName: string }
   | { type: 'open-reasoning'; scrollOffset: number }
   | { type: 'open-test'; draft: string }
   | { type: 'open-intent'; scanId: number; draft: string }
@@ -211,6 +212,16 @@ export const popupReducer = (state: PopupManagerState, action: PopupAction): Pop
 
     case 'open-settings':
       return { popupState: { type: 'settings' }, activeScan: null }
+
+    case 'open-theme':
+      return {
+        popupState: {
+          type: 'theme',
+          selectionIndex: action.selectionIndex,
+          initialThemeName: action.initialThemeName,
+        },
+        activeScan: null,
+      }
 
     case 'open-reasoning':
       return {

@@ -17,16 +17,17 @@ import {
 } from './theme-types'
 
 export type ThemeProviderError = {
-  kind: 'load-failed' | 'resolve-failed'
+  kind: 'load-failed' | 'resolve-failed' | 'save-failed'
   message: string
 }
 
 export type ThemeContextValue = {
   theme: ResolvedTheme
   mode: ThemeMode
-  setMode: (mode: ThemeMode) => void
+  setMode: (mode: ThemeMode) => Promise<boolean>
   activeThemeName: string
-  setTheme: (name: string) => void
+  setTheme: (name: string) => Promise<boolean>
+  previewTheme: (name: string) => boolean
   themes: readonly ThemeDescriptor[]
   warnings: readonly ThemeSelectionWarning[]
   error: ThemeProviderError | null
@@ -76,6 +77,22 @@ const resolveThemeFromName = (params: {
   return {
     theme: resolveThemeOrThrow(fallbackJson, params.appearanceMode),
     themeName: DEFAULT_THEME_NAME,
+  }
+}
+
+const resolveThemeFromNameStrict = (params: {
+  themes: readonly ThemeDescriptor[]
+  name: string
+  appearanceMode: ThemeAppearanceMode
+}): { theme: ResolvedTheme; themeName: string } => {
+  const descriptor = params.themes.find((theme) => theme.name === params.name)
+  if (!descriptor) {
+    throw new Error(`Unknown theme '${params.name}'.`)
+  }
+
+  return {
+    theme: resolveThemeOrThrow(descriptor.theme, params.appearanceMode),
+    themeName: descriptor.name,
   }
 }
 
@@ -154,55 +171,99 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [])
 
-  const applySelection = useCallback(
-    (next: { themeName?: string; mode?: ThemeMode }) => {
-      const nextMode = next.mode ?? mode
-      const appearanceMode = resolveAppearanceMode(nextMode)
+  const previewTheme = useCallback(
+    (name: string): boolean => {
+      if (themes.length === 0) {
+        setError({ kind: 'resolve-failed', message: 'No themes loaded.' })
+        return false
+      }
 
-      const nextThemeName = next.themeName ?? activeThemeName
+      const appearanceMode = resolveAppearanceMode(mode)
 
       try {
-        const resolved = resolveThemeFromName({ themes, name: nextThemeName, appearanceMode })
+        const resolved = resolveThemeFromNameStrict({ themes, name, appearanceMode })
         setActiveThemeName(resolved.themeName)
         setThemeState(resolved.theme)
-        setModeState(nextMode)
         setError(null)
-
-        void saveThemeSelection({
-          ...(next.themeName !== undefined ? { themeName: resolved.themeName } : {}),
-          ...(next.mode !== undefined ? { themeMode: nextMode } : {}),
-        })
+        return true
       } catch (resolveError) {
         const message =
           resolveError instanceof Error ? resolveError.message : 'Unknown theme resolution error.'
         setError({ kind: 'resolve-failed', message })
-
-        const fallbackJson = getThemeJson(DEFAULT_THEME_NAME)
-        if (!fallbackJson) {
-          return
-        }
-
-        setActiveThemeName(DEFAULT_THEME_NAME)
-        setThemeState(resolveThemeOrThrow(fallbackJson, appearanceMode))
-        setModeState(nextMode)
-        void saveThemeSelection({ themeName: DEFAULT_THEME_NAME })
+        return false
       }
     },
-    [activeThemeName, mode, themes],
+    [mode, themes],
   )
 
   const setTheme = useCallback(
-    (name: string) => {
-      applySelection({ themeName: name })
+    async (name: string): Promise<boolean> => {
+      if (themes.length === 0) {
+        setError({ kind: 'resolve-failed', message: 'No themes loaded.' })
+        return false
+      }
+
+      const appearanceMode = resolveAppearanceMode(mode)
+
+      let resolved: { theme: ResolvedTheme; themeName: string }
+      try {
+        resolved = resolveThemeFromNameStrict({ themes, name, appearanceMode })
+      } catch (resolveError) {
+        const message =
+          resolveError instanceof Error ? resolveError.message : 'Unknown theme resolution error.'
+        setError({ kind: 'resolve-failed', message })
+        return false
+      }
+
+      try {
+        await saveThemeSelection({ themeName: resolved.themeName })
+      } catch (saveError) {
+        const message = saveError instanceof Error ? saveError.message : 'Unknown theme save error.'
+        setError({ kind: 'save-failed', message })
+        return false
+      }
+
+      setActiveThemeName(resolved.themeName)
+      setThemeState(resolved.theme)
+      setError(null)
+      return true
     },
-    [applySelection],
+    [mode, themes],
   )
 
   const setMode = useCallback(
-    (nextMode: ThemeMode) => {
-      applySelection({ mode: nextMode })
+    async (nextMode: ThemeMode): Promise<boolean> => {
+      if (themes.length === 0) {
+        setError({ kind: 'resolve-failed', message: 'No themes loaded.' })
+        return false
+      }
+
+      const appearanceMode = resolveAppearanceMode(nextMode)
+
+      let resolved: { theme: ResolvedTheme; themeName: string }
+      try {
+        resolved = resolveThemeFromNameStrict({ themes, name: activeThemeName, appearanceMode })
+      } catch (resolveError) {
+        const message =
+          resolveError instanceof Error ? resolveError.message : 'Unknown theme resolution error.'
+        setError({ kind: 'resolve-failed', message })
+        return false
+      }
+
+      try {
+        await saveThemeSelection({ themeMode: nextMode })
+      } catch (saveError) {
+        const message = saveError instanceof Error ? saveError.message : 'Unknown theme save error.'
+        setError({ kind: 'save-failed', message })
+        return false
+      }
+
+      setModeState(nextMode)
+      setThemeState(resolved.theme)
+      setError(null)
+      return true
     },
-    [applySelection],
+    [activeThemeName, themes],
   )
 
   const value = useMemo<ThemeContextValue>(
@@ -212,11 +273,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setMode,
       activeThemeName,
       setTheme,
+      previewTheme,
       themes,
       warnings,
       error,
     }),
-    [activeThemeName, error, mode, setMode, setTheme, theme, themes, warnings],
+    [activeThemeName, error, mode, previewTheme, setMode, setTheme, theme, themes, warnings],
   )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

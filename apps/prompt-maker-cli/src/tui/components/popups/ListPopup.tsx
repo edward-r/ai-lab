@@ -110,65 +110,10 @@ export const ListPopup = ({
     ...inkBackgroundColorProps(theme.chipBackground),
   }
 
-  if (!hasSuggestions) {
-    const upperBound = Math.max(items.length - DEFAULT_MAX_VISIBLE_LIST_ITEMS, 0)
-    const start = Math.max(0, Math.min(selectedIndex - 2, upperBound))
-    const visibleItems = items.slice(start, start + DEFAULT_MAX_VISIBLE_LIST_ITEMS)
-
-    return (
-      <Box
-        flexDirection="column"
-        borderStyle="round"
-        paddingX={1}
-        paddingY={0}
-        {...inkBorderColorProps(theme.border)}
-      >
-        <Text {...inkColorProps(theme.accent)}>{title}</Text>
-        <Box flexDirection="column" marginTop={1}>
-          <Text {...inkColorProps(theme.mutedText)}>Add new</Text>
-          <SingleLineTextInput
-            value={draft}
-            onChange={onDraftChange}
-            placeholder={placeholder}
-            onSubmit={() => onSubmitDraft(draft)}
-            focus
-          />
-        </Box>
-        <Box flexDirection="column" marginTop={1}>
-          {items.length === 0 ? (
-            <Text {...inkColorProps(theme.mutedText)}>{emptyLabel}</Text>
-          ) : (
-            <>
-              {start > 0 ? (
-                <Text {...inkColorProps(theme.mutedText)}>… earlier entries …</Text>
-              ) : null}
-              {visibleItems.map((value, index) => {
-                const actualIndex = start + index
-                const isSelected = actualIndex === selectedIndex
-                const textProps = isSelected ? focusedSelectionProps : inkColorProps(theme.text)
-                return (
-                  <Text key={`${value}-${actualIndex}`} {...textProps}>
-                    {actualIndex + 1}. {value}
-                  </Text>
-                )
-              })}
-              {start + DEFAULT_MAX_VISIBLE_LIST_ITEMS < items.length ? (
-                <Text {...inkColorProps(theme.mutedText)}>… later entries …</Text>
-              ) : null}
-            </>
-          )}
-        </Box>
-
-        <Box marginTop={1}>
-          <Text {...inkColorProps(theme.mutedText)}>{instructions}</Text>
-        </Box>
-      </Box>
-    )
-  }
-
+  // Hooks must run consistently across renders (suggestions can arrive async).
   const heights = useMemo(
-    () => resolveListPopupHeights({ maxHeight, hasSuggestions: true }),
-    [maxHeight],
+    () => resolveListPopupHeights({ maxHeight, hasSuggestions }),
+    [hasSuggestions, maxHeight],
   )
 
   const selectedVisible = useMemo(
@@ -177,15 +122,20 @@ export const ListPopup = ({
   )
 
   const suggestionRows = heights.suggestionRows
-  const suggestedVisible = useMemo(
-    () =>
-      suggestionRows > 0
-        ? resolveSuggestedVisible(suggestedItems ?? [], safeSuggestedSelection, suggestionRows)
-        : { start: 0, values: [], showBefore: false, showAfter: false },
-    [safeSuggestedSelection, suggestedItems, suggestionRows],
-  )
 
-  return (
+  const suggestedVisible = useMemo(() => {
+    if (!hasSuggestions || suggestionRows <= 0) {
+      return { start: 0, values: [], showBefore: false, showAfter: false }
+    }
+
+    return resolveSuggestedVisible(suggestedItems ?? [], safeSuggestedSelection, suggestionRows)
+  }, [hasSuggestions, safeSuggestedSelection, suggestedItems, suggestionRows])
+
+  const upperBound = Math.max(items.length - DEFAULT_MAX_VISIBLE_LIST_ITEMS, 0)
+  const start = Math.max(0, Math.min(selectedIndex - 2, upperBound))
+  const visibleItems = items.slice(start, start + DEFAULT_MAX_VISIBLE_LIST_ITEMS)
+
+  return hasSuggestions ? (
     <Box
       flexDirection="column"
       borderStyle="round"
@@ -253,6 +203,7 @@ export const ListPopup = ({
                 ? focusedSelectionProps
                 : unfocusedSelectionProps
               : inkColorProps(theme.text)
+
             return (
               <Text key={`${value}-${actualIndex}`} {...textProps}>
                 {value}
@@ -266,6 +217,54 @@ export const ListPopup = ({
       ) : null}
 
       <Box flexShrink={0}>
+        <Text {...inkColorProps(theme.mutedText)}>{instructions}</Text>
+      </Box>
+    </Box>
+  ) : (
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      paddingX={1}
+      paddingY={0}
+      {...inkBorderColorProps(theme.border)}
+    >
+      <Text {...inkColorProps(theme.accent)}>{title}</Text>
+      <Box flexDirection="column" marginTop={1}>
+        <Text {...inkColorProps(theme.mutedText)}>Add new</Text>
+        <SingleLineTextInput
+          value={draft}
+          onChange={onDraftChange}
+          placeholder={placeholder}
+          onSubmit={() => onSubmitDraft(draft)}
+          focus
+        />
+      </Box>
+      <Box flexDirection="column" marginTop={1}>
+        {items.length === 0 ? (
+          <Text {...inkColorProps(theme.mutedText)}>{emptyLabel}</Text>
+        ) : (
+          <>
+            {start > 0 ? (
+              <Text {...inkColorProps(theme.mutedText)}>… earlier entries …</Text>
+            ) : null}
+            {visibleItems.map((value, index) => {
+              const actualIndex = start + index
+              const isSelected = actualIndex === selectedIndex
+              const textProps = isSelected ? focusedSelectionProps : inkColorProps(theme.text)
+              return (
+                <Text key={`${value}-${actualIndex}`} {...textProps}>
+                  {actualIndex + 1}. {value}
+                </Text>
+              )
+            })}
+            {start + DEFAULT_MAX_VISIBLE_LIST_ITEMS < items.length ? (
+              <Text {...inkColorProps(theme.mutedText)}>… later entries …</Text>
+            ) : null}
+          </>
+        )}
+      </Box>
+
+      <Box marginTop={1}>
         <Text {...inkColorProps(theme.mutedText)}>{instructions}</Text>
       </Box>
     </Box>

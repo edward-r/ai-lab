@@ -37,6 +37,7 @@ export const COMMAND_DESCRIPTORS = [
   { id: 'json', label: 'JSON', description: 'Toggle JSON payload in history (/json on|off)' },
   { id: 'tokens', label: 'Tokens', description: 'Show token usage breakdown (/tokens)' },
   { id: 'settings', label: 'Settings', description: 'Show current settings (/settings)' },
+  { id: 'theme', label: 'Theme', description: 'Switch TUI theme (/theme)' },
   {
     id: 'reasoning',
     label: 'Reasoning',
@@ -66,6 +67,7 @@ export const POPUP_HEIGHTS = {
   smart: 9,
   tokens: 16,
   settings: 14,
+  theme: 16,
   reasoning: 18,
   test: 7,
   intent: 9,
