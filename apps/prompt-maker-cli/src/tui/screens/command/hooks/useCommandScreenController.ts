@@ -10,10 +10,8 @@ import {
   useCommandScreenModelGeneration,
   type UseCommandScreenModelGenerationResult,
 } from './useCommandScreenModelGeneration'
-import {
-  useCommandScreenPopupAndView,
-  type UseCommandScreenPopupAndViewResult,
-} from './useCommandScreenPopupAndView'
+import { useCommandScreenPopupAndView } from './useCommandScreenPopupAndView'
+import type { UseCommandScreenPopupAndViewResult } from './useCommandScreenPopupAndView.types'
 
 type CommandScreenControllerOptions = {
   interactiveTransportPath?: string | undefined

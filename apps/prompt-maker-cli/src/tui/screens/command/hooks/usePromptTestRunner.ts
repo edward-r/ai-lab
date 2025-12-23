@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-empty-function */
 import path from 'node:path'
 import { useCallback, useEffect, useRef, useState } from 'react'
 

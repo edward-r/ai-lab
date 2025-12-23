@@ -1,332 +1,131 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 
-import fs from 'node:fs'
-
-import type { WriteStream } from 'node:tty'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback } from 'react'
 
 import { POPUP_HEIGHTS } from '../../../config'
-import { parseAbsolutePathFromInput } from '../../../drag-drop-path'
-import type { NotifyOptions } from '../../../notifier'
-import type { HistoryEntry, ModelOption, ProviderStatusMap } from '../../../types'
 
 import { useCommandScreenChips } from './useCommandScreenChips'
 import { useCommandScreenPopupBindings } from './useCommandScreenPopupBindings'
 import { useCommandScreenPopupManager } from './useCommandScreenPopupManager'
+import { useCommandScreenPopupVisibility } from './useCommandScreenPopupVisibility'
 import { useCommandScreenShell } from './useCommandScreenShell'
 import { useCommandScreenViewModel } from './useCommandScreenViewModel'
+import { useDroppedFilePath } from './useDroppedFilePath'
 
-type PushHistory = (content: string, kind?: HistoryEntry['kind']) => void
+import type {
+  PushHistory,
+  UseCommandScreenPopupAndViewOptions,
+  UseCommandScreenPopupAndViewResult,
+} from './useCommandScreenPopupAndView.types'
 
-type UseCommandScreenPopupAndViewOptions = {
-  interactiveTransportPath?: string | undefined
-  onPopupVisibilityChange?: ((isOpen: boolean) => void) | undefined
-  commandMenuSignal?: number | undefined
-  helpOpen: boolean
-  reservedRows: number
-  notify: (message: string, options?: NotifyOptions) => void
-
-  stdout: WriteStream | undefined
-
-  // context state
-  files: string[]
-  urls: string[]
-  smartContextEnabled: boolean
-  smartContextRoot: string | null
-  metaInstructions: string
-  lastReasoning: string | null
-  lastGeneratedPrompt: string | null
-
-  // context dispatch
-  addFile: (value: string) => void
-  removeFile: (index: number) => void
-  addUrl: (value: string) => void
-  removeUrl: (index: number) => void
-  toggleSmartContext: () => void
-  setSmartRoot: (value: string) => void
-  setMetaInstructions: (value: string) => void
-  resetContext: () => void
-
-  // model/generation
-  currentModel: ModelOption['id']
-  modelOptions: ModelOption[]
-  providerStatuses: ProviderStatusMap
-  selectModel: (nextId: ModelOption['id']) => void
-  isGenerating: boolean
-  runGeneration: (payload: { intent?: string; intentFile?: string }) => Promise<void>
-  runSeriesGeneration: (intent: string) => void
-  statusChips: string[]
-  isAwaitingRefinement: boolean
-  submitRefinement: (value: string) => void
-  awaitingInteractiveMode:
-    | import('../../../generation-pipeline-reducer').InteractiveAwaitingMode
-    | null
-  tokenUsageRun: import('../../../token-usage-store').TokenUsageRun | null
-  tokenUsageBreakdown: import('../../../token-usage-store').TokenUsageBreakdown | null
-
-  // screen state
-  terminalRows: number
-  terminalColumns: number
-  inputValue: string
-  isPasteActive: boolean
-  commandSelectionIndex: number
-  debugKeyLine: string | null
-  debugKeysEnabled: boolean
-
-  setTerminalSize: (rows: number, columns: number) => void
-  setInputValue: (value: string | ((prev: string) => string)) => void
-  setPasteActive: (active: boolean) => void
-  setCommandSelectionIndex: (next: number | ((prev: number) => number)) => void
-
-  // input local
-  intentFilePath: string
-  setIntentFilePath: (value: string) => void
-  polishEnabled: boolean
-  setPolishEnabled: (value: boolean) => void
-  copyEnabled: boolean
-  setCopyEnabled: (value: boolean) => void
-  chatGptEnabled: boolean
-  setChatGptEnabled: (value: boolean) => void
-  jsonOutputEnabled: boolean
-  setJsonOutputEnabled: (value: boolean) => void
-
-  // refs
-  lastUserIntentRef: import('react').MutableRefObject<string | null>
-  lastTypedIntentRef: import('react').MutableRefObject<string>
-
-  // suppression
-  consumeSuppressedTextInputChange: () => boolean
-  suppressNextInput: () => void
-  updateLastTypedIntent: (next: string) => void
-
-  // history/test plumbing
-  pushHistoryRef: import('react').MutableRefObject<PushHistory>
-  pushHistoryProxy: PushHistory
-  clearHistoryRef: import('react').MutableRefObject<() => void>
-  scrollToRef: import('react').MutableRefObject<(row: number) => void>
-  scrollToProxy: (row: number) => void
-  closeTestPopupRef: import('react').MutableRefObject<() => void>
-
-  commandHistoryValues: string[]
-  addCommandHistoryEntry: (value: string) => void
-
-  isTestCommandRunning: boolean
-  lastTestFile: string | null
-  runTestsFromCommandProxy: (value: string) => void
-  onTestPopupSubmit: (value: string) => void
-
-  onDebugKeyEvent: (
-    event: import('../../../components/core/MultilineTextInput').DebugKeyEvent,
-  ) => void
-}
-
-export type UseCommandScreenPopupAndViewResult = {
-  transportMessage: string | null
-  historyPaneProps: Parameters<typeof useCommandScreenViewModel>[0]['panes']['history']
-  popupAreaProps: ReturnType<typeof useCommandScreenViewModel>['popupAreaProps']
-  commandMenuPaneProps: Parameters<typeof useCommandScreenViewModel>[0]['panes']['menu']
-  commandInputProps: ReturnType<typeof useCommandScreenViewModel>['commandInputProps']
-}
-
-export const useCommandScreenPopupAndView = ({
-  interactiveTransportPath,
-  onPopupVisibilityChange,
-  commandMenuSignal,
-  helpOpen,
-  reservedRows,
-  notify,
-  stdout,
-  files,
-  urls,
-  smartContextEnabled,
-  smartContextRoot,
-  metaInstructions,
-  lastReasoning,
-  lastGeneratedPrompt,
-  addFile,
-  removeFile,
-  addUrl,
-  removeUrl,
-  toggleSmartContext,
-  setSmartRoot,
-  setMetaInstructions,
-  resetContext,
-  currentModel,
-  modelOptions,
-  providerStatuses,
-  selectModel,
-  isGenerating,
-  runGeneration,
-  runSeriesGeneration,
-  statusChips,
-  isAwaitingRefinement,
-  submitRefinement,
-  awaitingInteractiveMode,
-  tokenUsageRun,
-  tokenUsageBreakdown,
-  terminalRows,
-  terminalColumns,
-  inputValue,
-  isPasteActive,
-  commandSelectionIndex,
-  debugKeyLine,
-  debugKeysEnabled,
-  setTerminalSize,
-  setInputValue,
-  setPasteActive,
-  setCommandSelectionIndex,
-  intentFilePath,
-  setIntentFilePath,
-  polishEnabled,
-  setPolishEnabled,
-  copyEnabled,
-  setCopyEnabled,
-  chatGptEnabled,
-  setChatGptEnabled,
-  jsonOutputEnabled,
-  setJsonOutputEnabled,
-  lastUserIntentRef,
-  lastTypedIntentRef,
-  consumeSuppressedTextInputChange,
-  suppressNextInput,
-  updateLastTypedIntent,
-  pushHistoryRef,
-  pushHistoryProxy,
-  clearHistoryRef,
-  scrollToRef,
-  scrollToProxy,
-  closeTestPopupRef,
-  commandHistoryValues,
-  addCommandHistoryEntry,
-  isTestCommandRunning,
-  lastTestFile,
-  runTestsFromCommandProxy,
-  onTestPopupSubmit,
-  onDebugKeyEvent,
-}: UseCommandScreenPopupAndViewOptions): UseCommandScreenPopupAndViewResult => {
+export const useCommandScreenPopupAndView = (
+  options: UseCommandScreenPopupAndViewOptions,
+): UseCommandScreenPopupAndViewResult => {
   const popupManager = useCommandScreenPopupManager({
-    currentModel,
-    modelOptions,
-    smartContextRoot,
-    lastTestFile,
-    ...(interactiveTransportPath ? { interactiveTransportPath } : {}),
-    isGenerating,
-    lastUserIntentRef,
-    lastTypedIntentRef,
-    pushHistoryProxy,
-    notify,
-    setInputValue: (value) => {
-      setInputValue(value)
-    },
-    runSeriesGeneration,
-    runTestsFromCommandProxy,
-    setCurrentModel: selectModel,
-    setPolishEnabled,
-    setCopyEnabled,
-    setChatGptEnabled,
-    setJsonOutputEnabled,
-    intentFilePath,
-    setIntentFilePath,
-    metaInstructions,
-    setMetaInstructions,
-    polishEnabled,
-    copyEnabled,
-    chatGptEnabled,
-    jsonOutputEnabled,
+    currentModel: options.currentModel,
+    modelOptions: options.modelOptions,
+    smartContextRoot: options.smartContextRoot,
+    lastTestFile: options.lastTestFile,
+    ...(options.interactiveTransportPath
+      ? { interactiveTransportPath: options.interactiveTransportPath }
+      : {}),
+    isGenerating: options.isGenerating,
+    lastUserIntentRef: options.lastUserIntentRef,
+    lastTypedIntentRef: options.lastTypedIntentRef,
+    pushHistoryProxy: options.pushHistoryProxy,
+    notify: options.notify,
+    setInputValue: options.setInputValue,
+    runSeriesGeneration: options.runSeriesGeneration,
+    runTestsFromCommandProxy: options.runTestsFromCommandProxy,
+    setCurrentModel: options.selectModel,
+    setPolishEnabled: options.setPolishEnabled,
+    setCopyEnabled: options.setCopyEnabled,
+    setChatGptEnabled: options.setChatGptEnabled,
+    setJsonOutputEnabled: options.setJsonOutputEnabled,
+    intentFilePath: options.intentFilePath,
+    setIntentFilePath: options.setIntentFilePath,
+    metaInstructions: options.metaInstructions,
+    setMetaInstructions: options.setMetaInstructions,
+    polishEnabled: options.polishEnabled,
+    copyEnabled: options.copyEnabled,
+    chatGptEnabled: options.chatGptEnabled,
+    jsonOutputEnabled: options.jsonOutputEnabled,
   })
 
-  closeTestPopupRef.current = () => {
+  options.closeTestPopupRef.current = () => {
     popupManager.setPopupState((prev) => (prev?.type === 'test' ? null : prev))
   }
 
+  useCommandScreenPopupVisibility({
+    isPopupOpen: popupManager.isPopupOpen,
+    onPopupVisibilityChange: options.onPopupVisibilityChange,
+  })
+
   const pushHistory = useCallback<PushHistory>(
     (content, kind) => {
-      pushHistoryRef.current(content, kind)
+      options.pushHistoryRef.current(content, kind)
     },
-    [pushHistoryRef],
+    [options.pushHistoryRef],
   )
 
-  const droppedFilePath = useMemo(() => {
-    const candidate = parseAbsolutePathFromInput(inputValue)
-    if (!candidate) {
-      return null
-    }
-    try {
-      const stats = fs.statSync(candidate)
-      return stats.isFile() ? candidate : null
-    } catch {
-      return null
-    }
-  }, [inputValue])
+  const droppedFilePath = useDroppedFilePath(options.inputValue)
 
   const shell = useCommandScreenShell({
-    stdout,
-    setTerminalSize,
-    ...(interactiveTransportPath ? { interactiveTransportPath } : {}),
-    terminalRows,
-    inputValue,
-    debugKeyLine,
-    debugKeysEnabled,
-    helpOpen,
-    reservedRows,
+    stdout: options.stdout,
+    setTerminalSize: options.setTerminalSize,
+    ...(options.interactiveTransportPath
+      ? { interactiveTransportPath: options.interactiveTransportPath }
+      : {}),
+    terminalRows: options.terminalRows,
+    inputValue: options.inputValue,
+    debugKeyLine: options.debugKeyLine,
+    debugKeysEnabled: options.debugKeysEnabled,
+    helpOpen: options.helpOpen,
+    reservedRows: options.reservedRows,
     popupState: popupManager.popupState,
     isPopupOpen: popupManager.isPopupOpen,
     setPopupState: popupManager.setPopupState,
-    ...(commandMenuSignal !== undefined ? { commandMenuSignal } : {}),
-    commandSelectionIndex,
-    setCommandSelectionIndex,
-    isGenerating,
-    awaitingInteractiveMode,
-    files,
-    urls,
-    lastGeneratedPrompt,
-    resetContext,
-    lastUserIntentRef,
-    lastTypedIntentRef,
-    setInputValue,
-    setIntentFilePath,
-    setMetaInstructions,
-    scrollToRef,
-    clearHistoryRef,
-    pushHistoryRef,
-    scrollToProxy,
+    ...(options.commandMenuSignal !== undefined
+      ? { commandMenuSignal: options.commandMenuSignal }
+      : {}),
+    commandSelectionIndex: options.commandSelectionIndex,
+    setCommandSelectionIndex: options.setCommandSelectionIndex,
+    isGenerating: options.isGenerating,
+    awaitingInteractiveMode: options.awaitingInteractiveMode,
+    files: options.files,
+    urls: options.urls,
+    lastGeneratedPrompt: options.lastGeneratedPrompt,
+    resetContext: options.resetContext,
+    lastUserIntentRef: options.lastUserIntentRef,
+    lastTypedIntentRef: options.lastTypedIntentRef,
+    setInputValue: options.setInputValue,
+    setIntentFilePath: options.setIntentFilePath,
+    setMetaInstructions: options.setMetaInstructions,
+    scrollToRef: options.scrollToRef,
+    clearHistoryRef: options.clearHistoryRef,
+    pushHistoryRef: options.pushHistoryRef,
+    scrollToProxy: options.scrollToProxy,
   })
 
   const { enhancedStatusChips } = useCommandScreenChips({
-    currentModel,
-    providerStatuses,
-    statusChips,
-    intentFilePath,
-    metaInstructions,
+    currentModel: options.currentModel,
+    providerStatuses: options.providerStatuses,
+    statusChips: options.statusChips,
+    intentFilePath: options.intentFilePath,
+    metaInstructions: options.metaInstructions,
   })
 
-  useEffect(() => {
-    if (!onPopupVisibilityChange) {
-      return
-    }
-    onPopupVisibilityChange(popupManager.isPopupOpen)
-  }, [onPopupVisibilityChange, popupManager.isPopupOpen])
-
-  useEffect(() => {
-    if (!onPopupVisibilityChange) {
-      return undefined
-    }
-    return () => {
-      onPopupVisibilityChange(false)
-    }
-  }, [onPopupVisibilityChange])
-
   const bindings = useCommandScreenPopupBindings({
-    inputValue,
-    setInputValue,
-    setPasteActive,
+    inputValue: options.inputValue,
+    setInputValue: options.setInputValue,
+    setPasteActive: options.setPasteActive,
     popupState: popupManager.popupState,
     setPopupState: popupManager.setPopupState,
     isPopupOpen: popupManager.isPopupOpen,
-    helpOpen,
-    consumeSuppressedTextInputChange,
-    suppressNextInput,
-    updateLastTypedIntent,
+    helpOpen: options.helpOpen,
+    consumeSuppressedTextInputChange: options.consumeSuppressedTextInputChange,
+    suppressNextInput: options.suppressNextInput,
+    updateLastTypedIntent: options.updateLastTypedIntent,
     closePopup: popupManager.actions.closePopup,
     handleCommandSelection: popupManager.actions.handleCommandSelection,
     handleModelPopupSubmit: popupManager.actions.handleModelPopupSubmit,
@@ -337,32 +136,32 @@ export const useCommandScreenPopupAndView = ({
     selectedCommandId: shell.selectedCommand?.id ?? null,
     commandMenuArgsRaw: shell.commandMenuArgsRaw,
     isCommandMode: shell.isCommandMode,
-    isGenerating,
-    isAwaitingRefinement,
-    submitRefinement,
-    runGeneration,
+    isGenerating: options.isGenerating,
+    isAwaitingRefinement: options.isAwaitingRefinement,
+    submitRefinement: options.submitRefinement,
+    runGeneration: options.runGeneration,
     handleNewCommand: shell.handleNewCommand,
     handleReuseCommand: shell.handleReuseCommand,
-    intentFilePath,
-    lastUserIntentRef,
+    intentFilePath: options.intentFilePath,
+    lastUserIntentRef: options.lastUserIntentRef,
     pushHistory,
-    addCommandHistoryEntry,
-    commandHistoryValues,
+    addCommandHistoryEntry: options.addCommandHistoryEntry,
+    commandHistoryValues: options.commandHistoryValues,
     droppedFilePath,
-    files,
-    urls,
-    smartContextEnabled,
-    smartContextRoot,
-    addFile,
-    removeFile,
-    addUrl,
-    removeUrl,
-    toggleSmartContext,
-    setSmartRoot,
-    notify: (message) => notify(message),
-    modelOptions,
-    lastReasoning,
-    terminalColumns,
+    files: options.files,
+    urls: options.urls,
+    smartContextEnabled: options.smartContextEnabled,
+    smartContextRoot: options.smartContextRoot,
+    addFile: options.addFile,
+    removeFile: options.removeFile,
+    addUrl: options.addUrl,
+    removeUrl: options.removeUrl,
+    toggleSmartContext: options.toggleSmartContext,
+    setSmartRoot: options.setSmartRoot,
+    notify: (message) => options.notify(message),
+    modelOptions: options.modelOptions,
+    lastReasoning: options.lastReasoning,
+    terminalColumns: options.terminalColumns,
     reasoningPopupHeight: POPUP_HEIGHTS.reasoning,
   })
 
@@ -378,31 +177,35 @@ export const useCommandScreenPopupAndView = ({
         isActive: shell.isCommandMenuActive,
         height: shell.menuHeight,
         commands: shell.visibleCommands,
-        selectedIndex: commandSelectionIndex,
+        selectedIndex: options.commandSelectionIndex,
       },
     },
     popup: {
-      base: { popupState: popupManager.popupState, helpOpen, overlayHeight: shell.overlayHeight },
+      base: {
+        popupState: popupManager.popupState,
+        helpOpen: options.helpOpen,
+        overlayHeight: shell.overlayHeight,
+      },
       model: {
         modelPopupOptions: bindings.modelPopupOptions,
         modelPopupSelection: bindings.modelPopupSelection,
         modelPopupRecentCount: bindings.modelPopupRecentCount,
-        providerStatuses,
+        providerStatuses: options.providerStatuses,
         onModelPopupQueryChange: bindings.onModelPopupQueryChange,
         onModelPopupSubmit: popupManager.actions.handleModelPopupSubmit,
       },
       context: {
-        files,
+        files: options.files,
         filePopupSuggestions: bindings.filePopupSuggestions,
         filePopupSuggestionSelectionIndex: bindings.filePopupSuggestionSelectionIndex,
         filePopupSuggestionsFocused: bindings.filePopupSuggestionsFocused,
         onFilePopupDraftChange: bindings.onFilePopupDraftChange,
         onAddFile: bindings.onAddFile,
-        urls,
+        urls: options.urls,
         onUrlPopupDraftChange: bindings.onUrlPopupDraftChange,
         onAddUrl: bindings.onAddUrl,
-        smartContextEnabled,
-        smartContextRoot,
+        smartContextEnabled: options.smartContextEnabled,
+        smartContextRoot: options.smartContextRoot,
         smartPopupSuggestions: bindings.smartPopupSuggestions,
         smartPopupSuggestionSelectionIndex: bindings.smartPopupSuggestionSelectionIndex,
         smartPopupSuggestionsFocused: bindings.smartPopupSuggestionsFocused,
@@ -426,16 +229,19 @@ export const useCommandScreenPopupAndView = ({
         onInstructionsSubmit: popupManager.actions.handleInstructionsSubmit,
       },
       series: {
-        isGenerating,
+        isGenerating: options.isGenerating,
         onSeriesDraftChange: bindings.onSeriesDraftChange,
         onSeriesSubmit: bindings.onSeriesSubmit,
       },
       test: {
-        isTestCommandRunning,
+        isTestCommandRunning: options.isTestCommandRunning,
         onTestDraftChange: bindings.onTestDraftChange,
-        onTestSubmit: onTestPopupSubmit,
+        onTestSubmit: options.onTestPopupSubmit,
       },
-      tokens: { tokenUsageRun, tokenUsageBreakdown },
+      tokens: {
+        tokenUsageRun: options.tokenUsageRun,
+        tokenUsageBreakdown: options.tokenUsageBreakdown,
+      },
       settings: { statusChips: enhancedStatusChips },
       reasoning: {
         reasoningPopupLines: bindings.reasoningPopupLines,
@@ -444,17 +250,21 @@ export const useCommandScreenPopupAndView = ({
     },
     input: {
       base: {
-        value: inputValue,
+        value: options.inputValue,
         onChange: bindings.handleInputChange,
         onSubmit: bindings.handleSubmit,
-        isPasteActive,
+        isPasteActive: options.isPasteActive,
         hint: shell.inputBarHint,
         debugLine: shell.inputBarDebugLine,
         tokenLabel: bindings.tokenLabel,
-        debugKeysEnabled,
-        onDebugKeyEvent,
+        debugKeysEnabled: options.debugKeysEnabled,
+        onDebugKeyEvent: options.onDebugKeyEvent,
       },
-      state: { isPopupOpen: popupManager.isPopupOpen, helpOpen, isAwaitingRefinement },
+      state: {
+        isPopupOpen: popupManager.isPopupOpen,
+        helpOpen: options.helpOpen,
+        isAwaitingRefinement: options.isAwaitingRefinement,
+      },
       statusChips: enhancedStatusChips,
     },
   })

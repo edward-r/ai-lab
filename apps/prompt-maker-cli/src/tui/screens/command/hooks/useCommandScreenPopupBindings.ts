@@ -1,18 +1,26 @@
-import fs from 'node:fs'
-
-import { useCallback } from 'react'
-
 import type { HistoryEntry, ModelOption, PopupState } from '../../../types'
 
-import { useContextPopupGlue } from './useContextPopupGlue'
-import { useHistoryPopupGlue } from './useHistoryPopupGlue'
-import { useIntentPopupGlue } from './useIntentPopupGlue'
-import { useIntentSubmitHandler } from './useIntentSubmitHandler'
 import { useMiscPopupDraftHandlers } from './useMiscPopupDraftHandlers'
 import { useModelPopupData } from './useModelPopupData'
-import { usePasteManager } from './usePasteManager'
 import { usePopupKeyboardShortcuts } from './usePopupKeyboardShortcuts'
 import { useReasoningPopup } from './useReasoningPopup'
+
+import {
+  useCommandScreenPasteBindings,
+  type UseCommandScreenPasteBindingsOptions,
+} from './useCommandScreenPasteBindings'
+import {
+  useCommandScreenContextPopupBindings,
+  type UseCommandScreenContextPopupBindingsOptions,
+} from './useCommandScreenContextPopupBindings'
+import {
+  useCommandScreenHistoryIntentPopupBindings,
+  type UseCommandScreenHistoryIntentPopupBindingsOptions,
+} from './useCommandScreenHistoryIntentPopupBindings'
+import {
+  useCommandScreenSubmitBindings,
+  type UseCommandScreenSubmitBindingsOptions,
+} from './useCommandScreenSubmitBindings'
 
 export type UseCommandScreenPopupBindingsOptions = {
   inputValue: string
@@ -24,12 +32,10 @@ export type UseCommandScreenPopupBindingsOptions = {
   isPopupOpen: boolean
   helpOpen: boolean
 
-  // suppression
   consumeSuppressedTextInputChange: () => boolean
   suppressNextInput: () => void
   updateLastTypedIntent: (next: string) => void
 
-  // popup actions
   closePopup: () => void
   handleCommandSelection: (
     commandId: import('../../../types').CommandDescriptor['id'],
@@ -40,32 +46,26 @@ export type UseCommandScreenPopupBindingsOptions = {
   handleIntentFileSubmit: (value: string) => void
   handleSeriesIntentSubmit: (value: string) => void
 
-  // command menu
   isCommandMenuActive: boolean
   selectedCommandId: import('../../../types').CommandDescriptor['id'] | null
   commandMenuArgsRaw: string
   isCommandMode: boolean
 
-  // generation
   isGenerating: boolean
   isAwaitingRefinement: boolean
   submitRefinement: (value: string) => void
   runGeneration: (payload: { intent?: string; intentFile?: string }) => Promise<void>
 
-  // /new /reuse
   handleNewCommand: (argsRaw: string) => void
   handleReuseCommand: () => void
 
-  // intent
   intentFilePath: string
   lastUserIntentRef: import('react').MutableRefObject<string | null>
 
-  // history
   pushHistory: (content: string, kind?: HistoryEntry['kind']) => void
   addCommandHistoryEntry: (value: string) => void
   commandHistoryValues: string[]
 
-  // context
   droppedFilePath: string | null
   files: string[]
   urls: string[]
@@ -79,22 +79,18 @@ export type UseCommandScreenPopupBindingsOptions = {
   setSmartRoot: (value: string) => void
   notify: (message: string) => void
 
-  // model popup
   modelOptions: ModelOption[]
 
-  // reasoning popup
   lastReasoning: string | null
   terminalColumns: number
   reasoningPopupHeight: number
 }
 
 export type UseCommandScreenPopupBindingsResult = {
-  // input
   tokenLabel: (token: string) => string | null
   handleInputChange: (next: string) => void
   handleSubmit: (value: string) => void
 
-  // popup data
   modelPopupOptions: ModelOption[]
   modelPopupRecentCount: number
   modelPopupSelection: number
@@ -138,222 +134,167 @@ export type UseCommandScreenPopupBindingsResult = {
   reasoningPopupVisibleRows: number
 }
 
-export const useCommandScreenPopupBindings = ({
-  inputValue,
-  setInputValue,
-  setPasteActive,
-  popupState,
-  setPopupState,
-  isPopupOpen,
-  helpOpen,
-  consumeSuppressedTextInputChange,
-  suppressNextInput,
-  updateLastTypedIntent,
-  closePopup,
-  handleCommandSelection,
-  handleModelPopupSubmit,
-  applyToggleSelection,
-  handleIntentFileSubmit,
-  handleSeriesIntentSubmit,
-  isCommandMenuActive,
-  selectedCommandId,
-  commandMenuArgsRaw,
-  isCommandMode,
-  isGenerating,
-  isAwaitingRefinement,
-  submitRefinement,
-  runGeneration,
-  handleNewCommand,
-  handleReuseCommand,
-  intentFilePath,
-  lastUserIntentRef,
-  pushHistory,
-  addCommandHistoryEntry,
-  commandHistoryValues,
-  droppedFilePath,
-  files,
-  urls,
-  smartContextEnabled,
-  smartContextRoot,
-  addFile,
-  removeFile,
-  addUrl,
-  removeUrl,
-  toggleSmartContext,
-  setSmartRoot,
-  notify,
-  modelOptions,
-  lastReasoning,
-  terminalColumns,
-  reasoningPopupHeight,
-}: UseCommandScreenPopupBindingsOptions): UseCommandScreenPopupBindingsResult => {
-  const { tokenLabel, handleInputChange, expandInputForSubmit } = usePasteManager({
-    inputValue,
-    popupState,
-    helpOpen,
-    setInputValue,
-    setPasteActive,
-    consumeSuppressedTextInputChange,
-    suppressNextInput,
-    updateLastTypedIntent,
-  })
+export const useCommandScreenPopupBindings = (
+  options: UseCommandScreenPopupBindingsOptions,
+): UseCommandScreenPopupBindingsResult => {
+  const paste = useCommandScreenPasteBindings({
+    inputValue: options.inputValue,
+    popupState: options.popupState,
+    helpOpen: options.helpOpen,
+    setInputValue: options.setInputValue,
+    setPasteActive: options.setPasteActive,
+    consumeSuppressedTextInputChange: options.consumeSuppressedTextInputChange,
+    suppressNextInput: options.suppressNextInput,
+    updateLastTypedIntent: options.updateLastTypedIntent,
+  } satisfies UseCommandScreenPasteBindingsOptions)
 
-  const contextGlue = useContextPopupGlue({
-    inputValue,
-    popupState,
-    helpOpen,
-    isPopupOpen,
-    isCommandMode,
-    isCommandMenuActive,
-    isGenerating,
-    droppedFilePath,
-    files,
-    urls,
-    smartContextEnabled,
-    smartContextRoot,
-    addFile,
-    removeFile,
-    addUrl,
-    removeUrl,
-    toggleSmartContext,
-    setSmartRoot,
-    setInputValue,
-    setPopupState,
-    suppressNextInput,
-    notify,
-    pushHistory,
-    addCommandHistoryEntry,
-    handleCommandSelection,
-    consumeSuppressedTextInputChange,
-    isFilePath: (candidate: string) => {
-      try {
-        const stats = fs.statSync(candidate)
-        return stats.isFile()
-      } catch {
-        return false
-      }
-    },
-  })
+  const context = useCommandScreenContextPopupBindings({
+    inputValue: options.inputValue,
+    popupState: options.popupState,
+    helpOpen: options.helpOpen,
+    isPopupOpen: options.isPopupOpen,
+    isCommandMode: options.isCommandMode,
+    isCommandMenuActive: options.isCommandMenuActive,
+    isGenerating: options.isGenerating,
+    droppedFilePath: options.droppedFilePath,
+    files: options.files,
+    urls: options.urls,
+    smartContextEnabled: options.smartContextEnabled,
+    smartContextRoot: options.smartContextRoot,
+    addFile: options.addFile,
+    removeFile: options.removeFile,
+    addUrl: options.addUrl,
+    removeUrl: options.removeUrl,
+    toggleSmartContext: options.toggleSmartContext,
+    setSmartRoot: options.setSmartRoot,
+    setInputValue: options.setInputValue,
+    setPopupState: options.setPopupState,
+    suppressNextInput: options.suppressNextInput,
+    notify: options.notify,
+    pushHistory: (content, kind = 'system') => options.pushHistory(content, kind),
+    addCommandHistoryEntry: options.addCommandHistoryEntry,
+    handleCommandSelection: options.handleCommandSelection,
+    consumeSuppressedTextInputChange: options.consumeSuppressedTextInputChange,
+  } satisfies UseCommandScreenContextPopupBindingsOptions)
 
-  const historyGlue = useHistoryPopupGlue({
-    popupState,
-    setPopupState,
-    closePopup,
-    setInputValue,
-    consumeSuppressedTextInputChange,
-    suppressNextInput,
-    commandHistoryValues,
-  })
-
-  const intentGlue = useIntentPopupGlue({ popupState, setPopupState })
+  const historyAndIntent = useCommandScreenHistoryIntentPopupBindings({
+    popupState: options.popupState,
+    setPopupState: options.setPopupState,
+    closePopup: options.closePopup,
+    setInputValue: options.setInputValue,
+    consumeSuppressedTextInputChange: options.consumeSuppressedTextInputChange,
+    suppressNextInput: options.suppressNextInput,
+    commandHistoryValues: options.commandHistoryValues,
+  } satisfies UseCommandScreenHistoryIntentPopupBindingsOptions)
 
   const { modelPopupOptions, modelPopupRecentCount, modelPopupSelection } = useModelPopupData({
-    popupState,
-    modelOptions,
+    popupState: options.popupState,
+    modelOptions: options.modelOptions,
   })
 
   const { reasoningPopupVisibleRows, reasoningPopupLines } = useReasoningPopup({
-    lastReasoning,
-    terminalColumns,
-    popupHeight: reasoningPopupHeight,
+    lastReasoning: options.lastReasoning,
+    terminalColumns: options.terminalColumns,
+    popupHeight: options.reasoningPopupHeight,
   })
 
   usePopupKeyboardShortcuts({
-    popupState,
-    helpOpen,
-    setPopupState,
-    closePopup,
+    popupState: options.popupState,
+    helpOpen: options.helpOpen,
+    setPopupState: options.setPopupState,
+    closePopup: options.closePopup,
     modelPopupOptions,
-    onModelPopupSubmit: handleModelPopupSubmit,
-    applyToggleSelection,
-    files,
-    filePopupSuggestions: contextGlue.filePopupSuggestions,
-    onRemoveFile: contextGlue.onRemoveFile,
-    urls,
-    onRemoveUrl: contextGlue.onRemoveUrl,
-    historyPopupItems: historyGlue.historyPopupItems,
-    smartPopupSuggestions: contextGlue.smartPopupSuggestions,
-    smartContextEnabled,
-    smartContextRoot,
-    onSmartToggle: contextGlue.onSmartToggle,
-    onSmartRootSubmit: contextGlue.onSmartRootSubmit,
-    intentPopupSuggestions: intentGlue.intentPopupSuggestions,
-    onIntentFileSubmit: handleIntentFileSubmit,
+    onModelPopupSubmit: options.handleModelPopupSubmit,
+    applyToggleSelection: options.applyToggleSelection,
+    files: options.files,
+    filePopupSuggestions: context.filePopupSuggestions,
+    onRemoveFile: context.onRemoveFile,
+    urls: options.urls,
+    onRemoveUrl: context.onRemoveUrl,
+    historyPopupItems: historyAndIntent.history.historyPopupItems,
+    smartPopupSuggestions: context.smartPopupSuggestions,
+    smartContextEnabled: options.smartContextEnabled,
+    smartContextRoot: options.smartContextRoot,
+    onSmartToggle: context.onSmartToggle,
+    onSmartRootSubmit: context.onSmartRootSubmit,
+    intentPopupSuggestions: historyAndIntent.intent.intentPopupSuggestions,
+    onIntentFileSubmit: options.handleIntentFileSubmit,
     reasoningPopupLines,
     reasoningPopupVisibleRows,
   })
 
-  const handleSubmit = useIntentSubmitHandler({
-    popupState,
-    isAwaitingRefinement,
-    submitRefinement,
-    isCommandMenuActive,
-    selectedCommandId,
-    commandMenuArgsRaw,
-    isCommandMode,
-    intentFilePath,
-    isGenerating,
-    expandInputForSubmit,
-    setInputValue,
-    pushHistory,
-    addCommandHistoryEntry,
-    runGeneration,
-    handleCommandSelection,
-    handleNewCommand,
-    handleReuseCommand,
-    lastUserIntentRef,
-  })
-
-  const onSeriesSubmit = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      if (trimmed) {
-        addCommandHistoryEntry(`/series ${trimmed}`)
-      }
-      handleSeriesIntentSubmit(value)
-    },
-    [addCommandHistoryEntry, handleSeriesIntentSubmit],
-  )
+  const submit = useCommandScreenSubmitBindings({
+    popupState: options.popupState,
+    isAwaitingRefinement: options.isAwaitingRefinement,
+    submitRefinement: options.submitRefinement,
+    isCommandMenuActive: options.isCommandMenuActive,
+    selectedCommandId: options.selectedCommandId,
+    commandMenuArgsRaw: options.commandMenuArgsRaw,
+    isCommandMode: options.isCommandMode,
+    intentFilePath: options.intentFilePath,
+    isGenerating: options.isGenerating,
+    expandInputForSubmit: paste.expandInputForSubmit,
+    setInputValue: options.setInputValue,
+    pushHistory: options.pushHistory,
+    addCommandHistoryEntry: options.addCommandHistoryEntry,
+    runGeneration: options.runGeneration,
+    handleCommandSelection: options.handleCommandSelection,
+    handleNewCommand: options.handleNewCommand,
+    handleReuseCommand: options.handleReuseCommand,
+    lastUserIntentRef: options.lastUserIntentRef,
+    handleSeriesIntentSubmit: options.handleSeriesIntentSubmit,
+  } satisfies UseCommandScreenSubmitBindingsOptions)
 
   const miscDraftHandlers = useMiscPopupDraftHandlers({
-    setPopupState,
-    consumeSuppressedTextInputChange,
+    setPopupState: options.setPopupState,
+    consumeSuppressedTextInputChange: options.consumeSuppressedTextInputChange,
   })
 
   return {
-    tokenLabel,
-    handleInputChange,
-    handleSubmit,
+    tokenLabel: paste.tokenLabel,
+    handleInputChange: paste.handleInputChange,
+    handleSubmit: submit.handleSubmit,
+
     modelPopupOptions,
     modelPopupRecentCount,
     modelPopupSelection,
-    historyPopupItems: historyGlue.historyPopupItems,
-    intentPopupSuggestions: intentGlue.intentPopupSuggestions,
-    intentPopupSuggestionSelectionIndex: intentGlue.intentPopupSuggestionSelectionIndex,
-    intentPopupSuggestionsFocused: intentGlue.intentPopupSuggestionsFocused,
-    onIntentPopupDraftChange: intentGlue.onIntentPopupDraftChange,
-    filePopupSuggestions: contextGlue.filePopupSuggestions,
-    filePopupSuggestionSelectionIndex: contextGlue.filePopupSuggestionSelectionIndex,
-    filePopupSuggestionsFocused: contextGlue.filePopupSuggestionsFocused,
-    onFilePopupDraftChange: contextGlue.onFilePopupDraftChange,
-    onAddFile: contextGlue.onAddFile,
-    onRemoveFile: contextGlue.onRemoveFile,
-    onUrlPopupDraftChange: contextGlue.onUrlPopupDraftChange,
-    onAddUrl: contextGlue.onAddUrl,
-    onRemoveUrl: contextGlue.onRemoveUrl,
-    smartPopupSuggestions: contextGlue.smartPopupSuggestions,
-    smartPopupSuggestionSelectionIndex: contextGlue.smartPopupSuggestionSelectionIndex,
-    smartPopupSuggestionsFocused: contextGlue.smartPopupSuggestionsFocused,
-    onSmartPopupDraftChange: contextGlue.onSmartPopupDraftChange,
-    onSmartRootSubmit: contextGlue.onSmartRootSubmit,
-    onSmartToggle: contextGlue.onSmartToggle,
-    onHistoryPopupDraftChange: historyGlue.onHistoryPopupDraftChange,
-    onHistoryPopupSubmit: historyGlue.onHistoryPopupSubmit,
+
+    historyPopupItems: historyAndIntent.history.historyPopupItems,
+
+    intentPopupSuggestions: historyAndIntent.intent.intentPopupSuggestions,
+    intentPopupSuggestionSelectionIndex:
+      historyAndIntent.intent.intentPopupSuggestionSelectionIndex,
+    intentPopupSuggestionsFocused: historyAndIntent.intent.intentPopupSuggestionsFocused,
+    onIntentPopupDraftChange: historyAndIntent.intent.onIntentPopupDraftChange,
+
+    filePopupSuggestions: context.filePopupSuggestions,
+    filePopupSuggestionSelectionIndex: context.filePopupSuggestionSelectionIndex,
+    filePopupSuggestionsFocused: context.filePopupSuggestionsFocused,
+    onFilePopupDraftChange: context.onFilePopupDraftChange,
+    onAddFile: context.onAddFile,
+    onRemoveFile: context.onRemoveFile,
+
+    onUrlPopupDraftChange: context.onUrlPopupDraftChange,
+    onAddUrl: context.onAddUrl,
+    onRemoveUrl: context.onRemoveUrl,
+
+    smartPopupSuggestions: context.smartPopupSuggestions,
+    smartPopupSuggestionSelectionIndex: context.smartPopupSuggestionSelectionIndex,
+    smartPopupSuggestionsFocused: context.smartPopupSuggestionsFocused,
+    onSmartPopupDraftChange: context.onSmartPopupDraftChange,
+    onSmartRootSubmit: context.onSmartRootSubmit,
+    onSmartToggle: context.onSmartToggle,
+
+    onHistoryPopupDraftChange: historyAndIntent.history.onHistoryPopupDraftChange,
+    onHistoryPopupSubmit: historyAndIntent.history.onHistoryPopupSubmit,
+
     onModelPopupQueryChange: miscDraftHandlers.onModelPopupQueryChange,
     onSeriesDraftChange: miscDraftHandlers.onSeriesDraftChange,
     onInstructionsDraftChange: miscDraftHandlers.onInstructionsDraftChange,
     onTestDraftChange: miscDraftHandlers.onTestDraftChange,
-    onSeriesSubmit,
+
+    onSeriesSubmit: submit.onSeriesSubmit,
+
     reasoningPopupLines,
     reasoningPopupVisibleRows,
   }
