@@ -1,7 +1,13 @@
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import { Box, Text } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
+import { useTheme } from '../../theme/theme-provider'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 import { resolveWindowedList } from './list-window'
 
 export type SmartPopupProps = {
@@ -47,7 +53,7 @@ const resolveSuggestionWindow = (
   }
 }
 
-export const SmartPopup: React.FC<SmartPopupProps> = ({
+export const SmartPopup = ({
   enabled,
   savedRoot,
   draft,
@@ -57,7 +63,9 @@ export const SmartPopup: React.FC<SmartPopupProps> = ({
   maxHeight,
   onDraftChange,
   onSubmitRoot,
-}) => {
+}: SmartPopupProps) => {
+  const { theme } = useTheme()
+
   const hasSuggestions = suggestedItems.length > 0
   const safeSuggestedSelection = Math.max(
     0,
@@ -81,23 +89,34 @@ export const SmartPopup: React.FC<SmartPopupProps> = ({
 
   const savedLabel = savedRoot ? savedRoot : '(none)'
 
+  const focusedSelectionProps = {
+    ...inkColorProps(theme.selectionText),
+    ...inkBackgroundColorProps(theme.selectionBackground),
+  }
+
+  const unfocusedSelectionProps = {
+    ...inkColorProps(theme.chipText),
+    ...inkBackgroundColorProps(theme.chipBackground),
+  }
+
   return (
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="green"
       paddingX={1}
       paddingY={0}
+      {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
       {...(typeof maxHeight === 'number' ? { height: maxHeight } : {})}
       overflow="hidden"
     >
-      <Text color="greenBright">Smart Context</Text>
-      <Text color="white">
+      <Text {...inkColorProps(theme.accent)}>Smart Context</Text>
+      <Text {...inkColorProps(theme.text)}>
         Status: {enabled ? 'enabled' : 'disabled'} · Ctrl+T toggle · Tab suggestions · Esc close
       </Text>
 
       <Box flexDirection="row">
-        <Text color="gray">Root: </Text>
+        <Text {...inkColorProps(theme.mutedText)}>Root: </Text>
         <SingleLineTextInput
           value={draft}
           onChange={onDraftChange}
@@ -107,23 +126,25 @@ export const SmartPopup: React.FC<SmartPopupProps> = ({
         />
       </Box>
 
-      <Text color="gray">Saved root: {savedLabel}</Text>
+      <Text {...inkColorProps(theme.mutedText)}>Saved root: {savedLabel}</Text>
 
-      <Text color="gray">Suggestions</Text>
+      <Text {...inkColorProps(theme.mutedText)}>Suggestions</Text>
 
       {suggestionRows > 0 ? (
         <Box flexDirection="column" height={suggestionRows} flexShrink={0} overflow="hidden">
           {hasSuggestions ? (
             <>
-              {visibleSuggestions.showBefore ? <Text color="gray">… earlier …</Text> : null}
+              {visibleSuggestions.showBefore ? (
+                <Text {...inkColorProps(theme.mutedText)}>… earlier …</Text>
+              ) : null}
               {visibleSuggestions.values.map((value, index) => {
                 const actualIndex = visibleSuggestions.start + index
                 const isSelected = actualIndex === safeSuggestedSelection
                 const textProps = isSelected
                   ? effectiveSuggestedFocused
-                    ? ({ color: 'black', backgroundColor: 'cyanBright' } as const)
-                    : ({ color: 'black', backgroundColor: 'gray' } as const)
-                  : ({ color: 'white' } as const)
+                    ? focusedSelectionProps
+                    : unfocusedSelectionProps
+                  : inkColorProps(theme.text)
 
                 return (
                   <Text key={`${value}-${actualIndex}`} {...textProps}>
@@ -131,10 +152,12 @@ export const SmartPopup: React.FC<SmartPopupProps> = ({
                   </Text>
                 )
               })}
-              {visibleSuggestions.showAfter ? <Text color="gray">… later …</Text> : null}
+              {visibleSuggestions.showAfter ? (
+                <Text {...inkColorProps(theme.mutedText)}>… later …</Text>
+              ) : null}
             </>
           ) : (
-            <Text color="gray">(type to filter)</Text>
+            <Text {...inkColorProps(theme.mutedText)}>(type to filter)</Text>
           )}
         </Box>
       ) : null}

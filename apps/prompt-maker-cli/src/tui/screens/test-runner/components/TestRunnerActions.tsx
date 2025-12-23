@@ -6,6 +6,9 @@
 
 import { Box, Text } from 'ink'
 
+import { useTheme } from '../../../theme/theme-provider'
+import { inkColorProps } from '../../../theme/theme-types'
+
 export type TestRunnerActionsProps = {
   isFocused: boolean
   status: 'idle' | 'running'
@@ -13,15 +16,19 @@ export type TestRunnerActionsProps = {
 }
 
 export const TestRunnerActions = ({ isFocused, status, lastRunFile }: TestRunnerActionsProps) => {
+  const { theme } = useTheme()
+
   return (
     <Box marginTop={1} flexDirection="column">
-      {isFocused ? <Text color="green">Actions</Text> : <Text>Actions</Text>}
+      {isFocused ? <Text {...inkColorProps(theme.accent)}>Actions</Text> : <Text>Actions</Text>}
       <Text>Press Enter to run tests</Text>
-      <Text color="gray">Status: {status === 'running' ? 'Running tests…' : 'Idle'}</Text>
+      <Text {...inkColorProps(theme.mutedText)}>
+        Status: {status === 'running' ? 'Running tests…' : 'Idle'}
+      </Text>
       {lastRunFile ? (
-        <Text color="gray">Last suite: {lastRunFile}</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Last suite: {lastRunFile}</Text>
       ) : (
-        <Text color="gray">No runs yet</Text>
+        <Text {...inkColorProps(theme.mutedText)}>No runs yet</Text>
       )}
     </Box>
   )

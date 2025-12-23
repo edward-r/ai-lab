@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { ModelDefinition, ModelProvider } from './model-providers'
+import type { ThemeMode } from './tui/theme/theme-types'
 
 export type PromptGeneratorConfig = {
   defaultModel?: string
@@ -17,9 +18,14 @@ export type PromptMakerCliConfig = {
   geminiBaseUrl?: string
   promptGenerator?: PromptGeneratorConfig
   contextTemplates?: Record<string, string>
+
+  // TUI theme settings (persisted).
+  theme?: string
+  themeMode?: ThemeMode
 }
 
 let cachedConfig: PromptMakerCliConfig | null | undefined
+let cachedConfigPath: string | null | undefined
 
 const getCandidateConfigPaths = (): string[] => {
   const explicit = process.env.PROMPT_MAKER_CLI_CONFIG?.trim()
@@ -30,6 +36,37 @@ const getCandidateConfigPaths = (): string[] => {
   ]
 
   return [explicit, ...defaults].filter((value): value is string => Boolean(value))
+}
+
+const getDefaultConfigPath = (): string => {
+  const home = os.homedir()
+  return path.join(home, '.config', 'prompt-maker-cli', 'config.json')
+}
+
+const resolveConfigPathForWrite = async (): Promise<string> => {
+  const explicit = process.env.PROMPT_MAKER_CLI_CONFIG?.trim()
+  if (explicit) {
+    return explicit
+  }
+
+  if (cachedConfigPath) {
+    return cachedConfigPath
+  }
+
+  for (const candidate of getCandidateConfigPaths()) {
+    try {
+      await fs.stat(candidate)
+      return candidate
+    } catch (error) {
+      if (isFileMissingError(error)) {
+        continue
+      }
+      const message = error instanceof Error ? error.message : 'Unknown config error.'
+      throw new Error(`Failed to access config at ${candidate}: ${message}`)
+    }
+  }
+
+  return getDefaultConfigPath()
 }
 
 export const loadCliConfig = async (): Promise<PromptMakerCliConfig | null> => {
@@ -43,6 +80,7 @@ export const loadCliConfig = async (): Promise<PromptMakerCliConfig | null> => {
       const parsed = JSON.parse(contents) as unknown
       const config = parseConfig(parsed)
       cachedConfig = config
+      cachedConfigPath = filePath
       return config
     } catch (error) {
       if (isFileMissingError(error)) {
@@ -55,6 +93,7 @@ export const loadCliConfig = async (): Promise<PromptMakerCliConfig | null> => {
   }
 
   cachedConfig = null
+  cachedConfigPath = null
   return null
 }
 
@@ -122,6 +161,66 @@ export const resolveGeminiCredentials = async (): Promise<{
   )
 }
 
+export type ThemeSettingsPatch = {
+  theme?: string | null
+  themeMode?: ThemeMode | null
+}
+
+export const updateCliThemeSettings = async (
+  patch: ThemeSettingsPatch,
+  options?: { configPath?: string },
+): Promise<void> => {
+  const configPath = options?.configPath ?? (await resolveConfigPathForWrite())
+  const directory = path.dirname(configPath)
+  await fs.mkdir(directory, { recursive: true })
+
+  let raw: unknown = {}
+  try {
+    const contents = await fs.readFile(configPath, 'utf8')
+    raw = JSON.parse(contents) as unknown
+  } catch (error) {
+    if (!isFileMissingError(error)) {
+      const message = error instanceof Error ? error.message : 'Unknown config error.'
+      throw new Error(`Failed to read config at ${configPath}: ${message}`)
+    }
+  }
+
+  if (!isRecord(raw)) {
+    throw new Error(`Failed to update config at ${configPath}: root must be a JSON object.`)
+  }
+
+  const next: Record<string, unknown> = { ...raw }
+
+  if ('theme' in patch) {
+    if (patch.theme === null || patch.theme === undefined || patch.theme.trim() === '') {
+      delete next.theme
+    } else {
+      next.theme = patch.theme.trim()
+    }
+  }
+
+  if ('themeMode' in patch) {
+    if (patch.themeMode === null || patch.themeMode === undefined) {
+      delete next.themeMode
+    } else {
+      next.themeMode = patch.themeMode
+    }
+  }
+
+  const contents = JSON.stringify(next, null, 2)
+  const tempFile = `${configPath}.${process.pid}.tmp`
+  await fs.writeFile(tempFile, `${contents}\n`, 'utf8')
+
+  try {
+    await fs.rename(tempFile, configPath)
+  } catch {
+    await fs.writeFile(configPath, `${contents}\n`, 'utf8')
+  }
+
+  cachedConfig = parseConfig(next)
+  cachedConfigPath = configPath
+}
+
 const parseConfig = (raw: unknown): PromptMakerCliConfig => {
   if (!isRecord(raw)) {
     throw new Error('CLI config must be a JSON object.')
@@ -178,6 +277,17 @@ const parseConfig = (raw: unknown): PromptMakerCliConfig => {
       templates[key] = expectString(value, `contextTemplates.${key}`)
     }
     config.contextTemplates = templates
+  }
+
+  if (raw.theme !== undefined) {
+    const theme = expectString(raw.theme, 'theme').trim()
+    if (theme) {
+      config.theme = theme
+    }
+  }
+
+  if (raw.themeMode !== undefined) {
+    config.themeMode = expectThemeMode(raw.themeMode, 'themeMode')
   }
 
   return config
@@ -276,14 +386,33 @@ const expectString = (value: unknown, label: string): string => {
   return value
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+const expectThemeMode = (value: unknown, label: string): ThemeMode => {
+  if (typeof value !== 'string') {
+    throw new Error(`${label} must be one of light, dark, system, or auto.`)
+  }
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'auto') {
+    return 'system'
+  }
+  if (normalized === 'light' || normalized === 'dark' || normalized === 'system') {
+    return normalized as ThemeMode
+  }
+  throw new Error(`${label} must be one of light, dark, system, or auto.`)
+}
 
-const hasErrnoCode = (value: unknown): value is { code: string } =>
-  typeof value === 'object' &&
-  value !== null &&
-  'code' in value &&
-  typeof (value as { code: unknown }).code === 'string'
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
-const isFileMissingError = (error: unknown): boolean =>
-  hasErrnoCode(error) && error.code === 'ENOENT'
+function hasErrnoCode(value: unknown): value is { code: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'code' in value &&
+    typeof (value as { code: unknown }).code === 'string'
+  )
+}
+
+function isFileMissingError(error: unknown): boolean {
+  return hasErrnoCode(error) && error.code === 'ENOENT'
+}

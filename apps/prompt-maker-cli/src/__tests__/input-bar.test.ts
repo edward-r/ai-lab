@@ -3,18 +3,18 @@ import { resolveInputBarPresentation } from '../tui/components/core/input-bar-pr
 describe('InputBar presentation', () => {
   it('renders intent mode styling by default', () => {
     expect(resolveInputBarPresentation('intent')).toEqual({
-      borderColor: 'cyan',
+      borderTone: 'default',
       label: 'Intent / Command',
-      labelColor: 'gray',
+      labelTone: 'muted',
       labelBold: false,
     })
   })
 
   it('renders refinement mode with prominent styling', () => {
     expect(resolveInputBarPresentation('refinement')).toEqual({
-      borderColor: 'yellow',
+      borderTone: 'warning',
       label: 'Refinement (Enter to submit · empty to finish)',
-      labelColor: 'yellow',
+      labelTone: 'warning',
       labelBold: true,
     })
   })

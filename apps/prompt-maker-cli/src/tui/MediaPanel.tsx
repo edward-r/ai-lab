@@ -3,20 +3,33 @@ import { Box, Text, useInput } from 'ink'
 
 import { SingleLineTextInput } from './components/core/SingleLineTextInput'
 import { isBackspaceKey } from './components/core/text-input-keys'
+import { useTheme } from './theme/theme-provider'
+import { inkBackgroundColorProps, inkBorderColorProps, inkColorProps } from './theme/theme-types'
 import { useContextDispatch, useContextState } from './context-store'
 
 export type MediaPanelFocus = 'images' | 'videos' | 'none'
 
-const SectionHeader: React.FC<{ label: string; focused: boolean }> = ({ label, focused }) =>
-  focused ? <Text color="green">{label}</Text> : <Text>{label}</Text>
+type SectionHeaderProps = {
+  label: string
+  focused: boolean
+}
 
-const ListEntry: React.FC<{ label: string; highlighted: boolean; index: number }> = ({
-  label,
-  highlighted,
-  index,
-}) =>
-  highlighted ? (
-    <Text color="yellow">
+const SectionHeader: React.FC<SectionHeaderProps> = ({ label, focused }) => {
+  const { theme } = useTheme()
+  return focused ? <Text {...inkColorProps(theme.accent)}>{label}</Text> : <Text>{label}</Text>
+}
+
+type ListEntryProps = {
+  label: string
+  highlighted: boolean
+  index: number
+}
+
+const ListEntry: React.FC<ListEntryProps> = ({ label, highlighted, index }) => {
+  const { theme } = useTheme()
+
+  return highlighted ? (
+    <Text {...inkColorProps(theme.warning)}>
       {index + 1}. {label}
     </Text>
   ) : (
@@ -24,8 +37,10 @@ const ListEntry: React.FC<{ label: string; highlighted: boolean; index: number }
       {index + 1}. {label}
     </Text>
   )
+}
 
 export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
+  const { theme } = useTheme()
   const { images, videos } = useContextState()
   const { addImage, removeImage, addVideo, removeVideo } = useContextDispatch()
 
@@ -78,7 +93,14 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
   })
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1} paddingY={0}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      paddingX={1}
+      paddingY={0}
+      {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.panelBackground)}
+    >
       <SectionHeader label="Images" focused={focus === 'images'} />
       <SingleLineTextInput
         value={imageDraft}
@@ -93,7 +115,9 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
         }}
       />
       <Box flexDirection="column" marginTop={1}>
-        {images.length === 0 ? <Text color="gray">No images attached</Text> : null}
+        {images.length === 0 ? (
+          <Text {...inkColorProps(theme.mutedText)}>No images attached</Text>
+        ) : null}
         {images.map((value, index) => (
           <ListEntry
             key={`${value}-${index}`}
@@ -102,7 +126,9 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
             index={index}
           />
         ))}
-        {images.length > 0 ? <Text color="gray">Use ↑/↓ to select, Del to remove</Text> : null}
+        {images.length > 0 ? (
+          <Text {...inkColorProps(theme.mutedText)}>Use ↑/↓ to select, Del to remove</Text>
+        ) : null}
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
@@ -120,7 +146,9 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
           }}
         />
         <Box flexDirection="column" marginTop={1}>
-          {videos.length === 0 ? <Text color="gray">No videos attached</Text> : null}
+          {videos.length === 0 ? (
+            <Text {...inkColorProps(theme.mutedText)}>No videos attached</Text>
+          ) : null}
           {videos.map((value, index) => (
             <ListEntry
               key={`${value}-${index}`}
@@ -129,9 +157,13 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
               index={index}
             />
           ))}
-          {videos.length > 0 ? <Text color="gray">Use ↑/↓ to select, Del to remove</Text> : null}
           {videos.length > 0 ? (
-            <Text color="gray">Videos require Gemini models; switching happens automatically.</Text>
+            <Text {...inkColorProps(theme.mutedText)}>Use ↑/↓ to select, Del to remove</Text>
+          ) : null}
+          {videos.length > 0 ? (
+            <Text {...inkColorProps(theme.mutedText)}>
+              Videos require Gemini models; switching happens automatically.
+            </Text>
           ) : null}
         </Box>
       </Box>

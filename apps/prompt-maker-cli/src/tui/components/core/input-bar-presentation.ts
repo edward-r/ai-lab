@@ -1,26 +1,30 @@
 export type InputBarMode = 'intent' | 'refinement'
 
+type InputBarTone = 'default' | 'warning'
+
+type InputBarLabelTone = 'muted' | 'warning'
+
 export type InputBarPresentation = {
-  borderColor: 'cyan' | 'yellow'
+  borderTone: InputBarTone
   label: string
-  labelColor: 'gray' | 'yellow'
+  labelTone: InputBarLabelTone
   labelBold: boolean
 }
 
 export const resolveInputBarPresentation = (mode: InputBarMode): InputBarPresentation => {
   if (mode === 'refinement') {
     return {
-      borderColor: 'yellow',
+      borderTone: 'warning',
       label: 'Refinement (Enter to submit · empty to finish)',
-      labelColor: 'yellow',
+      labelTone: 'warning',
       labelBold: true,
     }
   }
 
   return {
-    borderColor: 'cyan',
+    borderTone: 'default',
     label: 'Intent / Command',
-    labelColor: 'gray',
+    labelTone: 'muted',
     labelBold: false,
   }
 }

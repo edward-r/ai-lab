@@ -3,20 +3,33 @@ import { Box, Text, useInput } from 'ink'
 
 import { SingleLineTextInput } from './components/core/SingleLineTextInput'
 import { isBackspaceKey } from './components/core/text-input-keys'
+import { useTheme } from './theme/theme-provider'
+import { inkBackgroundColorProps, inkBorderColorProps, inkColorProps } from './theme/theme-types'
 import { useContextDispatch, useContextState } from './context-store'
 
 export type ContextPanelFocus = 'files' | 'urls' | 'smart' | 'none'
 
-const SectionHeader: React.FC<{ label: string; focused: boolean }> = ({ label, focused }) =>
-  focused ? <Text color="green">{label}</Text> : <Text>{label}</Text>
+type SectionHeaderProps = {
+  label: string
+  focused: boolean
+}
 
-const ListEntry: React.FC<{ label: string; highlighted: boolean; index: number }> = ({
-  label,
-  highlighted,
-  index,
-}) =>
-  highlighted ? (
-    <Text color="yellow">
+const SectionHeader: React.FC<SectionHeaderProps> = ({ label, focused }) => {
+  const { theme } = useTheme()
+  return focused ? <Text {...inkColorProps(theme.accent)}>{label}</Text> : <Text>{label}</Text>
+}
+
+type ListEntryProps = {
+  label: string
+  highlighted: boolean
+  index: number
+}
+
+const ListEntry: React.FC<ListEntryProps> = ({ label, highlighted, index }) => {
+  const { theme } = useTheme()
+
+  return highlighted ? (
+    <Text {...inkColorProps(theme.warning)}>
       {index + 1}. {label}
     </Text>
   ) : (
@@ -24,8 +37,10 @@ const ListEntry: React.FC<{ label: string; highlighted: boolean; index: number }
       {index + 1}. {label}
     </Text>
   )
+}
 
 export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) => {
+  const { theme } = useTheme()
   const { files, urls, smartContextEnabled, smartContextRoot } = useContextState()
   const { addFile, removeFile, addUrl, removeUrl, toggleSmartContext, setSmartRoot } =
     useContextDispatch()
@@ -96,7 +111,14 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
   })
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      paddingX={1}
+      paddingY={0}
+      {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.panelBackground)}
+    >
       <SectionHeader label="File Context" focused={focus === 'files'} />
       <SingleLineTextInput
         value={fileDraft}
@@ -111,7 +133,9 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
         }}
       />
       <Box flexDirection="column" marginTop={1}>
-        {files.length === 0 ? <Text color="gray">No file globs added</Text> : null}
+        {files.length === 0 ? (
+          <Text {...inkColorProps(theme.mutedText)}>No file globs added</Text>
+        ) : null}
         {files.map((value, index) => (
           <ListEntry
             key={`${value}-${index}`}
@@ -120,7 +144,9 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
             index={index}
           />
         ))}
-        {files.length > 0 ? <Text color="gray">Use ↑/↓ to select, Del to remove</Text> : null}
+        {files.length > 0 ? (
+          <Text {...inkColorProps(theme.mutedText)}>Use ↑/↓ to select, Del to remove</Text>
+        ) : null}
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
@@ -138,7 +164,9 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
           }}
         />
         <Box flexDirection="column" marginTop={1}>
-          {urls.length === 0 ? <Text color="gray">No URLs added</Text> : null}
+          {urls.length === 0 ? (
+            <Text {...inkColorProps(theme.mutedText)}>No URLs added</Text>
+          ) : null}
           {urls.map((value, index) => (
             <ListEntry
               key={`${value}-${index}`}
@@ -147,7 +175,9 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
               index={index}
             />
           ))}
-          {urls.length > 0 ? <Text color="gray">Use ↑/↓ to select, Del to remove</Text> : null}
+          {urls.length > 0 ? (
+            <Text {...inkColorProps(theme.mutedText)}>Use ↑/↓ to select, Del to remove</Text>
+          ) : null}
         </Box>
       </Box>
 
@@ -161,7 +191,9 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
           focus={focus === 'smart'}
           onSubmit={() => setSmartRoot(smartRootDraft)}
         />
-        {smartContextRoot ? <Text color="gray">Current root: {smartContextRoot}</Text> : null}
+        {smartContextRoot ? (
+          <Text {...inkColorProps(theme.mutedText)}>Current root: {smartContextRoot}</Text>
+        ) : null}
       </Box>
     </Box>
   )

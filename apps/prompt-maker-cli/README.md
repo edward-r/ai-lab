@@ -8,6 +8,121 @@ Terminal-first interface for converting rough intent notes (and optional file/im
 - **History logging** – each command appends a JSONL record to `~/.config/prompt-maker-cli/history.jsonl` so you never lose a run.
 - **Separated reasoning** – models return `{ "reasoning": string, "prompt": string }`; set `DEBUG=1` (or `VERBOSE=1`) to stream the model’s reasoning to stderr.
 
+## TUI theming
+
+Inside the TUI (`prompt-maker-cli ui`):
+
+- `/theme` opens the theme picker (↑/↓ previews, Enter confirms, Esc cancels).
+- `/theme-mode` switches the appearance mode (`dark`, `light`, or `system`).
+
+### Custom themes
+
+Theme files are plain JSON. The theme name is the filename without `.json`.
+
+- **Global** (per-user): `~/.config/prompt-maker-cli/themes/*.json`
+- **Project-local**: `.prompt-maker-cli/themes/*.json` in your repo
+  - Any parent directories are also scanned (walking up from the current working directory).
+
+Quick start:
+
+```bash
+# Global install
+mkdir -p ~/.config/prompt-maker-cli/themes
+cp apps/prompt-maker-cli/src/tui/theme/examples/ocean-example.json ~/.config/prompt-maker-cli/themes/ocean.json
+
+# Or project-local
+mkdir -p .prompt-maker-cli/themes
+cp apps/prompt-maker-cli/src/tui/theme/examples/ocean-example.json .prompt-maker-cli/themes/ocean.json
+```
+
+Restart the TUI, then run `/theme` and select `ocean`.
+
+### Precedence
+
+If multiple themes share the same name:
+
+1. Project-local themes in the _nearest_ directory to your CWD (highest precedence)
+2. Project-local themes in ancestor directories
+3. Global themes (`~/.config/prompt-maker-cli/themes`)
+4. Built-in themes (lowest precedence)
+
+If you override a built-in theme by reusing its name, the built-in label is kept.
+
+### Theme mode (`system`)
+
+`system` is intentionally pragmatic:
+
+- If `TERM_BACKGROUND` is set to `light`/`dark`, it is used.
+- Else, we try to infer from `COLORFGBG`.
+- If no reliable signal is present, we deterministically fall back to `dark`.
+- Config also accepts `themeMode: "auto"` as an alias for `"system"`.
+
+### Theme JSON format
+
+A theme file has two top-level keys:
+
+- `defs` (optional): named colors
+- `theme`: the actual theme slots
+
+An example you can copy is in:
+
+- `apps/prompt-maker-cli/src/tui/theme/examples/ocean-example.json`
+
+#### Slots
+
+The TUI expects these slots (see `apps/prompt-maker-cli/src/tui/theme/theme-types.ts`):
+
+- `background`, `text`, `mutedText`, `border`
+- `accent`, `accentText`
+- `warning`, `error`, `success`
+- `panelBackground`, `popupBackground`
+- `selectionBackground`, `selectionText`
+- `chipBackground`, `chipText`, `chipMutedText`
+
+#### Color value types
+
+Each entry in `defs` and `theme` can be:
+
+- **Hex:** `"#RRGGBB"`
+- **Hex with alpha:** `"#RRGGBBAA"` (only `AA == "00"` becomes transparent; any other alpha is treated as opaque)
+- **ANSI 0–255:** `42`
+- **Reference:** `"someDef"` (resolves against `defs.someDef`, then `theme.someDef`)
+- **Variant:** `{ "dark": <color>, "light": <color> }`
+- **Special strings:** `"none"` / `"transparent"` (treated as “no color”)
+
+#### Opencode compatibility
+
+Some Opencode theme JSON files can be used directly: the loader will adapt common Opencode keys like `backgroundPanel`, `backgroundElement`, `textMuted`, and `primary` into Prompt Maker slots.
+
+### Limitations vs Opencode
+
+- Prompt Maker uses Ink, which cannot paint true “rectangular” backgrounds. Background colors only appear where characters are drawn, so popups/panels pad lines to create a filled look.
+- Partial alpha blending (Opencode’s RGBA overlays) is not supported. Only fully transparent (`#RRGGBB00`) is treated as “no color”.
+
+### Troubleshooting
+
+- **My theme doesn’t show up in `/theme`**
+  - Ensure the file ends in `.json` and is placed in `~/.config/prompt-maker-cli/themes/` or `.prompt-maker-cli/themes/`.
+  - Restart the TUI after adding or editing theme files.
+  - Remember the theme name is the filename (e.g. `ocean.json` → `ocean`).
+
+- **Theme shows up but selecting it does nothing / falls back**
+  - The JSON is likely failing validation or resolution (missing required slots, invalid hex, unknown reference, reference cycle).
+  - Check for typos in slot names (must match the slots listed above).
+
+- **I expected project-local to override global but it doesn’t**
+  - Precedence is based on the nearest `.prompt-maker-cli/themes` directory to your current working directory.
+  - If you launch the TUI from a different folder, the “nearest” project-local theme directory may change.
+
+- **`system` mode doesn’t match my terminal appearance**
+  - `system` only uses `TERM_BACKGROUND=light|dark` or a `COLORFGBG` heuristic.
+  - If neither is present (or your terminal sets something unexpected), Prompt Maker falls back to `dark`.
+  - Workaround: use `/theme-mode` and explicitly choose `dark` or `light`.
+
+- **Backgrounds look “incomplete” compared to Opencode**
+  - Ink can’t paint a true background layer behind empty cells; only drawn characters carry background color.
+  - Popups/panels pad lines to create a filled look, but you may still see terminal background in areas we don’t draw.
+
 ## Build + global install
 
 All commands assume you are at repo root (`/Users/eroberts/Projects/ai-lab`).

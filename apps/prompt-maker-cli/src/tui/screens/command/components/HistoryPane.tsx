@@ -11,6 +11,8 @@
 import { Box } from 'ink'
 
 import { ScrollableOutput } from '../../../components/core/ScrollableOutput'
+import { useTheme } from '../../../theme/theme-provider'
+import { inkBackgroundColorProps } from '../../../theme/theme-types'
 import type { HistoryEntry } from '../../../types'
 
 export type HistoryPaneProps = {
@@ -20,13 +22,17 @@ export type HistoryPaneProps = {
 }
 
 export const HistoryPane = ({ lines, visibleRows, scrollOffset }: HistoryPaneProps) => {
+  const { theme } = useTheme()
+
   return (
     <Box
       flexDirection="column"
       height={visibleRows}
+      width="100%"
       flexShrink={0}
       overflow="hidden"
       marginBottom={1}
+      {...inkBackgroundColorProps(theme.panelBackground)}
     >
       <ScrollableOutput lines={lines} visibleRows={visibleRows} scrollOffset={scrollOffset} />
     </Box>

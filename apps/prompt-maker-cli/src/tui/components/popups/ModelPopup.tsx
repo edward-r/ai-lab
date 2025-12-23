@@ -4,6 +4,13 @@ import { Box, Text } from 'ink'
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
 import { MODEL_PROVIDER_LABELS } from '../../../model-providers'
+import { useTheme } from '../../theme/theme-provider'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
+import type { InkColorValue } from '../../theme/theme-types'
 import { resolveWindowedList } from './list-window'
 import type { ModelOption, ProviderStatusMap } from '../../types'
 
@@ -31,17 +38,6 @@ const resolveListRows = (maxHeight: number | undefined): number => {
 
   const fixedRows = 3
   return Math.max(1, contentHeight - fixedRows)
-}
-
-const resolveOptionColor = (option: ModelOption, providerStatuses: ProviderStatusMap): string => {
-  const status = providerStatuses[option.provider]?.status
-  if (status === 'missing') {
-    return 'yellow'
-  }
-  if (status === 'error') {
-    return 'red'
-  }
-  return 'white'
 }
 
 const buildRows = (options: readonly ModelOption[], recentCount: number): ModelRow[] => {
@@ -106,7 +102,7 @@ const ensureHeaderVisible = (
   return { start, end }
 }
 
-export const ModelPopup: React.FC<ModelPopupProps> = ({
+export const ModelPopup = ({
   query,
   options,
   selectedIndex,
@@ -115,7 +111,20 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
   providerStatuses,
   onQueryChange,
   onSubmit,
-}) => {
+}: ModelPopupProps) => {
+  const { theme } = useTheme()
+
+  const resolveOptionColor = (option: ModelOption): InkColorValue => {
+    const status = providerStatuses[option.provider]?.status
+    if (status === 'missing') {
+      return theme.warning
+    }
+    if (status === 'error') {
+      return theme.error
+    }
+    return theme.text
+  }
+
   const selectedOption = options[selectedIndex]
   const listRows = useMemo(() => resolveListRows(maxHeight), [maxHeight])
 
@@ -150,11 +159,23 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
 
   const visibleRows = rows.slice(slice.start, slice.end)
 
+  const selectedTextProps = {
+    ...inkColorProps(theme.selectionText),
+    ...inkBackgroundColorProps(theme.selectionBackground),
+  }
+
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      paddingX={1}
+      paddingY={0}
+      {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
+    >
       <Box flexDirection="row" justifyContent="space-between">
-        <Text color="cyanBright">Select model</Text>
-        <Text color="gray">esc</Text>
+        <Text {...inkColorProps(theme.accent)}>Select model</Text>
+        <Text {...inkColorProps(theme.mutedText)}>esc</Text>
       </Box>
 
       <Box marginTop={1}>
@@ -169,7 +190,7 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
 
       <Box flexDirection="column" marginTop={1} height={listRows} overflow="hidden">
         {rows.length === 0 ? (
-          <Text color="gray">No models match.</Text>
+          <Text {...inkColorProps(theme.mutedText)}>No models match.</Text>
         ) : (
           visibleRows.map((row, rowIndex) => {
             if (row.type === 'spacer') {
@@ -178,7 +199,10 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
 
             if (row.type === 'header') {
               return (
-                <Text key={`header-${row.title}-${slice.start + rowIndex}`} color="magenta">
+                <Text
+                  key={`header-${row.title}-${slice.start + rowIndex}`}
+                  {...inkColorProps(theme.accent)}
+                >
                   {row.title}
                 </Text>
               )
@@ -187,14 +211,13 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
             const isSelected = row.optionIndex === selectedIndex
             const providerLabel = MODEL_PROVIDER_LABELS[row.option.provider]
 
-            const textColor = resolveOptionColor(row.option, providerStatuses)
             const rowTextProps = isSelected
-              ? ({ color: 'black', backgroundColor: 'blueBright' } as const)
-              : ({ color: textColor } as const)
+              ? selectedTextProps
+              : inkColorProps(resolveOptionColor(row.option))
 
             const providerTextProps = isSelected
-              ? ({ color: 'black' } as const)
-              : ({ color: 'gray' } as const)
+              ? selectedTextProps
+              : inkColorProps(theme.mutedText)
 
             return (
               <Box
@@ -212,7 +235,7 @@ export const ModelPopup: React.FC<ModelPopupProps> = ({
       </Box>
 
       <Box marginTop={1}>
-        <Text color="gray">Enter to select</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Enter to select</Text>
       </Box>
     </Box>
   )

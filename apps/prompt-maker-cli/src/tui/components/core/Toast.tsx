@@ -1,28 +1,36 @@
 import { Box, Text } from 'ink'
 
 import type { ToastKind } from '../../notifier'
+import { useTheme } from '../../theme/theme-provider'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 
 export type ToastProps = {
   message: string
   kind: ToastKind
 }
 
-const toastChrome = (
-  kind: ToastKind,
-): {
-  borderColor: 'gray' | 'yellow' | 'red'
-  textColor: 'gray' | 'yellow' | 'red'
+type ToastChromeTone = 'default' | 'warning' | 'error'
+
+type ToastChrome = {
+  borderTone: ToastChromeTone
+  titleTone: ToastChromeTone
   title: string
-} => {
+}
+
+const toastChrome = (kind: ToastKind): ToastChrome => {
   switch (kind) {
     case 'info':
-      return { borderColor: 'gray', textColor: 'gray', title: 'Notice' }
+      return { borderTone: 'default', titleTone: 'default', title: 'Notice' }
     case 'progress':
-      return { borderColor: 'yellow', textColor: 'yellow', title: 'Working' }
+      return { borderTone: 'warning', titleTone: 'warning', title: 'Working' }
     case 'warning':
-      return { borderColor: 'yellow', textColor: 'yellow', title: 'Warning' }
+      return { borderTone: 'warning', titleTone: 'warning', title: 'Warning' }
     case 'error':
-      return { borderColor: 'red', textColor: 'red', title: 'Error' }
+      return { borderTone: 'error', titleTone: 'error', title: 'Error' }
     default: {
       const exhaustive: never = kind
       return exhaustive
@@ -32,20 +40,36 @@ const toastChrome = (
 
 export const TOAST_HEIGHT = 4
 
-export const Toast: React.FC<ToastProps> = ({ message, kind }) => {
-  const { borderColor, textColor, title } = toastChrome(kind)
+export const Toast = ({ message, kind }: ToastProps) => {
+  const { theme } = useTheme()
+  const chrome = toastChrome(kind)
+
+  const borderColor =
+    chrome.borderTone === 'warning'
+      ? theme.warning
+      : chrome.borderTone === 'error'
+        ? theme.error
+        : theme.border
+
+  const titleColor =
+    chrome.titleTone === 'warning'
+      ? theme.warning
+      : chrome.titleTone === 'error'
+        ? theme.error
+        : theme.mutedText
 
   return (
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor={borderColor}
       paddingX={1}
       paddingY={0}
       height={TOAST_HEIGHT}
       overflow="hidden"
+      {...inkBorderColorProps(borderColor)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
     >
-      <Text color={textColor}>{title}</Text>
+      <Text {...inkColorProps(titleColor)}>{chrome.title}</Text>
       <Text>{message}</Text>
     </Box>
   )

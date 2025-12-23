@@ -2,6 +2,8 @@ import { memo, useMemo } from 'react'
 import { Box, Text } from 'ink'
 
 import type { HistoryEntry } from '../../types'
+import { useTheme } from '../../theme/theme-provider'
+import { inkColorProps } from '../../theme/theme-types'
 
 export type ScrollableOutputProps = {
   lines: readonly HistoryEntry[]
@@ -11,6 +13,8 @@ export type ScrollableOutputProps = {
 
 export const ScrollableOutput = memo(
   ({ lines, visibleRows, scrollOffset }: ScrollableOutputProps) => {
+    const { theme } = useTheme()
+
     const startIndex = Math.max(0, Math.min(scrollOffset, Math.max(0, lines.length - visibleRows)))
     const endIndex = Math.min(lines.length, startIndex + visibleRows)
     const visibleLines = useMemo(
@@ -22,22 +26,16 @@ export const ScrollableOutput = memo(
       <Box flexDirection="column" height={visibleRows} overflow="hidden">
         {visibleLines.map((entry, index) => {
           const key = `${entry.id}-${startIndex + index}`
-          if (entry.kind === 'user') {
-            return (
-              <Text key={key} color="cyan">
-                {entry.content}
-              </Text>
-            )
-          }
-          if (entry.kind === 'progress') {
-            return (
-              <Text key={key} color="yellow">
-                {entry.content}
-              </Text>
-            )
-          }
+
+          const color =
+            entry.kind === 'user'
+              ? theme.accent
+              : entry.kind === 'progress'
+                ? theme.warning
+                : theme.text
+
           return (
-            <Text key={key} color="gray">
+            <Text key={key} {...inkColorProps(color)}>
               {entry.content}
             </Text>
           )

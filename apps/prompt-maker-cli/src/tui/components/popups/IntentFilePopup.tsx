@@ -2,6 +2,12 @@ import { useMemo } from 'react'
 import { Box, Text } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
+import { useTheme } from '../../theme/theme-provider'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 import { resolveWindowedList } from './list-window'
 
 export type IntentFilePopupProps = {
@@ -45,7 +51,7 @@ const resolveSuggestionWindow = (
   }
 }
 
-export const IntentFilePopup: React.FC<IntentFilePopupProps> = ({
+export const IntentFilePopup = ({
   draft,
   suggestions,
   suggestedSelectionIndex,
@@ -53,7 +59,9 @@ export const IntentFilePopup: React.FC<IntentFilePopupProps> = ({
   maxHeight,
   onDraftChange,
   onSubmitDraft,
-}) => {
+}: IntentFilePopupProps) => {
+  const { theme } = useTheme()
+
   const resolvedHeight = maxHeight ?? 9
 
   const suggestionRows = useMemo(() => {
@@ -77,20 +85,31 @@ export const IntentFilePopup: React.FC<IntentFilePopupProps> = ({
     [safeSuggestedSelection, suggestions, suggestionRows],
   )
 
+  const focusedSelectionProps = {
+    ...inkColorProps(theme.selectionText),
+    ...inkBackgroundColorProps(theme.selectionBackground),
+  }
+
+  const unfocusedSelectionProps = {
+    ...inkColorProps(theme.chipText),
+    ...inkBackgroundColorProps(theme.chipBackground),
+  }
+
   return (
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="cyan"
       paddingX={1}
       paddingY={0}
+      {...inkBorderColorProps(theme.border)}
+      {...inkBackgroundColorProps(theme.popupBackground)}
       {...(typeof maxHeight === 'number' ? { height: maxHeight } : {})}
       overflow="hidden"
     >
-      <Text color="cyanBright">Intent File</Text>
+      <Text {...inkColorProps(theme.accent)}>Intent File</Text>
 
       <Box flexDirection="row">
-        <Text color="gray">Path: </Text>
+        <Text {...inkColorProps(theme.mutedText)}>Path: </Text>
         <SingleLineTextInput
           value={draft}
           onChange={onDraftChange}
@@ -104,15 +123,17 @@ export const IntentFilePopup: React.FC<IntentFilePopupProps> = ({
         <Box flexDirection="column" height={suggestionRows} flexShrink={0} overflow="hidden">
           {hasSuggestions ? (
             <>
-              {visibleSuggestions.showBefore ? <Text color="gray">… earlier …</Text> : null}
+              {visibleSuggestions.showBefore ? (
+                <Text {...inkColorProps(theme.mutedText)}>… earlier …</Text>
+              ) : null}
               {visibleSuggestions.values.map((value: string, index: number) => {
                 const actualIndex = visibleSuggestions.start + index
                 const isSelected = actualIndex === safeSuggestedSelection
                 const textProps = isSelected
                   ? effectiveSuggestedFocused
-                    ? ({ color: 'black', backgroundColor: 'cyanBright' } as const)
-                    : ({ color: 'black', backgroundColor: 'gray' } as const)
-                  : ({ color: 'white' } as const)
+                    ? focusedSelectionProps
+                    : unfocusedSelectionProps
+                  : inkColorProps(theme.text)
 
                 return (
                   <Text key={`${value}-${actualIndex}`} {...textProps}>
@@ -120,16 +141,20 @@ export const IntentFilePopup: React.FC<IntentFilePopupProps> = ({
                   </Text>
                 )
               })}
-              {visibleSuggestions.showAfter ? <Text color="gray">… later …</Text> : null}
+              {visibleSuggestions.showAfter ? (
+                <Text {...inkColorProps(theme.mutedText)}>… later …</Text>
+              ) : null}
             </>
           ) : (
-            <Text color="gray">(type to search)</Text>
+            <Text {...inkColorProps(theme.mutedText)}>(type to search)</Text>
           )}
         </Box>
       ) : null}
 
       <Box flexShrink={0}>
-        <Text color="gray">Tab suggestions · ↑/↓ select · Enter apply · Esc close</Text>
+        <Text {...inkColorProps(theme.mutedText)}>
+          Tab suggestions · ↑/↓ select · Enter apply · Esc close
+        </Text>
       </Box>
     </Box>
   )

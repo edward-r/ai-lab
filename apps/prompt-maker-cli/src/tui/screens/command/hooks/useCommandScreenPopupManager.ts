@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 
 import { usePopupManager } from '../../../hooks/usePopupManager'
 import type { NotifyOptions } from '../../../notifier'
+import { useTheme } from '../../../theme/theme-provider'
 import type { HistoryEntry, ModelOption, PopupState } from '../../../types'
 
 const DEFAULT_TEST_FILE = 'prompt-tests.yaml'
@@ -101,9 +102,14 @@ export const useCommandScreenPopupManager = ({
     [lastTypedIntentRef],
   )
 
+  const { activeThemeName, mode, themes } = useTheme()
+
   const popupManager = usePopupManager({
     currentModel,
     modelOptions,
+    activeThemeName,
+    themeMode: mode,
+    themes: themes.map((theme) => ({ name: theme.name, label: theme.label })),
     smartContextRoot,
     images,
     videos,

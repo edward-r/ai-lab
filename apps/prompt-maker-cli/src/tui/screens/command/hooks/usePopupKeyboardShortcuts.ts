@@ -19,6 +19,16 @@ export type UsePopupKeyboardShortcutsOptions = {
   // toggle
   applyToggleSelection: (field: 'polish' | 'copy' | 'chatgpt' | 'json', value: boolean) => void
 
+  // theme
+  themeCount: number
+  onThemeConfirm: () => void
+  onThemeCancel: () => void
+
+  // theme mode
+  themeModeCount: number
+  onThemeModeConfirm: () => void
+  onThemeModeCancel: () => void
+
   // file
   files: string[]
   filePopupSuggestions: string[]
@@ -65,7 +75,14 @@ export const usePopupKeyboardShortcuts = ({
   modelPopupOptions,
   onModelPopupSubmit,
   applyToggleSelection,
+  themeCount,
+  onThemeConfirm,
+  onThemeCancel,
+  themeModeCount,
+  onThemeModeConfirm,
+  onThemeModeCancel,
   files,
+
   filePopupSuggestions,
   onRemoveFile,
   urls,
@@ -164,6 +181,78 @@ export const usePopupKeyboardShortcuts = ({
         }
         if (key.return) {
           applyToggleSelection(popupState.field, popupState.selectionIndex === 0)
+        }
+        return
+      }
+
+      if (popupState.type === 'theme') {
+        if (key.upArrow && themeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'theme'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex - 1 + themeCount) % themeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if (key.downArrow && themeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'theme'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex + 1) % themeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if (key.escape) {
+          onThemeCancel()
+          return
+        }
+
+        if (key.return) {
+          onThemeConfirm()
+        }
+        return
+      }
+
+      if (popupState.type === 'themeMode') {
+        if ((key.leftArrow || key.upArrow) && themeModeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'themeMode'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex - 1 + themeModeCount) % themeModeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if ((key.rightArrow || key.downArrow) && themeModeCount > 0) {
+          setPopupState((prev) =>
+            prev?.type === 'themeMode'
+              ? {
+                  ...prev,
+                  selectionIndex: (prev.selectionIndex + 1) % themeModeCount,
+                }
+              : prev,
+          )
+          return
+        }
+
+        if (key.escape) {
+          onThemeModeCancel()
+          return
+        }
+
+        if (key.return) {
+          onThemeModeConfirm()
         }
         return
       }

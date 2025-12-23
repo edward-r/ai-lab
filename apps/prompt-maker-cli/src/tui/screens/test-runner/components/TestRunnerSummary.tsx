@@ -6,6 +6,8 @@
 
 import { Box, Text } from 'ink'
 
+import { useTheme } from '../../../theme/theme-provider'
+import { inkColorProps } from '../../../theme/theme-types'
 import type { TestRunSummary } from '../test-runner-reducer'
 
 export type TestRunnerSummaryProps = {
@@ -13,15 +15,19 @@ export type TestRunnerSummaryProps = {
 }
 
 export const TestRunnerSummary = ({ summary }: TestRunnerSummaryProps) => {
+  const { theme } = useTheme()
+
   if (!summary) {
     return null
   }
 
   return (
     <Box marginTop={1} flexDirection="column">
-      <Text color="yellow">Summary</Text>
-      <Text color="green">Passed: {summary.passed}</Text>
-      <Text color={summary.failed > 0 ? 'red' : 'green'}>Failed: {summary.failed}</Text>
+      <Text {...inkColorProps(theme.accent)}>Summary</Text>
+      <Text {...inkColorProps(theme.success)}>Passed: {summary.passed}</Text>
+      <Text {...inkColorProps(summary.failed > 0 ? theme.error : theme.success)}>
+        Failed: {summary.failed}
+      </Text>
     </Box>
   )
 }

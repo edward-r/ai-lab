@@ -4,6 +4,8 @@ import { useMiscPopupDraftHandlers } from './useMiscPopupDraftHandlers'
 import { useModelPopupData } from './useModelPopupData'
 import { usePopupKeyboardShortcuts } from './usePopupKeyboardShortcuts'
 import { useReasoningPopup } from './useReasoningPopup'
+import { useThemePopupGlue } from './useThemePopupGlue'
+import { useThemeModePopupGlue } from './useThemeModePopupGlue'
 
 import {
   useCommandScreenPasteBindings,
@@ -224,6 +226,18 @@ export const useCommandScreenPopupBindings = (
     popupHeight: options.reasoningPopupHeight,
   })
 
+  const themePopup = useThemePopupGlue({
+    popupState: options.popupState,
+    setPopupState: options.setPopupState,
+    closePopup: options.closePopup,
+  })
+
+  const themeModePopup = useThemeModePopupGlue({
+    popupState: options.popupState,
+    setPopupState: options.setPopupState,
+    closePopup: options.closePopup,
+  })
+
   usePopupKeyboardShortcuts({
     popupState: options.popupState,
     helpOpen: options.helpOpen,
@@ -232,6 +246,12 @@ export const useCommandScreenPopupBindings = (
     modelPopupOptions,
     onModelPopupSubmit: options.handleModelPopupSubmit,
     applyToggleSelection: options.applyToggleSelection,
+    themeCount: themePopup.themeCount,
+    onThemeConfirm: themePopup.onThemeConfirm,
+    onThemeCancel: themePopup.onThemeCancel,
+    themeModeCount: themeModePopup.optionCount,
+    onThemeModeConfirm: themeModePopup.onConfirm,
+    onThemeModeCancel: themeModePopup.onCancel,
     files: options.files,
     filePopupSuggestions: context.filePopupSuggestions,
     onRemoveFile: context.onRemoveFile,
