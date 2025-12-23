@@ -1,0 +1,26 @@
+{
+  "defs": {
+    "bg": "#000000",
+    "text": "#ffffff",
+    "accent": "#00ffff",
+    "panelBg": "#101010"
+  },
+  "theme": {
+    "background": "bg",
+    "text": "text",
+    "mutedText": "#888888",
+    "border": 240,
+    "accent": "accent",
+    "accentText": "bg",
+    "warning": 220,
+    "error": 196,
+    "success": 46,
+    "panelBackground": "panelBg",
+    "popupBackground": { "dark": "panelBackground", "light": "#f6f8fa" },
+    "selectionBackground": "accent",
+    "selectionText": "bg",
+    "chipBackground": "panelBackground",
+    "chipText": "text",
+    "chipMutedText": "mutedText"
+  }
+}

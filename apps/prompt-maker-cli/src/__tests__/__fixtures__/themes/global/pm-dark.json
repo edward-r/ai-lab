@@ -1,0 +1,32 @@
+{
+  "defs": {
+    "bg": "#111111",
+    "text": "#eeeeee",
+    "muted": "#777777",
+    "border": "#444444",
+    "accent": "#ff00ff",
+    "warning": "#ffff00",
+    "error": "#ff0000",
+    "success": "#00ff00",
+    "panelBg": "#1a1a1a",
+    "selectionBg": "#333333"
+  },
+  "theme": {
+    "background": "bg",
+    "text": "text",
+    "mutedText": "muted",
+    "border": "border",
+    "accent": "accent",
+    "accentText": "bg",
+    "warning": "warning",
+    "error": "error",
+    "success": "success",
+    "panelBackground": "panelBg",
+    "popupBackground": "panelBackground",
+    "selectionBackground": "selectionBg",
+    "selectionText": "text",
+    "chipBackground": "panelBackground",
+    "chipText": "text",
+    "chipMutedText": "mutedText"
+  }
+}

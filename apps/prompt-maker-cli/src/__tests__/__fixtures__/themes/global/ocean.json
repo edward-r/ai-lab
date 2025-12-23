@@ -1,0 +1,20 @@
+{
+  "theme": {
+    "background": "#001219",
+    "text": "#e9d8a6",
+    "mutedText": "#94d2bd",
+    "border": "#005f73",
+    "accent": "#0a9396",
+    "accentText": "#001219",
+    "warning": "#ee9b00",
+    "error": "#ae2012",
+    "success": "#2a9d8f",
+    "panelBackground": "#0b2a32",
+    "popupBackground": "panelBackground",
+    "selectionBackground": "#005f73",
+    "selectionText": "#e9d8a6",
+    "chipBackground": "panelBackground",
+    "chipText": "text",
+    "chipMutedText": "mutedText"
+  }
+}
