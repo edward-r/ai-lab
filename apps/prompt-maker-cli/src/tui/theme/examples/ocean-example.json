@@ -1,0 +1,36 @@
+{
+  "defs": {
+    "bg": { "dark": "#10141a", "light": "#fafcff" },
+    "panel": { "dark": "#1a2029", "light": "#eef3f8" },
+    "text": { "dark": "#e6edf3", "light": "#1f2328" },
+    "muted": { "dark": "#9aa4b2", "light": "#66707f" },
+    "border": { "dark": "#30363d", "light": "#d0d7de" },
+    "accent": { "dark": "#6cb6ff", "light": "#0969da" },
+    "warning": "#f2cc60",
+    "error": "#ff6b6b",
+    "success": "#3fb950"
+  },
+  "theme": {
+    "background": "bg",
+    "text": "text",
+    "mutedText": "muted",
+    "border": "border",
+
+    "accent": "accent",
+    "accentText": "background",
+
+    "warning": "warning",
+    "error": "error",
+    "success": "success",
+
+    "panelBackground": "panel",
+    "popupBackground": "panelBackground",
+
+    "selectionBackground": { "dark": 60, "light": 153 },
+    "selectionText": "text",
+
+    "chipBackground": "panelBackground",
+    "chipText": "text",
+    "chipMutedText": "muted"
+  }
+}
