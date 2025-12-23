@@ -52,6 +52,22 @@ export type PopupAreaProps = {
   onUrlPopupDraftChange: (next: string) => void
   onAddUrl: (value: string) => void
 
+  // Image popup
+  images: string[]
+  imagePopupSuggestions: string[]
+  imagePopupSuggestionSelectionIndex: number
+  imagePopupSuggestionsFocused: boolean
+  onImagePopupDraftChange: (next: string) => void
+  onAddImage: (value: string) => void
+
+  // Video popup
+  videos: string[]
+  videoPopupSuggestions: string[]
+  videoPopupSuggestionSelectionIndex: number
+  videoPopupSuggestionsFocused: boolean
+  onVideoPopupDraftChange: (next: string) => void
+  onAddVideo: (value: string) => void
+
   // History popup
   historyPopupItems: string[]
   onHistoryPopupDraftChange: (next: string) => void
@@ -118,6 +134,18 @@ export const PopupArea = ({
   urls,
   onUrlPopupDraftChange,
   onAddUrl,
+  images,
+  imagePopupSuggestions,
+  imagePopupSuggestionSelectionIndex,
+  imagePopupSuggestionsFocused,
+  onImagePopupDraftChange,
+  onAddImage,
+  videos,
+  videoPopupSuggestions,
+  videoPopupSuggestionSelectionIndex,
+  videoPopupSuggestionsFocused,
+  onVideoPopupDraftChange,
+  onAddVideo,
   historyPopupItems,
   onHistoryPopupDraftChange,
   onHistoryPopupSubmit,
@@ -193,6 +221,38 @@ export const PopupArea = ({
           instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
           onDraftChange={onUrlPopupDraftChange}
           onSubmitDraft={onAddUrl}
+        />
+      ) : popupState.type === 'image' ? (
+        <ListPopup
+          title="Images"
+          placeholder="path/to/image.png"
+          draft={popupState.draft}
+          items={images}
+          selectedIndex={popupState.selectionIndex}
+          emptyLabel="No images attached"
+          instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
+          suggestedItems={imagePopupSuggestions}
+          suggestedSelectionIndex={imagePopupSuggestionSelectionIndex}
+          suggestedFocused={imagePopupSuggestionsFocused}
+          maxHeight={overlayHeight}
+          onDraftChange={onImagePopupDraftChange}
+          onSubmitDraft={onAddImage}
+        />
+      ) : popupState.type === 'video' ? (
+        <ListPopup
+          title="Videos"
+          placeholder="path/to/video.mp4"
+          draft={popupState.draft}
+          items={videos}
+          selectedIndex={popupState.selectionIndex}
+          emptyLabel="No videos attached"
+          instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
+          suggestedItems={videoPopupSuggestions}
+          suggestedSelectionIndex={videoPopupSuggestionSelectionIndex}
+          suggestedFocused={videoPopupSuggestionsFocused}
+          maxHeight={overlayHeight}
+          onDraftChange={onVideoPopupDraftChange}
+          onSubmitDraft={onAddVideo}
         />
       ) : popupState.type === 'history' ? (
         <ListPopup

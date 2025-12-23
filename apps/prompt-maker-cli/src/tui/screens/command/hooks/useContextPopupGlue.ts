@@ -19,6 +19,8 @@ export type UseContextPopupGlueOptions = {
 
   files: string[]
   urls: string[]
+  images: string[]
+  videos: string[]
   smartContextEnabled: boolean
   smartContextRoot: string | null
 
@@ -26,6 +28,10 @@ export type UseContextPopupGlueOptions = {
   removeFile: (index: number) => void
   addUrl: (value: string) => void
   removeUrl: (index: number) => void
+  addImage: (value: string) => void
+  removeImage: (index: number) => void
+  addVideo: (value: string) => void
+  removeVideo: (index: number) => void
 
   toggleSmartContext: () => void
   setSmartRoot: (value: string) => void
@@ -59,6 +65,22 @@ export type UseContextPopupGlueResult = {
   onAddUrl: (value: string) => void
   onRemoveUrl: (index: number) => void
 
+  // Image
+  imagePopupSuggestions: string[]
+  imagePopupSuggestionSelectionIndex: number
+  imagePopupSuggestionsFocused: boolean
+  onImagePopupDraftChange: (next: string) => void
+  onAddImage: (value: string) => void
+  onRemoveImage: (index: number) => void
+
+  // Video
+  videoPopupSuggestions: string[]
+  videoPopupSuggestionSelectionIndex: number
+  videoPopupSuggestionsFocused: boolean
+  onVideoPopupDraftChange: (next: string) => void
+  onAddVideo: (value: string) => void
+  onRemoveVideo: (index: number) => void
+
   // Smart
   smartPopupSuggestions: string[]
   smartPopupSuggestionSelectionIndex: number
@@ -79,12 +101,18 @@ export const useContextPopupGlue = ({
   droppedFilePath,
   files,
   urls,
+  images,
+  videos,
   smartContextEnabled,
   smartContextRoot,
   addFile,
   removeFile,
   addUrl,
   removeUrl,
+  addImage,
+  removeImage,
+  addVideo,
+  removeVideo,
   toggleSmartContext,
   setSmartRoot,
   setInputValue,
@@ -111,6 +139,38 @@ export const useContextPopupGlue = ({
       pushHistory(`Context file added: ${trimmed}`)
     },
     [addFile, files, pushHistory],
+  )
+
+  const addImageToContext = useCallback(
+    (value: string): void => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      if (images.includes(trimmed)) {
+        pushHistory(`[image] Already attached: ${trimmed}`)
+        return
+      }
+      addImage(trimmed)
+      pushHistory(`[image] Attached: ${trimmed}`)
+    },
+    [addImage, images, pushHistory],
+  )
+
+  const addVideoToContext = useCallback(
+    (value: string): void => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      if (videos.includes(trimmed)) {
+        pushHistory(`[video] Already attached: ${trimmed}`)
+        return
+      }
+      addVideo(trimmed)
+      pushHistory(`[video] Attached: ${trimmed}`)
+    },
+    [addVideo, pushHistory, videos],
   )
 
   useInput(
@@ -221,6 +281,108 @@ export const useContextPopupGlue = ({
     [pushHistory, removeUrl, urls],
   )
 
+  const onAddImage = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      addImageToContext(trimmed)
+      setPopupState((prev) =>
+        prev?.type === 'image'
+          ? {
+              ...prev,
+              draft: '',
+              selectionIndex: Math.max(images.length, 0),
+              suggestedFocused: false,
+              suggestedSelectionIndex: 0,
+            }
+          : prev,
+      )
+    },
+    [addImageToContext, images.length, setPopupState],
+  )
+
+  useEffect(() => {
+    if (popupState?.type !== 'image') {
+      return
+    }
+
+    const candidate = parseAbsolutePathFromInput(popupState.draft)
+    if (!candidate) {
+      return
+    }
+
+    if (!isFilePath(candidate)) {
+      return
+    }
+
+    onAddImage(candidate)
+  }, [isFilePath, onAddImage, popupState])
+
+  const onRemoveImage = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= images.length) {
+        return
+      }
+      const target = images[index]
+      removeImage(index)
+      pushHistory(`[image] Removed: ${target}`)
+    },
+    [images, pushHistory, removeImage],
+  )
+
+  const onAddVideo = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return
+      }
+      addVideoToContext(trimmed)
+      setPopupState((prev) =>
+        prev?.type === 'video'
+          ? {
+              ...prev,
+              draft: '',
+              selectionIndex: Math.max(videos.length, 0),
+              suggestedFocused: false,
+              suggestedSelectionIndex: 0,
+            }
+          : prev,
+      )
+    },
+    [addVideoToContext, setPopupState, videos.length],
+  )
+
+  useEffect(() => {
+    if (popupState?.type !== 'video') {
+      return
+    }
+
+    const candidate = parseAbsolutePathFromInput(popupState.draft)
+    if (!candidate) {
+      return
+    }
+
+    if (!isFilePath(candidate)) {
+      return
+    }
+
+    onAddVideo(candidate)
+  }, [isFilePath, onAddVideo, popupState])
+
+  const onRemoveVideo = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= videos.length) {
+        return
+      }
+      const target = videos[index]
+      removeVideo(index)
+      pushHistory(`[video] Removed: ${target}`)
+    },
+    [pushHistory, removeVideo, videos],
+  )
+
   const onSmartToggle = useCallback(
     (nextEnabled: boolean) => {
       if (smartContextEnabled === nextEnabled) {
@@ -293,6 +455,92 @@ export const useContextPopupGlue = ({
     )
   }, [filePopupSuggestedFocused, filePopupSuggestions.length, popupState?.type, setPopupState])
 
+  const imagePopupDraft = popupState?.type === 'image' ? popupState.draft : ''
+  const imagePopupSuggestedItems = popupState?.type === 'image' ? popupState.suggestedItems : []
+  const imagePopupSuggestedFocused =
+    popupState?.type === 'image' ? popupState.suggestedFocused : false
+  const imagePopupSuggestedSelectionIndex =
+    popupState?.type === 'image' ? popupState.suggestedSelectionIndex : 0
+
+  const imagePopupSuggestions = useMemo(() => {
+    if (!imagePopupSuggestedItems.length) {
+      return []
+    }
+    return filterFileSuggestions({
+      suggestions: imagePopupSuggestedItems,
+      query: imagePopupDraft,
+      exclude: images,
+    })
+  }, [imagePopupDraft, imagePopupSuggestedItems, images])
+
+  const imagePopupSuggestionSelectionIndex = Math.min(
+    imagePopupSuggestedSelectionIndex,
+    Math.max(imagePopupSuggestions.length - 1, 0),
+  )
+
+  const imagePopupSuggestionsFocused =
+    imagePopupSuggestedFocused && imagePopupSuggestions.length > 0
+
+  useEffect(() => {
+    if (popupState?.type !== 'image') {
+      return
+    }
+    if (!imagePopupSuggestedFocused) {
+      return
+    }
+    if (imagePopupSuggestions.length > 0) {
+      return
+    }
+    setPopupState((prev) =>
+      prev?.type === 'image'
+        ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+        : prev,
+    )
+  }, [imagePopupSuggestedFocused, imagePopupSuggestions.length, popupState?.type, setPopupState])
+
+  const videoPopupDraft = popupState?.type === 'video' ? popupState.draft : ''
+  const videoPopupSuggestedItems = popupState?.type === 'video' ? popupState.suggestedItems : []
+  const videoPopupSuggestedFocused =
+    popupState?.type === 'video' ? popupState.suggestedFocused : false
+  const videoPopupSuggestedSelectionIndex =
+    popupState?.type === 'video' ? popupState.suggestedSelectionIndex : 0
+
+  const videoPopupSuggestions = useMemo(() => {
+    if (!videoPopupSuggestedItems.length) {
+      return []
+    }
+    return filterFileSuggestions({
+      suggestions: videoPopupSuggestedItems,
+      query: videoPopupDraft,
+      exclude: videos,
+    })
+  }, [videoPopupDraft, videoPopupSuggestedItems, videos])
+
+  const videoPopupSuggestionSelectionIndex = Math.min(
+    videoPopupSuggestedSelectionIndex,
+    Math.max(videoPopupSuggestions.length - 1, 0),
+  )
+
+  const videoPopupSuggestionsFocused =
+    videoPopupSuggestedFocused && videoPopupSuggestions.length > 0
+
+  useEffect(() => {
+    if (popupState?.type !== 'video') {
+      return
+    }
+    if (!videoPopupSuggestedFocused) {
+      return
+    }
+    if (videoPopupSuggestions.length > 0) {
+      return
+    }
+    setPopupState((prev) =>
+      prev?.type === 'video'
+        ? { ...prev, suggestedFocused: false, suggestedSelectionIndex: 0 }
+        : prev,
+    )
+  }, [popupState?.type, setPopupState, videoPopupSuggestedFocused, videoPopupSuggestions.length])
+
   const smartPopupDraft = popupState?.type === 'smart' ? popupState.draft : ''
   const smartPopupSuggestedItems = popupState?.type === 'smart' ? popupState.suggestedItems : []
   const smartPopupSuggestedFocused =
@@ -361,6 +609,50 @@ export const useContextPopupGlue = ({
     [consumeSuppressedTextInputChange, setPopupState],
   )
 
+  const onImagePopupDraftChange = useCallback(
+    (next: string) => {
+      if (consumeSuppressedTextInputChange()) {
+        return
+      }
+
+      const sanitized = stripTerminalPasteArtifacts(next)
+
+      setPopupState((prev) =>
+        prev?.type === 'image'
+          ? {
+              ...prev,
+              draft: sanitized,
+              suggestedSelectionIndex: 0,
+              suggestedFocused: false,
+            }
+          : prev,
+      )
+    },
+    [consumeSuppressedTextInputChange, setPopupState],
+  )
+
+  const onVideoPopupDraftChange = useCallback(
+    (next: string) => {
+      if (consumeSuppressedTextInputChange()) {
+        return
+      }
+
+      const sanitized = stripTerminalPasteArtifacts(next)
+
+      setPopupState((prev) =>
+        prev?.type === 'video'
+          ? {
+              ...prev,
+              draft: sanitized,
+              suggestedSelectionIndex: 0,
+              suggestedFocused: false,
+            }
+          : prev,
+      )
+    },
+    [consumeSuppressedTextInputChange, setPopupState],
+  )
+
   const onSmartPopupDraftChange = useCallback(
     (next: string) => {
       if (consumeSuppressedTextInputChange()) {
@@ -403,6 +695,18 @@ export const useContextPopupGlue = ({
     onUrlPopupDraftChange,
     onAddUrl,
     onRemoveUrl,
+    imagePopupSuggestions,
+    imagePopupSuggestionSelectionIndex,
+    imagePopupSuggestionsFocused,
+    onImagePopupDraftChange,
+    onAddImage,
+    onRemoveImage,
+    videoPopupSuggestions,
+    videoPopupSuggestionSelectionIndex,
+    videoPopupSuggestionsFocused,
+    onVideoPopupDraftChange,
+    onAddVideo,
+    onRemoveVideo,
     smartPopupSuggestions,
     smartPopupSuggestionSelectionIndex,
     smartPopupSuggestionsFocused,

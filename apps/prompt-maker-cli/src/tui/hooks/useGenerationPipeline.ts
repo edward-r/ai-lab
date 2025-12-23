@@ -206,10 +206,15 @@ export const useGenerationPipeline = ({
   const tokenUsageStoreRef = useRef(tokenUsageStore)
   const terminalColumnsRef = useRef(terminalColumns)
   const interactiveTransportPathRef = useRef(interactiveTransportPath)
+  const notifyRef = useRef(notify)
 
   useEffect(() => {
     pushHistoryRef.current = pushHistory
   }, [pushHistory])
+
+  useEffect(() => {
+    notifyRef.current = notify
+  }, [notify])
 
   useEffect(() => {
     tokenUsageStoreRef.current = tokenUsageStore
@@ -222,6 +227,10 @@ export const useGenerationPipeline = ({
   useEffect(() => {
     interactiveTransportPathRef.current = interactiveTransportPath
   }, [interactiveTransportPath])
+
+  useEffect(() => {
+    notifyRef.current = notify
+  }, [notify])
 
   const activeRunIdRef = useRef<string | null>(null)
   const lastGeneratedPromptUpdateRef = useRef<((prompt: string) => void) | null>(
@@ -334,7 +343,18 @@ export const useGenerationPipeline = ({
         }
         case 'upload.state': {
           const action = event.state === 'start' ? 'Uploading' : 'Uploaded'
-          pushHistoryLatest(`${action} ${event.detail.kind}: ${event.detail.filePath}`, 'progress')
+          const message = `${action} ${event.detail.kind}: ${event.detail.filePath}`
+
+          const notifyLatest = notifyRef.current
+          if (notifyLatest) {
+            notifyLatest(message, {
+              kind: 'progress',
+              autoDismissMs: event.state === 'start' ? 6000 : 2600,
+            })
+            return
+          }
+
+          pushHistoryLatest(message, 'progress')
           return
         }
         case 'generation.iteration.start':
@@ -776,10 +796,14 @@ export const useGenerationPipeline = ({
 
         const handleUploadState: UploadStateChange = (state, detail) => {
           const action = state === 'start' ? 'Uploading' : 'Uploaded'
-          pushHistoryRef.current(
-            `[series] ${action} ${detail.kind}: ${detail.filePath}`,
-            'progress',
-          )
+          const message = `${action} ${detail.kind}: ${detail.filePath}`
+
+          if (notify) {
+            notify(message, { kind: 'progress', autoDismissMs: state === 'start' ? 6000 : 2600 })
+            return
+          }
+
+          pushHistoryRef.current(`[series] ${message}`, 'progress')
         }
 
         const request: PromptGenerationRequest = {

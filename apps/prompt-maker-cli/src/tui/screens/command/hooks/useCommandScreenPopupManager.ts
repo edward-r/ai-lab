@@ -13,6 +13,10 @@ type UseCommandScreenPopupManagerOptions = {
   currentModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
   smartContextRoot: string | null
+  images: string[]
+  videos: string[]
+  addImage: (value: string) => void
+  addVideo: (value: string) => void
   lastTestFile: string | null
   interactiveTransportPath?: string | undefined
   isGenerating: boolean
@@ -55,6 +59,10 @@ export const useCommandScreenPopupManager = ({
   currentModel,
   modelOptions,
   smartContextRoot,
+  images,
+  videos,
+  addImage,
+  addVideo,
   lastTestFile,
   interactiveTransportPath,
   isGenerating,
@@ -97,6 +105,10 @@ export const useCommandScreenPopupManager = ({
     currentModel,
     modelOptions,
     smartContextRoot,
+    images,
+    videos,
+    addImage,
+    addVideo,
     lastTestFile,
     defaultTestFile: DEFAULT_TEST_FILE,
     ...(interactiveTransportPath ? { interactiveTransportPath } : {}),

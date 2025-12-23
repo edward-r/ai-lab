@@ -69,12 +69,18 @@ export type UseCommandScreenPopupBindingsOptions = {
   droppedFilePath: string | null
   files: string[]
   urls: string[]
+  images: string[]
+  videos: string[]
   smartContextEnabled: boolean
   smartContextRoot: string | null
   addFile: (value: string) => void
   removeFile: (index: number) => void
   addUrl: (value: string) => void
   removeUrl: (index: number) => void
+  addImage: (value: string) => void
+  removeImage: (index: number) => void
+  addVideo: (value: string) => void
+  removeVideo: (index: number) => void
   toggleSmartContext: () => void
   setSmartRoot: (value: string) => void
   notify: (message: string) => void
@@ -112,6 +118,20 @@ export type UseCommandScreenPopupBindingsResult = {
   onUrlPopupDraftChange: (next: string) => void
   onAddUrl: (value: string) => void
   onRemoveUrl: (index: number) => void
+
+  imagePopupSuggestions: string[]
+  imagePopupSuggestionSelectionIndex: number
+  imagePopupSuggestionsFocused: boolean
+  onImagePopupDraftChange: (next: string) => void
+  onAddImage: (value: string) => void
+  onRemoveImage: (index: number) => void
+
+  videoPopupSuggestions: string[]
+  videoPopupSuggestionSelectionIndex: number
+  videoPopupSuggestionsFocused: boolean
+  onVideoPopupDraftChange: (next: string) => void
+  onAddVideo: (value: string) => void
+  onRemoveVideo: (index: number) => void
 
   smartPopupSuggestions: string[]
   smartPopupSuggestionSelectionIndex: number
@@ -159,12 +179,18 @@ export const useCommandScreenPopupBindings = (
     droppedFilePath: options.droppedFilePath,
     files: options.files,
     urls: options.urls,
+    images: options.images,
+    videos: options.videos,
     smartContextEnabled: options.smartContextEnabled,
     smartContextRoot: options.smartContextRoot,
     addFile: options.addFile,
     removeFile: options.removeFile,
     addUrl: options.addUrl,
     removeUrl: options.removeUrl,
+    addImage: options.addImage,
+    removeImage: options.removeImage,
+    addVideo: options.addVideo,
+    removeVideo: options.removeVideo,
     toggleSmartContext: options.toggleSmartContext,
     setSmartRoot: options.setSmartRoot,
     setInputValue: options.setInputValue,
@@ -211,6 +237,12 @@ export const useCommandScreenPopupBindings = (
     onRemoveFile: context.onRemoveFile,
     urls: options.urls,
     onRemoveUrl: context.onRemoveUrl,
+    images: options.images,
+    imagePopupSuggestions: context.imagePopupSuggestions,
+    onRemoveImage: context.onRemoveImage,
+    videos: options.videos,
+    videoPopupSuggestions: context.videoPopupSuggestions,
+    onRemoveVideo: context.onRemoveVideo,
     historyPopupItems: historyAndIntent.history.historyPopupItems,
     smartPopupSuggestions: context.smartPopupSuggestions,
     smartContextEnabled: options.smartContextEnabled,
@@ -277,6 +309,20 @@ export const useCommandScreenPopupBindings = (
     onUrlPopupDraftChange: context.onUrlPopupDraftChange,
     onAddUrl: context.onAddUrl,
     onRemoveUrl: context.onRemoveUrl,
+
+    imagePopupSuggestions: context.imagePopupSuggestions,
+    imagePopupSuggestionSelectionIndex: context.imagePopupSuggestionSelectionIndex,
+    imagePopupSuggestionsFocused: context.imagePopupSuggestionsFocused,
+    onImagePopupDraftChange: context.onImagePopupDraftChange,
+    onAddImage: context.onAddImage,
+    onRemoveImage: context.onRemoveImage,
+
+    videoPopupSuggestions: context.videoPopupSuggestions,
+    videoPopupSuggestionSelectionIndex: context.videoPopupSuggestionSelectionIndex,
+    videoPopupSuggestionsFocused: context.videoPopupSuggestionsFocused,
+    onVideoPopupDraftChange: context.onVideoPopupDraftChange,
+    onAddVideo: context.onAddVideo,
+    onRemoveVideo: context.onRemoveVideo,
 
     smartPopupSuggestions: context.smartPopupSuggestions,
     smartPopupSuggestionSelectionIndex: context.smartPopupSuggestionSelectionIndex,

@@ -47,6 +47,20 @@ export type UseCommandScreenViewModelOptions = {
       onUrlPopupDraftChange: (next: string) => void
       onAddUrl: (value: string) => void
 
+      images: string[]
+      imagePopupSuggestions: string[]
+      imagePopupSuggestionSelectionIndex: number
+      imagePopupSuggestionsFocused: boolean
+      onImagePopupDraftChange: (next: string) => void
+      onAddImage: (value: string) => void
+
+      videos: string[]
+      videoPopupSuggestions: string[]
+      videoPopupSuggestionSelectionIndex: number
+      videoPopupSuggestionsFocused: boolean
+      onVideoPopupDraftChange: (next: string) => void
+      onAddVideo: (value: string) => void
+
       smartContextEnabled: boolean
       smartContextRoot: string | null
       smartPopupSuggestions: string[]

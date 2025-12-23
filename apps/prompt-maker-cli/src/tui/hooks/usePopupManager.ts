@@ -31,6 +31,8 @@ export type PopupManagerActions = {
   openTogglePopup: (field: ToggleField) => void
   openFilePopup: () => void
   openUrlPopup: () => void
+  openImagePopup: () => void
+  openVideoPopup: () => void
   openHistoryPopup: () => void
   openSmartPopup: () => void
   openTokensPopup: () => void
@@ -53,6 +55,10 @@ export type UsePopupManagerOptions = {
   currentModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
   smartContextRoot: string | null
+  images: string[]
+  videos: string[]
+  addImage: (value: string) => void
+  addVideo: (value: string) => void
   lastTestFile: string | null
   defaultTestFile: string
   interactiveTransportPath?: string | undefined
@@ -83,6 +89,10 @@ export type UsePopupManagerOptions = {
 
 const JSON_INTERACTIVE_ERROR = 'JSON output is unavailable while interactive transport is enabled.'
 
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mpeg', '.mpg', '.gif'])
+
 /*
  * Popup state management for the Ink TUI.
  *
@@ -97,6 +107,10 @@ export const usePopupManager = ({
   currentModel,
   modelOptions,
   smartContextRoot,
+  images,
+  videos,
+  addImage,
+  addVideo,
   lastTestFile,
   defaultTestFile,
   interactiveTransportPath,
@@ -205,6 +219,58 @@ export const usePopupManager = ({
   const openUrlPopup = useCallback(() => {
     dispatch({ type: 'open-url' })
   }, [])
+
+  const openImagePopup = useCallback(() => {
+    const scanId = nextScanId()
+    dispatch({ type: 'open-image', scanId })
+
+    const scan = async (): Promise<void> => {
+      try {
+        const suggestions = await discoverFileSuggestions({ cwd: process.cwd(), limit: 200 })
+        const filtered = suggestions.filter((candidate) => {
+          const ext = path.extname(candidate).toLowerCase()
+          return IMAGE_EXTENSIONS.has(ext)
+        })
+        dispatch({
+          type: 'scan-suggestions-success',
+          kind: 'image',
+          scanId,
+          suggestions: filtered,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+        pushHistory(`[image] Failed to scan workspace: ${message}`, 'system')
+      }
+    }
+
+    void scan()
+  }, [nextScanId, pushHistory])
+
+  const openVideoPopup = useCallback(() => {
+    const scanId = nextScanId()
+    dispatch({ type: 'open-video', scanId })
+
+    const scan = async (): Promise<void> => {
+      try {
+        const suggestions = await discoverFileSuggestions({ cwd: process.cwd(), limit: 200 })
+        const filtered = suggestions.filter((candidate) => {
+          const ext = path.extname(candidate).toLowerCase()
+          return VIDEO_EXTENSIONS.has(ext)
+        })
+        dispatch({
+          type: 'scan-suggestions-success',
+          kind: 'video',
+          scanId,
+          suggestions: filtered,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+        pushHistory(`[video] Failed to scan workspace: ${message}`, 'system')
+      }
+    }
+
+    void scan()
+  }, [nextScanId, pushHistory])
 
   const openHistoryPopup = useCallback(() => {
     dispatch({ type: 'open-history' })
@@ -478,6 +544,36 @@ export const usePopupManager = ({
         case 'url':
           openUrlPopup()
           return
+        case 'image': {
+          if (trimmedArgs) {
+            if (images.includes(trimmedArgs)) {
+              pushHistory(`[image] Already attached: ${trimmedArgs}`, 'system')
+            } else {
+              addImage(trimmedArgs)
+              pushHistory(`[image] Attached: ${trimmedArgs}`, 'system')
+            }
+            setInputValue('')
+            closePopup()
+            return
+          }
+          openImagePopup()
+          return
+        }
+        case 'video': {
+          if (trimmedArgs) {
+            if (videos.includes(trimmedArgs)) {
+              pushHistory(`[video] Already attached: ${trimmedArgs}`, 'system')
+            } else {
+              addVideo(trimmedArgs)
+              pushHistory(`[video] Attached: ${trimmedArgs}`, 'system')
+            }
+            setInputValue('')
+            closePopup()
+            return
+          }
+          openVideoPopup()
+          return
+        }
         case 'smart':
           openSmartPopup()
           return
@@ -619,6 +715,13 @@ export const usePopupManager = ({
       pushHistory,
       runTestsFromCommand,
       setInputValue,
+      closePopup,
+      addImage,
+      addVideo,
+      images,
+      videos,
+      openImagePopup,
+      openVideoPopup,
       syncTypedIntentRef,
     ],
   )
@@ -631,6 +734,8 @@ export const usePopupManager = ({
       openTogglePopup,
       openFilePopup,
       openUrlPopup,
+      openImagePopup,
+      openVideoPopup,
       openHistoryPopup,
       openSmartPopup,
       openTokensPopup,
@@ -669,6 +774,8 @@ export const usePopupManager = ({
       openTogglePopup,
       openTokensPopup,
       openUrlPopup,
+      openImagePopup,
+      openVideoPopup,
     ],
   )
 

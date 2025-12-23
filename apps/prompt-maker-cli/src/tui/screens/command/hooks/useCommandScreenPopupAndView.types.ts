@@ -16,6 +16,8 @@ export type UseCommandScreenPopupAndViewOptions = {
   // context state
   files: string[]
   urls: string[]
+  images: string[]
+  videos: string[]
   smartContextEnabled: boolean
   smartContextRoot: string | null
   metaInstructions: string
@@ -27,6 +29,10 @@ export type UseCommandScreenPopupAndViewOptions = {
   removeFile: (index: number) => void
   addUrl: (value: string) => void
   removeUrl: (index: number) => void
+  addImage: (value: string) => void
+  removeImage: (index: number) => void
+  addVideo: (value: string) => void
+  removeVideo: (index: number) => void
   toggleSmartContext: () => void
   setSmartRoot: (value: string) => void
   setMetaInstructions: (value: string) => void
