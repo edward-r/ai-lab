@@ -6,6 +6,7 @@ import { CommandScreen, type CommandScreenHandle } from './CommandScreen'
 import { TestRunnerScreen, type TestRunnerScreenHandle } from './TestRunnerScreen'
 import { ContextProvider } from './context'
 import { ThemeProvider, useTheme } from './theme/theme-provider'
+import { inkColorProps } from './theme/theme-types'
 import { HelpOverlay } from './components/core/HelpOverlay'
 import { Toast, TOAST_HEIGHT } from './components/core/Toast'
 import { useNotifier } from './notifier'
@@ -17,12 +18,8 @@ export type AppContainerProps = {
   interactiveTransport?: string | undefined
 }
 
-const ThemeConsumerProbe: React.FC = () => {
-  useTheme()
-  return null
-}
-
-export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport }) => {
+const AppContainerInner: React.FC<AppContainerProps> = ({ interactiveTransport }) => {
+  const { theme } = useTheme()
   const { exit } = useApp()
   const { stdout } = useStdout()
   const [view, setView] = useState<'generate' | 'tests'>('generate')
@@ -130,57 +127,62 @@ export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport
   const reservedRows = helpReservedRows + toastReservedRows
 
   return (
-    <ThemeProvider>
-      <ContextProvider>
-        <ThemeConsumerProbe />
-        <Box flexDirection="column" paddingX={2} paddingY={1} height="100%">
-          <Text color="cyanBright">Prompt Maker · Command Palette Preview</Text>
-          <Text color="gray">
-            Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C or /exit to exit.
-          </Text>
-          {toast ? (
-            <Box justifyContent="flex-end" width="100%" flexShrink={0}>
-              <Toast message={toast.message} kind={toast.kind} />
-            </Box>
-          ) : null}
-          <Box flexDirection="column" flexGrow={1} marginTop={1}>
-            {view === 'generate' ? (
-              <>
-                <Text color="gray">
-                  Type intents freely or prefix with /command. Use arrow keys to browse history.
-                </Text>
-                {interactiveTransport ? (
-                  <Text color="gray">
-                    Interactive transport listening on {interactiveTransport}. Remote refinements
-                    will appear in history.
-                  </Text>
-                ) : null}
-                <Box flexDirection="column" flexGrow={1} marginTop={1}>
-                  <CommandScreen
-                    ref={commandScreenRef}
-                    interactiveTransportPath={interactiveTransport}
-                    onPopupVisibilityChange={setIsPopupOpen}
-                    commandMenuSignal={commandMenuSignal}
-                    helpOpen={isHelpOpen}
-                    reservedRows={reservedRows}
-                    notify={notify}
-                  />
-                </Box>
-              </>
-            ) : (
-              <>
-                <Text color="gray">Enter a test file and press Enter to run suites.</Text>
-                <TestRunnerScreen ref={testRunnerRef} helpOpen={isHelpOpen} />
-              </>
-            )}
+    <ContextProvider>
+      <Box flexDirection="column" paddingX={2} paddingY={1} height="100%">
+        <Text {...inkColorProps(theme.accent)}>Prompt Maker · Command Palette Preview</Text>
+        <Text {...inkColorProps(theme.mutedText)}>
+          Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C or /exit to exit.
+        </Text>
+        {toast ? (
+          <Box justifyContent="flex-end" width="100%" flexShrink={0}>
+            <Toast message={toast.message} kind={toast.kind} />
           </Box>
-          {isHelpOpen ? (
-            <Box marginTop={1}>
-              <HelpOverlay activeView={view} maxHeight={helpMaxHeight} />
-            </Box>
-          ) : null}
+        ) : null}
+        <Box flexDirection="column" flexGrow={1} marginTop={1}>
+          {view === 'generate' ? (
+            <>
+              <Text {...inkColorProps(theme.mutedText)}>
+                Type intents freely or prefix with /command. Use arrow keys to browse history.
+              </Text>
+              {interactiveTransport ? (
+                <Text {...inkColorProps(theme.mutedText)}>
+                  Interactive transport listening on {interactiveTransport}. Remote refinements will
+                  appear in history.
+                </Text>
+              ) : null}
+              <Box flexDirection="column" flexGrow={1} marginTop={1}>
+                <CommandScreen
+                  ref={commandScreenRef}
+                  interactiveTransportPath={interactiveTransport}
+                  onPopupVisibilityChange={setIsPopupOpen}
+                  commandMenuSignal={commandMenuSignal}
+                  helpOpen={isHelpOpen}
+                  reservedRows={reservedRows}
+                  notify={notify}
+                />
+              </Box>
+            </>
+          ) : (
+            <>
+              <Text {...inkColorProps(theme.mutedText)}>
+                Enter a test file and press Enter to run suites.
+              </Text>
+              <TestRunnerScreen ref={testRunnerRef} helpOpen={isHelpOpen} />
+            </>
+          )}
         </Box>
-      </ContextProvider>
-    </ThemeProvider>
+        {isHelpOpen ? (
+          <Box marginTop={1}>
+            <HelpOverlay activeView={view} maxHeight={helpMaxHeight} />
+          </Box>
+        ) : null}
+      </Box>
+    </ContextProvider>
   )
 }
+
+export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport }) => (
+  <ThemeProvider>
+    <AppContainerInner interactiveTransport={interactiveTransport} />
+  </ThemeProvider>
+)

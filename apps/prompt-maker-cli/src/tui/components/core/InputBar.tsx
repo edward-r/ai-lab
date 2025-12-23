@@ -7,6 +7,9 @@ import { resolveInputBarPresentation, type InputBarMode } from './input-bar-pres
 import type { TokenLabelLookup } from './tokenized-text'
 import { getLineCount } from './multiline-text-buffer'
 
+import { useTheme } from '../../theme/theme-provider'
+import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+
 export type InputBarProps = {
   value: string
   onChange: (next: string) => void
@@ -53,6 +56,8 @@ export const InputBar: React.FC<InputBarProps> = ({
   tokenLabel,
   onDebugKeyEvent,
 }) => {
+  const { theme } = useTheme()
+
   // `resolveInputBarPresentation` is pure but involves string/config mapping.
   // Memoizing it keeps the render path a bit more predictable.
   const presentation = React.useMemo(() => resolveInputBarPresentation(mode), [mode])
@@ -64,19 +69,22 @@ export const InputBar: React.FC<InputBarProps> = ({
     return { status, model }
   }, [statusChips])
 
+  const borderColor = presentation.borderTone === 'warning' ? theme.warning : theme.border
+  const labelColor = presentation.labelTone === 'warning' ? theme.warning : theme.mutedText
+
   return (
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor={presentation.borderColor}
       paddingX={1}
       paddingY={0}
+      {...inkBorderColorProps(borderColor)}
     >
-      <Text color={presentation.labelColor} bold={presentation.labelBold}>
+      <Text {...inkColorProps(labelColor)} bold={presentation.labelBold}>
         {presentation.label}
       </Text>
-      {hint ? <Text color="gray">{hint}</Text> : null}
-      {debugLine ? <Text color="gray">{debugLine}</Text> : null}
+      {hint ? <Text {...inkColorProps(theme.mutedText)}>{hint}</Text> : null}
+      {debugLine ? <Text {...inkColorProps(theme.mutedText)}>{debugLine}</Text> : null}
       <MultilineTextInput
         value={value}
         onChange={onChange}
@@ -90,18 +98,20 @@ export const InputBar: React.FC<InputBarProps> = ({
       />
 
       {summary.status || summary.model ? (
-        <Text color="gray">
+        <Text {...inkColorProps(theme.mutedText)}>
           {summary.status ? (
             <>
-              <Text color="gray">Status: </Text>
-              <Text color="cyan">{summary.status.value}</Text>
+              <Text {...inkColorProps(theme.mutedText)}>Status: </Text>
+              <Text {...inkColorProps(theme.accent)}>{summary.status.value}</Text>
             </>
           ) : null}
-          {summary.status && summary.model ? <Text color="gray"> · </Text> : null}
+          {summary.status && summary.model ? (
+            <Text {...inkColorProps(theme.mutedText)}> · </Text>
+          ) : null}
           {summary.model ? (
             <>
-              <Text color="gray">Model: </Text>
-              <Text color="white">{summary.model.value}</Text>
+              <Text {...inkColorProps(theme.mutedText)}>Model: </Text>
+              <Text {...inkColorProps(theme.text)}>{summary.model.value}</Text>
             </>
           ) : null}
         </Text>

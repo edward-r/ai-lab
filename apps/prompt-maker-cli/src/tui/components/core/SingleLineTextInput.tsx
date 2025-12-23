@@ -4,6 +4,9 @@ import { Box, Text, useInput, type Key } from 'ink'
 import { clampCursor, type MultilineTextBufferState } from './multiline-text-buffer'
 import { resolveSingleLineKeyAction } from './single-line-text-input-keymap'
 
+import { useTheme } from '../../theme/theme-provider'
+import { inkColorProps } from '../../theme/theme-types'
+
 export type DebugKeyEvent = {
   input: string
   key: Key
@@ -57,6 +60,7 @@ export const SingleLineTextInput: React.FC<SingleLineTextInputProps> = ({
   isDisabled = false,
   onDebugKeyEvent,
 }) => {
+  const { theme } = useTheme()
   const [cursor, setCursor] = useState<number>(value.length)
   const internalUpdateRef = useRef(false)
 
@@ -110,7 +114,7 @@ export const SingleLineTextInput: React.FC<SingleLineTextInputProps> = ({
     [placeholder, state.cursor, value],
   )
 
-  const colorProps = rendered.isPlaceholder ? ({ color: 'gray' } as const) : undefined
+  const colorProps = rendered.isPlaceholder ? inkColorProps(theme.mutedText) : {}
 
   return (
     <Box>

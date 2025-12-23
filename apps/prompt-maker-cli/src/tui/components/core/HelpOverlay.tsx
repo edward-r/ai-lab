@@ -10,18 +10,22 @@ import {
   scrollHelpOverlayBy,
 } from './help-overlay-scroll'
 
+import { useTheme } from '../../theme/theme-provider'
+import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
+
 export type HelpOverlayProps = {
   activeView: 'generate' | 'tests'
   maxHeight?: number
 }
 
-export const HelpOverlay: React.FC<HelpOverlayProps> = ({ activeView, maxHeight }) => {
+export const HelpOverlay: React.FC<HelpOverlayProps> = ({ activeView: _activeView, maxHeight }) => {
+  const { theme } = useTheme()
+
   const sections = useMemo(
     () => createHelpSections({ commandDescriptors: COMMAND_DESCRIPTORS }),
     [],
   )
 
-  const titleColor = activeView === 'generate' ? 'magentaBright' : 'cyanBright'
   const idealHeight = estimateHelpOverlayHeight(sections)
   const clampedHeight = maxHeight ? Math.min(idealHeight, maxHeight) : idealHeight
   const height = Math.max(10, clampedHeight)
@@ -85,23 +89,23 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ activeView, maxHeight 
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="cyan"
       paddingX={1}
       paddingY={0}
       height={height}
       overflow="hidden"
+      {...inkBorderColorProps(theme.border)}
     >
       <Box justifyContent="space-between">
-        <Text color={titleColor}>Help</Text>
-        <Text color="gray">Esc / ? to close</Text>
+        <Text {...inkColorProps(theme.accent)}>Help</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Esc / ? to close</Text>
       </Box>
 
       <Box flexDirection="column" marginTop={1} height={contentRows} overflow="hidden">
         {visibleLines.map((line, index) => {
           const isSectionTitle = sections.some((section) => section.title === line)
-          const color = isSectionTitle ? 'cyanBright' : 'gray'
+          const color = isSectionTitle ? theme.accent : theme.mutedText
           return (
-            <Text key={`${scrollOffset}-${index}`} color={color}>
+            <Text key={`${scrollOffset}-${index}`} {...inkColorProps(color)}>
               {line}
             </Text>
           )
@@ -109,7 +113,7 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ activeView, maxHeight 
       </Box>
 
       <Box justifyContent="flex-end">
-        <Text color="gray">{scrollLabel}</Text>
+        <Text {...inkColorProps(theme.mutedText)}>{scrollLabel}</Text>
       </Box>
     </Box>
   )

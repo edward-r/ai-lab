@@ -17,6 +17,9 @@ import {
   type TokenLabelLookup,
 } from './tokenized-text'
 
+import { useTheme } from '../../theme/theme-provider'
+import { inkColorProps } from '../../theme/theme-types'
+
 export type DebugKeyEvent = {
   input: string
   key: Key
@@ -40,7 +43,7 @@ const PROMPT_SPACER = '  '
 type RenderLine = {
   id: string
   content: string
-  color?: 'gray'
+  isPlaceholder: boolean
 }
 
 const toRenderLines = (
@@ -49,11 +52,11 @@ const toRenderLines = (
   tokenLabel: TokenLabelLookup,
 ): RenderLine[] => {
   if (!value) {
-    return [{ id: 'placeholder', content: placeholder ?? '', color: 'gray' }]
+    return [{ id: 'placeholder', content: placeholder ?? '', isPlaceholder: true }]
   }
 
   const lines = expandTokenizedLines(value, tokenLabel)
-  return lines.map((line, index) => ({ id: `line-${index}`, content: line }))
+  return lines.map((line, index) => ({ id: `line-${index}`, content: line, isPlaceholder: false }))
 }
 
 export const MultilineTextInput: React.FC<MultilineTextInputProps> = ({
@@ -67,6 +70,7 @@ export const MultilineTextInput: React.FC<MultilineTextInputProps> = ({
   tokenLabel,
   onDebugKeyEvent,
 }) => {
+  const { theme } = useTheme()
   const [cursor, setCursor] = useState<number>(value.length)
   const internalUpdateRef = useRef(false)
 
@@ -177,21 +181,21 @@ export const MultilineTextInput: React.FC<MultilineTextInputProps> = ({
           isCursorLine && safeColumn < line.content.length ? line.content.slice(safeColumn + 1) : ''
 
         const prefix = lineIndex === 0 ? PROMPT : PROMPT_SPACER
-        const colorProps = line.color ? { color: line.color } : {}
+        const lineColorProps = line.isPlaceholder ? inkColorProps(theme.mutedText) : {}
 
         return (
           <Box key={line.id}>
-            <Text color="cyan">{prefix}</Text>
+            <Text {...inkColorProps(theme.accent)}>{prefix}</Text>
             {isCursorLine ? (
               <>
-                <Text {...colorProps}>{before}</Text>
-                <Text inverse {...colorProps}>
+                <Text {...lineColorProps}>{before}</Text>
+                <Text inverse {...lineColorProps}>
                   {cursorCharacter}
                 </Text>
-                <Text {...colorProps}>{after}</Text>
+                <Text {...lineColorProps}>{after}</Text>
               </>
             ) : (
-              <Text {...colorProps}>{before}</Text>
+              <Text {...lineColorProps}>{before}</Text>
             )}
           </Box>
         )

@@ -19,6 +19,24 @@ export type ThemeMode = 'light' | 'dark' | 'system'
  */
 export type InkColorValue = string | number | undefined
 
+export const asInkColor = (value: InkColorValue): string | undefined =>
+  value === undefined ? undefined : (value as unknown as string)
+
+export const inkColorProps = (value: InkColorValue): { color?: string } => {
+  const resolved = asInkColor(value)
+  return resolved === undefined ? {} : { color: resolved }
+}
+
+export const inkBackgroundColorProps = (value: InkColorValue): { backgroundColor?: string } => {
+  const resolved = asInkColor(value)
+  return resolved === undefined ? {} : { backgroundColor: resolved }
+}
+
+export const inkBorderColorProps = (value: InkColorValue): { borderColor?: string } => {
+  const resolved = asInkColor(value)
+  return resolved === undefined ? {} : { borderColor: resolved }
+}
+
 export type ThemeSlot =
   | 'background'
   | 'text'

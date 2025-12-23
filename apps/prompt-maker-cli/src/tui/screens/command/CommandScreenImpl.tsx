@@ -8,6 +8,8 @@ import { PopupArea } from './components/PopupArea'
 import { useCommandScreenController } from './hooks/useCommandScreenController'
 
 import type { NotifyOptions } from '../../notifier'
+import { useTheme } from '../../theme/theme-provider'
+import { inkColorProps } from '../../theme/theme-types'
 
 type CommandScreenProps = {
   interactiveTransportPath?: string | undefined
@@ -53,11 +55,13 @@ export const CommandScreen = memo(
 
       useImperativeHandle(ref, () => ({ suppressNextInput }), [suppressNextInput])
 
+      const { theme } = useTheme()
+
       return (
         <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
           {transportMessage ? (
             <Box flexShrink={0}>
-              <Text color="yellow">{transportMessage}</Text>
+              <Text {...inkColorProps(theme.warning)}>{transportMessage}</Text>
             </Box>
           ) : null}
 

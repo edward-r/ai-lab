@@ -1,7 +1,13 @@
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import { Box, Text } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
+import { useTheme } from '../../theme/theme-provider'
+import {
+  inkBackgroundColorProps,
+  inkBorderColorProps,
+  inkColorProps,
+} from '../../theme/theme-types'
 import { resolveListPopupHeights, DEFAULT_MAX_VISIBLE_LIST_ITEMS } from './list-popup-layout'
 import { resolveWindowedList } from './list-window'
 
@@ -69,7 +75,7 @@ const resolveSuggestedVisible = (
   }
 }
 
-export const ListPopup: React.FC<ListPopupProps> = ({
+export const ListPopup = ({
   title,
   placeholder,
   draft,
@@ -83,7 +89,9 @@ export const ListPopup: React.FC<ListPopupProps> = ({
   maxHeight,
   onDraftChange,
   onSubmitDraft,
-}) => {
+}: ListPopupProps) => {
+  const { theme } = useTheme()
+
   const hasSuggestions = (suggestedItems?.length ?? 0) > 0
 
   const safeSuggestedSelection = Math.max(
@@ -92,16 +100,32 @@ export const ListPopup: React.FC<ListPopupProps> = ({
   )
   const effectiveSuggestedFocused = Boolean(hasSuggestions && suggestedFocused)
 
+  const focusedSelectionProps = {
+    ...inkColorProps(theme.selectionText),
+    ...inkBackgroundColorProps(theme.selectionBackground),
+  }
+
+  const unfocusedSelectionProps = {
+    ...inkColorProps(theme.chipText),
+    ...inkBackgroundColorProps(theme.chipBackground),
+  }
+
   if (!hasSuggestions) {
     const upperBound = Math.max(items.length - DEFAULT_MAX_VISIBLE_LIST_ITEMS, 0)
     const start = Math.max(0, Math.min(selectedIndex - 2, upperBound))
     const visibleItems = items.slice(start, start + DEFAULT_MAX_VISIBLE_LIST_ITEMS)
 
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor="blue" paddingX={1} paddingY={0}>
-        <Text color="blueBright">{title}</Text>
+      <Box
+        flexDirection="column"
+        borderStyle="round"
+        paddingX={1}
+        paddingY={0}
+        {...inkBorderColorProps(theme.border)}
+      >
+        <Text {...inkColorProps(theme.accent)}>{title}</Text>
         <Box flexDirection="column" marginTop={1}>
-          <Text color="gray">Add new</Text>
+          <Text {...inkColorProps(theme.mutedText)}>Add new</Text>
           <SingleLineTextInput
             value={draft}
             onChange={onDraftChange}
@@ -112,16 +136,16 @@ export const ListPopup: React.FC<ListPopupProps> = ({
         </Box>
         <Box flexDirection="column" marginTop={1}>
           {items.length === 0 ? (
-            <Text color="gray">{emptyLabel}</Text>
+            <Text {...inkColorProps(theme.mutedText)}>{emptyLabel}</Text>
           ) : (
             <>
-              {start > 0 ? <Text color="gray">… earlier entries …</Text> : null}
+              {start > 0 ? (
+                <Text {...inkColorProps(theme.mutedText)}>… earlier entries …</Text>
+              ) : null}
               {visibleItems.map((value, index) => {
                 const actualIndex = start + index
                 const isSelected = actualIndex === selectedIndex
-                const textProps = isSelected
-                  ? ({ color: 'black', backgroundColor: 'blueBright' } as const)
-                  : ({ color: 'white' } as const)
+                const textProps = isSelected ? focusedSelectionProps : inkColorProps(theme.text)
                 return (
                   <Text key={`${value}-${actualIndex}`} {...textProps}>
                     {actualIndex + 1}. {value}
@@ -129,14 +153,14 @@ export const ListPopup: React.FC<ListPopupProps> = ({
                 )
               })}
               {start + DEFAULT_MAX_VISIBLE_LIST_ITEMS < items.length ? (
-                <Text color="gray">… later entries …</Text>
+                <Text {...inkColorProps(theme.mutedText)}>… later entries …</Text>
               ) : null}
             </>
           )}
         </Box>
 
         <Box marginTop={1}>
-          <Text color="gray">{instructions}</Text>
+          <Text {...inkColorProps(theme.mutedText)}>{instructions}</Text>
         </Box>
       </Box>
     )
@@ -165,16 +189,16 @@ export const ListPopup: React.FC<ListPopupProps> = ({
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="blue"
       paddingX={1}
       paddingY={0}
+      {...inkBorderColorProps(theme.border)}
       {...(typeof maxHeight === 'number' ? { height: maxHeight } : {})}
       overflow="hidden"
     >
-      <Text color="blueBright">{title}</Text>
+      <Text {...inkColorProps(theme.accent)}>{title}</Text>
 
       <Box flexDirection="row">
-        <Text color="gray">Add: </Text>
+        <Text {...inkColorProps(theme.mutedText)}>Add: </Text>
         <SingleLineTextInput
           value={draft}
           onChange={onDraftChange}
@@ -190,53 +214,59 @@ export const ListPopup: React.FC<ListPopupProps> = ({
         flexShrink={0}
         overflow="hidden"
       >
-        <Text color="gray">Selected</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Selected</Text>
         {items.length === 0 ? (
-          <Text color="gray">{emptyLabel}</Text>
+          <Text {...inkColorProps(theme.mutedText)}>{emptyLabel}</Text>
         ) : (
           <>
-            {selectedVisible.showBefore ? <Text color="gray">… earlier entries …</Text> : null}
+            {selectedVisible.showBefore ? (
+              <Text {...inkColorProps(theme.mutedText)}>… earlier entries …</Text>
+            ) : null}
             {selectedVisible.values.map((value, index) => {
               const actualIndex = selectedVisible.start + index
               const isSelected = actualIndex === selectedIndex
-              const textProps = isSelected
-                ? ({ color: 'black', backgroundColor: 'blueBright' } as const)
-                : ({ color: 'white' } as const)
+              const textProps = isSelected ? focusedSelectionProps : inkColorProps(theme.text)
               return (
                 <Text key={`${value}-${actualIndex}`} {...textProps}>
                   {actualIndex + 1}. {value}
                 </Text>
               )
             })}
-            {selectedVisible.showAfter ? <Text color="gray">… later entries …</Text> : null}
+            {selectedVisible.showAfter ? (
+              <Text {...inkColorProps(theme.mutedText)}>… later entries …</Text>
+            ) : null}
           </>
         )}
       </Box>
 
       {suggestionRows > 0 ? (
         <Box flexDirection="column" height={1 + suggestionRows} flexShrink={0} overflow="hidden">
-          <Text color="gray">Suggestions</Text>
-          {suggestedVisible.showBefore ? <Text color="gray">… earlier suggestions …</Text> : null}
+          <Text {...inkColorProps(theme.mutedText)}>Suggestions</Text>
+          {suggestedVisible.showBefore ? (
+            <Text {...inkColorProps(theme.mutedText)}>… earlier suggestions …</Text>
+          ) : null}
           {suggestedVisible.values.map((value, index) => {
             const actualIndex = suggestedVisible.start + index
             const isSelected = actualIndex === safeSuggestedSelection
             const textProps = isSelected
               ? effectiveSuggestedFocused
-                ? ({ color: 'black', backgroundColor: 'cyanBright' } as const)
-                : ({ color: 'black', backgroundColor: 'gray' } as const)
-              : ({ color: 'white' } as const)
+                ? focusedSelectionProps
+                : unfocusedSelectionProps
+              : inkColorProps(theme.text)
             return (
               <Text key={`${value}-${actualIndex}`} {...textProps}>
                 {value}
               </Text>
             )
           })}
-          {suggestedVisible.showAfter ? <Text color="gray">… later suggestions …</Text> : null}
+          {suggestedVisible.showAfter ? (
+            <Text {...inkColorProps(theme.mutedText)}>… later suggestions …</Text>
+          ) : null}
         </Box>
       ) : null}
 
       <Box flexShrink={0}>
-        <Text color="gray">{instructions}</Text>
+        <Text {...inkColorProps(theme.mutedText)}>{instructions}</Text>
       </Box>
     </Box>
   )

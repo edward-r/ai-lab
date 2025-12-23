@@ -16,6 +16,8 @@ import { Box, Text, useInput } from 'ink'
 
 import { runPromptTestSuite, type PromptTestRunReporter } from '../../../test-command'
 import { useLogBuffer } from '../../useLogBuffer'
+import { useTheme } from '../../theme/theme-provider'
+import { inkColorProps } from '../../theme/theme-types'
 import { useTestRunnerScreen } from './useTestRunnerScreen'
 
 import { TestRunnerActions } from './components/TestRunnerActions'
@@ -35,6 +37,8 @@ export type TestRunnerScreenProps = {
 
 export const TestRunnerScreen = forwardRef<TestRunnerScreenHandle, TestRunnerScreenProps>(
   ({ helpOpen = false }, ref) => {
+    const { theme } = useTheme()
+
     const {
       state,
       canRun,
@@ -176,7 +180,7 @@ export const TestRunnerScreen = forwardRef<TestRunnerScreenHandle, TestRunnerScr
         />
 
         <Box marginTop={1} flexDirection="column">
-          <Text color="cyan">Tests</Text>
+          <Text {...inkColorProps(theme.accent)}>Tests</Text>
           <TestList tests={state.tests} />
         </Box>
 

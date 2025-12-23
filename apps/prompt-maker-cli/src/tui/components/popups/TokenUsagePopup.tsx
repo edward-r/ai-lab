@@ -1,7 +1,8 @@
-import React from 'react'
 import { Box, Text } from 'ink'
 
 import type { TokenUsageBreakdown, TokenUsageRun } from '../../token-usage-store'
+import { useTheme } from '../../theme/theme-provider'
+import { inkBorderColorProps, inkColorProps } from '../../theme/theme-types'
 
 const formatNumber = (value: number): string => value.toLocaleString('en-US')
 
@@ -47,22 +48,26 @@ export type TokenUsagePopupProps = {
   breakdown: TokenUsageBreakdown | null
 }
 
-export const TokenUsagePopup: React.FC<TokenUsagePopupProps> = ({ run, breakdown }) => {
+export const TokenUsagePopup = ({ run, breakdown }: TokenUsagePopupProps) => {
+  const { theme } = useTheme()
+
   if (!run || !breakdown) {
     return (
       <Box
         flexDirection="column"
         borderStyle="round"
-        borderColor="yellow"
         paddingX={1}
         paddingY={0}
+        {...inkBorderColorProps(theme.border)}
       >
-        <Text color="yellowBright">Token Usage</Text>
+        <Text {...inkColorProps(theme.accent)}>Token Usage</Text>
         <Box marginTop={1}>
-          <Text color="gray">No token usage recorded yet. Run generation first.</Text>
+          <Text {...inkColorProps(theme.mutedText)}>
+            No token usage recorded yet. Run generation first.
+          </Text>
         </Box>
         <Box marginTop={1}>
-          <Text color="gray">Esc to close</Text>
+          <Text {...inkColorProps(theme.mutedText)}>Esc to close</Text>
         </Box>
       </Box>
     )
@@ -82,39 +87,49 @@ export const TokenUsagePopup: React.FC<TokenUsagePopupProps> = ({ run, breakdown
   ])
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} paddingY={0}>
-      <Text color="yellowBright">Token Usage</Text>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      paddingX={1}
+      paddingY={0}
+      {...inkBorderColorProps(theme.border)}
+    >
+      <Text {...inkColorProps(theme.accent)}>Token Usage</Text>
       <Box marginTop={1} flexDirection="column">
-        <Text color="white">Model: {run.model}</Text>
-        <Text color="gray">Started: {run.startedAt}</Text>
+        <Text {...inkColorProps(theme.text)}>Model: {run.model}</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Started: {run.startedAt}</Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
-        <Text color="gray">Input</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Input</Text>
         {inputRows.map((line) => (
-          <Text key={`input-${line}`} color="white">
+          <Text key={`input-${line}`} {...inkColorProps(theme.text)}>
             {line}
           </Text>
         ))}
       </Box>
 
       <Box marginTop={1} flexDirection="column">
-        <Text color="gray">Output</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Output</Text>
         {outputRows.map((line) => (
-          <Text key={`output-${line}`} color="white">
+          <Text key={`output-${line}`} {...inkColorProps(theme.text)}>
             {line}
           </Text>
         ))}
       </Box>
 
       <Box marginTop={1} flexDirection="column">
-        <Text color="gray">Totals</Text>
-        <Text color="white">Total tokens {formatNumber(breakdown.totals.tokens)}</Text>
-        <Text color="white">Estimated cost {formatUsd(breakdown.totals.estimatedCostUsd)}</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Totals</Text>
+        <Text {...inkColorProps(theme.text)}>
+          Total tokens {formatNumber(breakdown.totals.tokens)}
+        </Text>
+        <Text {...inkColorProps(theme.text)}>
+          Estimated cost {formatUsd(breakdown.totals.estimatedCostUsd)}
+        </Text>
       </Box>
 
       <Box marginTop={1}>
-        <Text color="gray">Esc to close</Text>
+        <Text {...inkColorProps(theme.mutedText)}>Esc to close</Text>
       </Box>
     </Box>
   )
