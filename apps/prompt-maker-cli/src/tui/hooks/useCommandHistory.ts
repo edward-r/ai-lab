@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { useLatestRef } from './useLatestRef'
 
 import type { HistoryEntry } from '../types'
 
@@ -22,14 +24,11 @@ export const useCommandHistory = ({
   }
 } => {
   const [history, setHistory] = useState<HistoryEntry[]>(() => [...initialEntries])
-  const initialEntriesRef = useRef<HistoryEntry[]>([...initialEntries])
+  const initialEntriesSnapshot = useMemo(() => [...initialEntries], [initialEntries])
+  const initialEntriesRef = useLatestRef<HistoryEntry[]>(initialEntriesSnapshot)
   const historyIdRef = useRef(initialEntries.length)
   const [scrollOffset, setScrollOffset] = useState(0)
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true)
-
-  useEffect(() => {
-    initialEntriesRef.current = [...initialEntries]
-  }, [initialEntries])
 
   const pushHistory = useCallback((content: string, kind: HistoryEntry['kind'] = 'system') => {
     setHistory((prev) => [...prev, { id: `entry-${historyIdRef.current++}`, content, kind }])
@@ -69,7 +68,7 @@ export const useCommandHistory = ({
     setHistory(seed)
     setScrollOffset(Math.max(0, seed.length - visibleRows))
     setIsPinnedToBottom(true)
-  }, [visibleRows])
+  }, [initialEntriesRef, visibleRows])
 
   const clearHistory = useCallback(() => {
     historyIdRef.current = 0

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 
 import wrapAnsi from 'wrap-ansi'
 
+import { useLatestRef } from './useLatestRef'
+
 import {
   INITIAL_GENERATION_PIPELINE_STATE,
   generationPipelineReducer,
@@ -201,45 +203,18 @@ export const useGenerationPipeline = ({
   // Example: if `handleStreamEvent` closed over an old `terminalColumns`, it would
   // keep wrapping text to the wrong width after the terminal is resized.
   //
-  // Solution used here: keep the callback stable, but read changing values from refs.
-  const pushHistoryRef = useRef(pushHistory)
-  const tokenUsageStoreRef = useRef(tokenUsageStore)
-  const terminalColumnsRef = useRef(terminalColumns)
-  const interactiveTransportPathRef = useRef(interactiveTransportPath)
-  const notifyRef = useRef(notify)
-
-  useEffect(() => {
-    pushHistoryRef.current = pushHistory
-  }, [pushHistory])
-
-  useEffect(() => {
-    notifyRef.current = notify
-  }, [notify])
-
-  useEffect(() => {
-    tokenUsageStoreRef.current = tokenUsageStore
-  }, [tokenUsageStore])
-
-  useEffect(() => {
-    terminalColumnsRef.current = terminalColumns
-  }, [terminalColumns])
-
-  useEffect(() => {
-    interactiveTransportPathRef.current = interactiveTransportPath
-  }, [interactiveTransportPath])
-
-  useEffect(() => {
-    notifyRef.current = notify
-  }, [notify])
+  // Solution used here: keep the callback stable, but read changing values from refs
+  // (kept fresh via useLatestRef).
+  const pushHistoryRef = useLatestRef(pushHistory)
+  const tokenUsageStoreRef = useLatestRef(tokenUsageStore)
+  const terminalColumnsRef = useLatestRef(terminalColumns)
+  const interactiveTransportPathRef = useLatestRef(interactiveTransportPath)
+  const notifyRef = useLatestRef(notify)
 
   const activeRunIdRef = useRef<string | null>(null)
-  const lastGeneratedPromptUpdateRef = useRef<((prompt: string) => void) | null>(
+  const lastGeneratedPromptUpdateRef = useLatestRef<((prompt: string) => void) | null>(
     onLastGeneratedPromptUpdate ?? null,
   )
-
-  useEffect(() => {
-    lastGeneratedPromptUpdateRef.current = onLastGeneratedPromptUpdate ?? null
-  }, [onLastGeneratedPromptUpdate])
 
   type PendingRefinement = {
     requestId: number
@@ -248,12 +223,8 @@ export const useGenerationPipeline = ({
 
   const pendingRefinementRef = useRef<PendingRefinement | null>(null)
   const refinementRequestIdRef = useRef(0)
-  const isGeneratingRef = useRef(false)
+  const isGeneratingRef = useLatestRef(isGenerating)
   const transportAwaitingHintShownRef = useRef(false)
-
-  useEffect(() => {
-    isGeneratingRef.current = isGenerating
-  }, [isGenerating])
 
   const setAwaitingInteractiveMode = useCallback(
     (nextMode: InteractiveAwaitingMode | null, nextStatusMessage?: string): void => {
@@ -454,7 +425,16 @@ export const useGenerationPipeline = ({
           return
       }
     },
-    [setAwaitingInteractiveMode, setLatestTelemetry, setStatusMessage],
+    [
+      interactiveTransportPathRef,
+      notifyRef,
+      pushHistoryRef,
+      terminalColumnsRef,
+      tokenUsageStoreRef,
+      setAwaitingInteractiveMode,
+      setLatestTelemetry,
+      setStatusMessage,
+    ],
   )
 
   const interactiveDelegate: InteractiveDelegate = useMemo(
@@ -511,13 +491,10 @@ export const useGenerationPipeline = ({
         }
       },
     }),
-    [submitRefinement, setAwaitingRefinement],
+    [isGeneratingRef, pushHistoryRef, submitRefinement, setAwaitingRefinement],
   )
 
-  const onProviderStatusUpdateRef = useRef(onProviderStatusUpdate)
-  useEffect(() => {
-    onProviderStatusUpdateRef.current = onProviderStatusUpdate
-  }, [onProviderStatusUpdate])
+  const onProviderStatusUpdateRef = useLatestRef(onProviderStatusUpdate)
 
   const ensureProviderReady = useCallback(
     async (modelId: string): Promise<boolean> => {
@@ -539,7 +516,7 @@ export const useGenerationPipeline = ({
         return false
       }
     },
-    [pushHistoryRef],
+    [onProviderStatusUpdateRef, pushHistoryRef],
   )
 
   const runGeneration = useCallback(
@@ -684,10 +661,15 @@ export const useGenerationPipeline = ({
       smartContextEnabled,
       smartContextRoot,
       normalizedMetaInstructions,
+      interactiveTransportPathRef,
+      pushHistoryRef,
+      terminalColumnsRef,
+      tokenUsageStoreRef,
       handleStreamEvent,
       interactiveDelegate,
       submitRefinement,
       ensureProviderReady,
+      lastGeneratedPromptUpdateRef,
       onReasoningUpdate,
       setLatestTelemetry,
       setStatusMessage,
@@ -891,6 +873,7 @@ export const useGenerationPipeline = ({
       smartContextEnabled,
       smartContextRoot,
       normalizedMetaInstructions,
+      pushHistoryRef,
       notify,
       ensureProviderReady,
       setStatusMessage,
