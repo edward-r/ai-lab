@@ -1,6 +1,7 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
 import path from 'node:path'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
+
+import { useLatestRef } from '../../../hooks/useLatestRef'
 
 import { runPromptTestSuite, type PromptTestRunReporter } from '../../../../test-command'
 import type { HistoryEntry } from '../../../types'
@@ -107,10 +108,13 @@ export const usePromptTestRunner = ({
     ],
   )
 
-  const runTestsFromCommandRef = useRef<(value: string) => void>(() => {})
-  const runTestsFromCommandProxy = useCallback((value: string) => {
-    runTestsFromCommandRef.current(value)
-  }, [])
+  const runTestsFromCommandRef = useLatestRef(runTestsFromCommand)
+  const runTestsFromCommandProxy = useCallback(
+    (value: string) => {
+      void runTestsFromCommandRef.current(value)
+    },
+    [runTestsFromCommandRef],
+  )
 
   const onTestPopupSubmit = useCallback(
     (value: string) => {
@@ -120,12 +124,6 @@ export const usePromptTestRunner = ({
     },
     [addCommandHistoryEntry, runTestsFromCommand],
   )
-
-  useEffect(() => {
-    runTestsFromCommandRef.current = (value: string) => {
-      void runTestsFromCommand(value)
-    }
-  }, [runTestsFromCommand])
 
   return {
     isTestCommandRunning,
