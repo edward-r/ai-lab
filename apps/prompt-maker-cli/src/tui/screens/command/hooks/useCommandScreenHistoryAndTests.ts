@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-
 import type { MutableRefObject } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 
 import { usePersistentCommandHistory } from '../../../hooks/usePersistentCommandHistory'
+import { useStableCallback } from '../../../hooks/useStableCallback'
 import type { HistoryEntry } from '../../../types'
 
 import { usePromptTestRunner } from './usePromptTestRunner'
@@ -35,25 +34,35 @@ export type UseCommandScreenHistoryAndTestsResult = {
 }
 
 export const useCommandScreenHistoryAndTests = (): UseCommandScreenHistoryAndTestsResult => {
-  const pushHistoryRef = useRef<PushHistory>(() => {})
-  const pushHistoryProxy = useCallback<PushHistory>((content, kind = 'system') => {
-    pushHistoryRef.current(content, kind)
-  }, [])
+  const pushHistoryRef = useRef<PushHistory>((_content, _kind) => {
+    throw new Error('pushHistoryRef.current has not been initialized yet.')
+  })
+  const pushHistoryProxy: PushHistory = useStableCallback(
+    (content: string, kind: HistoryEntry['kind'] = 'system') => {
+      pushHistoryRef.current(content, kind)
+    },
+  )
 
-  const clearHistoryRef = useRef<() => void>(() => {})
-  const clearHistoryProxy = useCallback(() => {
+  const clearHistoryRef = useRef<() => void>(() => {
+    throw new Error('clearHistoryRef.current has not been initialized yet.')
+  })
+  const clearHistoryProxy = useStableCallback(() => {
     clearHistoryRef.current()
-  }, [])
+  })
 
-  const scrollToRef = useRef<(row: number) => void>(() => {})
-  const scrollToProxy = useCallback((row: number) => {
+  const scrollToRef = useRef<(row: number) => void>(() => {
+    throw new Error('scrollToRef.current has not been initialized yet.')
+  })
+  const scrollToProxy = useStableCallback((row: number) => {
     scrollToRef.current(row)
-  }, [])
+  })
 
-  const closeTestPopupRef = useRef<() => void>(() => {})
-  const closeTestPopupProxy = useCallback(() => {
+  const closeTestPopupRef = useRef<() => void>(() => {
+    throw new Error('closeTestPopupRef.current has not been initialized yet.')
+  })
+  const closeTestPopupProxy = useStableCallback(() => {
     closeTestPopupRef.current()
-  }, [])
+  })
 
   const { entries: commandHistoryEntries, addEntry: addCommandHistoryEntry } =
     usePersistentCommandHistory({

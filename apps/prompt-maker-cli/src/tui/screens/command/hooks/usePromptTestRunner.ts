@@ -1,7 +1,7 @@
 import path from 'node:path'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 
-import { useLatestRef } from '../../../hooks/useLatestRef'
+import { useStableCallback } from '../../../hooks/useStableCallback'
 
 import { runPromptTestSuite, type PromptTestRunReporter } from '../../../../test-command'
 import type { HistoryEntry } from '../../../types'
@@ -39,9 +39,9 @@ export const usePromptTestRunner = ({
   const [isTestCommandRunning, setIsTestCommandRunning] = useState(false)
   const [lastTestFile, setLastTestFile] = useState<string | null>(null)
 
-  const runTestsFromCommand = useCallback(
-    async (fileArg?: string) => {
-      const normalized = fileArg?.trim() ?? ''
+  const runTestsFromCommand = useStableCallback((value: string) => {
+    void (async () => {
+      const normalized = value.trim()
       const targetFile = normalized || lastTestFile || defaultTestFile
 
       if (!targetFile) {
@@ -97,38 +97,19 @@ export const usePromptTestRunner = ({
       } finally {
         setIsTestCommandRunning(false)
       }
-    },
-    [
-      clearHistory,
-      closeTestPopup,
-      defaultTestFile,
-      isTestCommandRunning,
-      lastTestFile,
-      pushHistory,
-    ],
-  )
+    })()
+  })
 
-  const runTestsFromCommandRef = useLatestRef(runTestsFromCommand)
-  const runTestsFromCommandProxy = useCallback(
-    (value: string) => {
-      void runTestsFromCommandRef.current(value)
-    },
-    [runTestsFromCommandRef],
-  )
-
-  const onTestPopupSubmit = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      addCommandHistoryEntry(`/test${trimmed ? ` ${trimmed}` : ''}`)
-      void runTestsFromCommand(value)
-    },
-    [addCommandHistoryEntry, runTestsFromCommand],
-  )
+  const onTestPopupSubmit = useStableCallback((value: string) => {
+    const trimmed = value.trim()
+    addCommandHistoryEntry(`/test${trimmed ? ` ${trimmed}` : ''}`)
+    runTestsFromCommand(value)
+  })
 
   return {
     isTestCommandRunning,
     lastTestFile,
-    runTestsFromCommand: runTestsFromCommandProxy,
+    runTestsFromCommand,
     onTestPopupSubmit,
   }
 }
