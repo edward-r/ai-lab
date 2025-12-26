@@ -29,6 +29,66 @@ describe('prompt-maker-core llm wrapper', () => {
     )
   })
 
+  it('routes GPT-5 reasoning models to OpenAI Responses API', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ output_text: 'responses text' }),
+    })
+
+    const result = await callLLM(
+      [
+        { role: 'system', content: 'rules' },
+        { role: 'user', content: 'Hi' },
+      ],
+      'gpt-5.2-pro',
+    )
+
+    expect(result).toBe('responses text')
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/responses'),
+      expect.objectContaining({ method: 'POST' }),
+    )
+
+    const [, options] = fetchMock.mock.calls[0]
+    const body = JSON.parse((options as { body: string }).body)
+    expect(body).toMatchObject({
+      model: 'gpt-5.2-pro',
+      input: [
+        { role: 'developer', content: 'rules' },
+        { role: 'user', content: 'Hi' },
+      ],
+    })
+    expect(body.temperature).toBeUndefined()
+  })
+
+  it('retries via Responses API when Chat endpoint rejects model', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () =>
+          'The model `gpt-5.2-pro-chat` does not support the /v1/chat/completions endpoint. Please use /v1/responses.',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ output_text: 'retried text' }),
+      })
+
+    const result = await callLLM([{ role: 'user', content: 'Hello' }], 'gpt-5.2-pro-chat')
+    expect(result).toBe('retried text')
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[0][0]).toEqual(expect.stringContaining('/chat/completions'))
+    expect(fetchMock.mock.calls[1][0]).toEqual(expect.stringContaining('/responses'))
+
+    const [, secondOptions] = fetchMock.mock.calls[1]
+    const secondBody = JSON.parse((secondOptions as { body: string }).body)
+    expect(secondBody).toMatchObject({
+      model: 'gpt-5.2-pro-chat',
+      input: [{ role: 'user', content: 'Hello' }],
+    })
+  })
+
   it('throws when OpenAI API key is missing', async () => {
     delete process.env.OPENAI_API_KEY
     await expect(callLLM([{ role: 'user', content: 'Hi' }], 'gpt-4o')).rejects.toThrow(
@@ -54,6 +114,10 @@ describe('prompt-maker-core llm wrapper', () => {
     })
     const result = await callLLM([{ role: 'user', content: 'Hello' }], 'gpt-4o')
     expect(result).toBe('firstsecond')
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/chat/completions'),
+      expect.objectContaining({ method: 'POST' }),
+    )
   })
 
   it('routes Gemini models to Gemini endpoint', async () => {
