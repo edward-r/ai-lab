@@ -1,4 +1,6 @@
-import { useInput } from 'ink'
+import { useInput, type Key } from 'ink'
+
+import { useStableCallback } from '../../../hooks/useStableCallback'
 
 export type UseHistoryScrollKeysOptions = {
   isCommandMenuActive: boolean
@@ -15,24 +17,23 @@ export const useHistoryScrollKeys = ({
   historyRows,
   scrollBy,
 }: UseHistoryScrollKeysOptions): void => {
-  useInput(
-    (_, key) => {
-      if (key.upArrow) {
-        scrollBy(-1)
-        return
-      }
-      if (key.downArrow) {
-        scrollBy(1)
-        return
-      }
-      if (key.pageUp) {
-        scrollBy(-historyRows)
-        return
-      }
-      if (key.pageDown) {
-        scrollBy(historyRows)
-      }
-    },
-    { isActive: !isCommandMenuActive && !isPopupOpen && !helpOpen },
-  )
+  const handleInput = useStableCallback((_input: string, key: Key) => {
+    if (key.upArrow) {
+      scrollBy(-1)
+      return
+    }
+    if (key.downArrow) {
+      scrollBy(1)
+      return
+    }
+    if (key.pageUp) {
+      scrollBy(-historyRows)
+      return
+    }
+    if (key.pageDown) {
+      scrollBy(historyRows)
+    }
+  })
+
+  useInput(handleInput, { isActive: !isCommandMenuActive && !isPopupOpen && !helpOpen })
 }

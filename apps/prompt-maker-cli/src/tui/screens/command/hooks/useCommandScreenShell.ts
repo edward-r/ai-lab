@@ -1,5 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-
 import fs from 'node:fs'
 
 import type { WriteStream } from 'node:tty'
