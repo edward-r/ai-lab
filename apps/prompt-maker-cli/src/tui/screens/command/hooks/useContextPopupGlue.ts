@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo } from 'react'
-import { useInput } from 'ink'
+import { useInput, type Key } from 'ink'
+
+import { useStableCallback } from '../../../hooks/useStableCallback'
 
 import { stripTerminalPasteArtifacts } from '../../../components/core/bracketed-paste'
 import { parseAbsolutePathFromInput } from '../../../drag-drop-path'
 import { filterDirectorySuggestions, filterFileSuggestions } from '../../../file-suggestions'
 import type { CommandDescriptor, PopupState } from '../../../types'
+
+const EMPTY_SUGGESTIONS: string[] = []
 
 export type UseContextPopupGlueOptions = {
   inputValue: string
@@ -173,33 +177,32 @@ export const useContextPopupGlue = ({
     [addVideo, pushHistory, videos],
   )
 
-  useInput(
-    (_input, key) => {
-      if (popupState || isCommandMenuActive || isCommandMode) {
-        return
-      }
-      if (!key.tab || key.shift) {
-        return
-      }
+  const handleSeriesShortcut = useStableCallback((_input: string, key: Key) => {
+    if (popupState || isCommandMenuActive || isCommandMode) {
+      return
+    }
+    if (!key.tab || key.shift) {
+      return
+    }
 
-      if (droppedFilePath) {
-        addFileToContext(droppedFilePath)
-        suppressNextInput()
-        setInputValue('')
-        return
-      }
+    if (droppedFilePath) {
+      addFileToContext(droppedFilePath)
+      suppressNextInput()
+      setInputValue('')
+      return
+    }
 
-      if (isGenerating) {
-        pushHistory('Generation already running. Please wait.', 'system')
-        return
-      }
+    if (isGenerating) {
+      pushHistory('Generation already running. Please wait.', 'system')
+      return
+    }
 
-      const trimmedArgs = inputValue.trim()
-      addCommandHistoryEntry(`/series${trimmedArgs ? ` ${trimmedArgs}` : ''}`)
-      handleCommandSelection('series', inputValue)
-    },
-    { isActive: !isPopupOpen && !helpOpen },
-  )
+    const trimmedArgs = inputValue.trim()
+    addCommandHistoryEntry(`/series${trimmedArgs ? ` ${trimmedArgs}` : ''}`)
+    handleCommandSelection('series', inputValue)
+  })
+
+  useInput(handleSeriesShortcut, { isActive: !isPopupOpen && !helpOpen })
 
   const onAddFile = useCallback(
     (value: string) => {
@@ -414,7 +417,8 @@ export const useContextPopupGlue = ({
   )
 
   const filePopupDraft = popupState?.type === 'file' ? popupState.draft : ''
-  const filePopupSuggestedItems = popupState?.type === 'file' ? popupState.suggestedItems : []
+  const filePopupSuggestedItems =
+    popupState?.type === 'file' ? popupState.suggestedItems : EMPTY_SUGGESTIONS
   const filePopupSuggestedFocused =
     popupState?.type === 'file' ? popupState.suggestedFocused : false
   const filePopupSuggestedSelectionIndex =
@@ -456,7 +460,8 @@ export const useContextPopupGlue = ({
   }, [filePopupSuggestedFocused, filePopupSuggestions.length, popupState?.type, setPopupState])
 
   const imagePopupDraft = popupState?.type === 'image' ? popupState.draft : ''
-  const imagePopupSuggestedItems = popupState?.type === 'image' ? popupState.suggestedItems : []
+  const imagePopupSuggestedItems =
+    popupState?.type === 'image' ? popupState.suggestedItems : EMPTY_SUGGESTIONS
   const imagePopupSuggestedFocused =
     popupState?.type === 'image' ? popupState.suggestedFocused : false
   const imagePopupSuggestedSelectionIndex =
@@ -499,7 +504,8 @@ export const useContextPopupGlue = ({
   }, [imagePopupSuggestedFocused, imagePopupSuggestions.length, popupState?.type, setPopupState])
 
   const videoPopupDraft = popupState?.type === 'video' ? popupState.draft : ''
-  const videoPopupSuggestedItems = popupState?.type === 'video' ? popupState.suggestedItems : []
+  const videoPopupSuggestedItems =
+    popupState?.type === 'video' ? popupState.suggestedItems : EMPTY_SUGGESTIONS
   const videoPopupSuggestedFocused =
     popupState?.type === 'video' ? popupState.suggestedFocused : false
   const videoPopupSuggestedSelectionIndex =
@@ -542,7 +548,8 @@ export const useContextPopupGlue = ({
   }, [popupState?.type, setPopupState, videoPopupSuggestedFocused, videoPopupSuggestions.length])
 
   const smartPopupDraft = popupState?.type === 'smart' ? popupState.draft : ''
-  const smartPopupSuggestedItems = popupState?.type === 'smart' ? popupState.suggestedItems : []
+  const smartPopupSuggestedItems =
+    popupState?.type === 'smart' ? popupState.suggestedItems : EMPTY_SUGGESTIONS
   const smartPopupSuggestedFocused =
     popupState?.type === 'smart' ? popupState.suggestedFocused : false
   const smartPopupSuggestedSelectionIndex =

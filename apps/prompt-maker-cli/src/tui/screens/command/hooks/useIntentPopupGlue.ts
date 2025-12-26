@@ -4,6 +4,8 @@ import { stripTerminalPasteArtifacts } from '../../../components/core/bracketed-
 import { filterIntentFileSuggestions } from '../../../file-suggestions'
 import type { PopupState } from '../../../types'
 
+const EMPTY_SUGGESTIONS: string[] = []
+
 type SetPopupState = (next: PopupState | ((prev: PopupState) => PopupState)) => void
 
 export type UseIntentPopupGlueOptions = {
@@ -23,7 +25,8 @@ export const useIntentPopupGlue = ({
   setPopupState,
 }: UseIntentPopupGlueOptions): UseIntentPopupGlueResult => {
   const intentPopupDraft = popupState?.type === 'intent' ? popupState.draft : ''
-  const intentPopupSuggestedItems = popupState?.type === 'intent' ? popupState.suggestedItems : []
+  const intentPopupSuggestedItems =
+    popupState?.type === 'intent' ? popupState.suggestedItems : EMPTY_SUGGESTIONS
   const intentPopupSuggestedFocused =
     popupState?.type === 'intent' ? popupState.suggestedFocused : false
   const intentPopupSuggestedSelectionIndex =

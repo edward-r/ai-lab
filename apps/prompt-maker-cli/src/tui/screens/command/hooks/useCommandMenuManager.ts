@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useInput } from 'ink'
+import { useInput, type Key } from 'ink'
+
+import { useStableCallback } from '../../../hooks/useStableCallback'
 
 import { resolveCommandMenuKeyAction } from '../../../components/core/command-menu-keymap'
 import { filterCommandDescriptors, resolveCommandMenuSearchState } from '../../../command-filter'
@@ -131,30 +133,29 @@ export const useCommandMenuManager = ({
     scrollTo(Number.MAX_SAFE_INTEGER)
   }, [commandMenuSignal, scrollTo, setCommandSelectionIndex, setInputValue, setPopupState])
 
-  useInput(
-    (_input, key) => {
-      if (!isCommandMenuActive) {
-        return
-      }
+  const handleCommandMenuKey = useStableCallback((_input: string, key: Key) => {
+    if (!isCommandMenuActive) {
+      return
+    }
 
-      const action = resolveCommandMenuKeyAction({
-        key,
-        selectedIndex: commandSelectionIndex,
-        itemCount: visibleCommands.length,
-      })
+    const action = resolveCommandMenuKeyAction({
+      key,
+      selectedIndex: commandSelectionIndex,
+      itemCount: visibleCommands.length,
+    })
 
-      if (action.type === 'close') {
-        setInputValue('')
-        setCommandSelectionIndex(0)
-        return
-      }
+    if (action.type === 'close') {
+      setInputValue('')
+      setCommandSelectionIndex(0)
+      return
+    }
 
-      if (action.type === 'change-selection') {
-        setCommandSelectionIndex(action.nextIndex)
-      }
-    },
-    { isActive: isCommandMenuActive && !helpOpen },
-  )
+    if (action.type === 'change-selection') {
+      setCommandSelectionIndex(action.nextIndex)
+    }
+  })
+
+  useInput(handleCommandMenuKey, { isActive: isCommandMenuActive && !helpOpen })
 
   const selectedCommand =
     isCommandMenuActive && visibleCommands.length > 0

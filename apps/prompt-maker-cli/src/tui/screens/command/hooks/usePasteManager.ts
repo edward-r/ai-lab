@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useInput } from 'ink'
+import { useInput, type Key } from 'ink'
+
+import { useStableCallback } from '../../../hooks/useStableCallback'
 
 import { stripBracketedPasteControlSequences } from '../../../components/core/bracketed-paste'
 import {
@@ -132,31 +134,30 @@ export const usePasteManager = ({
     [allocatePasteToken, setInputValue, suppressNextInput, updateLastTypedIntent],
   )
 
-  useInput(
-    (input) => {
-      if (popupState || helpOpen) {
-        return
-      }
+  const handlePasteInput = useStableCallback((input: string, _key: Key) => {
+    if (popupState || helpOpen) {
+      return
+    }
 
-      const result = consumeBracketedPasteChunk(bracketedPasteStateRef.current, input)
-      bracketedPasteStateRef.current = result.state
+    const result = consumeBracketedPasteChunk(bracketedPasteStateRef.current, input)
+    bracketedPasteStateRef.current = result.state
 
-      const nextPasteActive = result.state.isActive
-      const prevPasteActive = suppressTextInputDuringPasteRef.current
-      suppressTextInputDuringPasteRef.current = nextPasteActive
-      if (prevPasteActive !== nextPasteActive) {
-        setPasteActive(nextPasteActive)
-      }
+    const nextPasteActive = result.state.isActive
+    const prevPasteActive = suppressTextInputDuringPasteRef.current
+    suppressTextInputDuringPasteRef.current = nextPasteActive
+    if (prevPasteActive !== nextPasteActive) {
+      setPasteActive(nextPasteActive)
+    }
 
-      if (result.completed.length === 0) {
-        return
-      }
+    if (result.completed.length === 0) {
+      return
+    }
 
-      const latestPaste = result.completed[result.completed.length - 1] ?? ''
-      appendInlinePaste(latestPaste)
-    },
-    { isActive: !helpOpen },
-  )
+    const latestPaste = result.completed[result.completed.length - 1] ?? ''
+    appendInlinePaste(latestPaste)
+  })
+
+  useInput(handlePasteInput, { isActive: !helpOpen })
 
   const handleInputChange = useCallback(
     (next: string) => {
