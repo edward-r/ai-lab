@@ -6,15 +6,18 @@ import {
   INITIAL_POPUP_MANAGER_STATE,
   popupReducer,
   type PopupAction,
+  type PopupScanKind,
   type SetStateAction,
 } from '../popup-reducer'
 
 import { TOGGLE_LABELS } from '../config'
 import {
-  discoverDirectorySuggestions,
-  discoverFileSuggestions,
-  discoverIntentFileSuggestions,
-} from '../file-suggestions'
+  scanFileSuggestions,
+  scanImageSuggestions,
+  scanIntentSuggestions,
+  scanSmartSuggestions,
+  scanVideoSuggestions,
+} from './popup-scans'
 import type { NotifyOptions } from '../notifier'
 import type { ThemeMode } from '../theme/theme-types'
 import { buildModelPopupOptions } from '../model-popup-options'
@@ -99,10 +102,6 @@ export type UsePopupManagerOptions = {
 }
 
 const JSON_INTERACTIVE_ERROR = 'JSON output is unavailable while interactive transport is enabled.'
-
-const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
-
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mpeg', '.mpg', '.gif'])
 
 /*
  * Popup state management for the Ink TUI.
@@ -208,83 +207,64 @@ export const usePopupManager = ({
     [polishEnabled, copyEnabled, chatGptEnabled, jsonOutputEnabled],
   )
 
-  const openFilePopup = useCallback(() => {
-    const scanId = nextScanId()
-    dispatch({ type: 'open-file', scanId })
+  type RunSuggestionScanOptions = {
+    kind: PopupScanKind
+    open: (scanId: number) => PopupAction
+    scan: () => Promise<string[]>
+  }
 
-    const scan = async (): Promise<void> => {
-      try {
-        const suggestions = await discoverFileSuggestions({ cwd: process.cwd(), limit: 200 })
-        dispatch({
-          type: 'scan-suggestions-success',
-          kind: 'file',
-          scanId,
-          suggestions,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
-        pushHistory(`[file] Failed to scan workspace: ${message}`, 'system')
+  const runSuggestionScan = useCallback(
+    ({ kind, open, scan }: RunSuggestionScanOptions): void => {
+      const scanId = nextScanId()
+      dispatch(open(scanId))
+
+      const run = async (): Promise<void> => {
+        try {
+          const suggestions = await scan()
+          dispatch({
+            type: 'scan-suggestions-success',
+            kind,
+            scanId,
+            suggestions,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
+          pushHistory(`[${kind}] Failed to scan workspace: ${message}`, 'system')
+        }
       }
-    }
 
-    void scan()
-  }, [nextScanId, pushHistory])
+      void run()
+    },
+    [dispatch, nextScanId, pushHistory],
+  )
+
+  const openFilePopup = useCallback(() => {
+    runSuggestionScan({
+      kind: 'file',
+      open: (scanId) => ({ type: 'open-file', scanId }),
+      scan: () => scanFileSuggestions({ cwd: process.cwd(), limit: 200 }),
+    })
+  }, [runSuggestionScan])
 
   const openUrlPopup = useCallback(() => {
     dispatch({ type: 'open-url' })
   }, [])
 
   const openImagePopup = useCallback(() => {
-    const scanId = nextScanId()
-    dispatch({ type: 'open-image', scanId })
-
-    const scan = async (): Promise<void> => {
-      try {
-        const suggestions = await discoverFileSuggestions({ cwd: process.cwd(), limit: 200 })
-        const filtered = suggestions.filter((candidate) => {
-          const ext = path.extname(candidate).toLowerCase()
-          return IMAGE_EXTENSIONS.has(ext)
-        })
-        dispatch({
-          type: 'scan-suggestions-success',
-          kind: 'image',
-          scanId,
-          suggestions: filtered,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
-        pushHistory(`[image] Failed to scan workspace: ${message}`, 'system')
-      }
-    }
-
-    void scan()
-  }, [nextScanId, pushHistory])
+    runSuggestionScan({
+      kind: 'image',
+      open: (scanId) => ({ type: 'open-image', scanId }),
+      scan: () => scanImageSuggestions({ cwd: process.cwd(), limit: 200 }),
+    })
+  }, [runSuggestionScan])
 
   const openVideoPopup = useCallback(() => {
-    const scanId = nextScanId()
-    dispatch({ type: 'open-video', scanId })
-
-    const scan = async (): Promise<void> => {
-      try {
-        const suggestions = await discoverFileSuggestions({ cwd: process.cwd(), limit: 200 })
-        const filtered = suggestions.filter((candidate) => {
-          const ext = path.extname(candidate).toLowerCase()
-          return VIDEO_EXTENSIONS.has(ext)
-        })
-        dispatch({
-          type: 'scan-suggestions-success',
-          kind: 'video',
-          scanId,
-          suggestions: filtered,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
-        pushHistory(`[video] Failed to scan workspace: ${message}`, 'system')
-      }
-    }
-
-    void scan()
-  }, [nextScanId, pushHistory])
+    runSuggestionScan({
+      kind: 'video',
+      open: (scanId) => ({ type: 'open-video', scanId }),
+      scan: () => scanVideoSuggestions({ cwd: process.cwd(), limit: 200 }),
+    })
+  }, [runSuggestionScan])
 
   const openHistoryPopup = useCallback(() => {
     dispatch({ type: 'open-history' })
@@ -292,27 +272,13 @@ export const usePopupManager = ({
 
   const openSmartPopup = useCallback(() => {
     const draft = smartContextRoot ?? ''
-    const scanId = nextScanId()
 
-    dispatch({ type: 'open-smart', scanId, draft })
-
-    const scan = async (): Promise<void> => {
-      try {
-        const suggestions = await discoverDirectorySuggestions({ cwd: process.cwd(), limit: 200 })
-        dispatch({
-          type: 'scan-suggestions-success',
-          kind: 'smart',
-          scanId,
-          suggestions,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
-        pushHistory(`[smart] Failed to scan workspace: ${message}`, 'system')
-      }
-    }
-
-    void scan()
-  }, [nextScanId, pushHistory, smartContextRoot])
+    runSuggestionScan({
+      kind: 'smart',
+      open: (scanId) => ({ type: 'open-smart', scanId, draft }),
+      scan: () => scanSmartSuggestions({ cwd: process.cwd(), limit: 200 }),
+    })
+  }, [runSuggestionScan, smartContextRoot])
 
   const openTokensPopup = useCallback(() => {
     dispatch({ type: 'open-tokens' })
@@ -346,26 +312,12 @@ export const usePopupManager = ({
   }, [defaultTestFile, lastTestFile])
 
   const openIntentPopup = useCallback(() => {
-    const scanId = nextScanId()
-    dispatch({ type: 'open-intent', scanId, draft: intentFilePath })
-
-    const scan = async (): Promise<void> => {
-      try {
-        const suggestions = await discoverIntentFileSuggestions({ cwd: process.cwd(), limit: 200 })
-        dispatch({
-          type: 'scan-suggestions-success',
-          kind: 'intent',
-          scanId,
-          suggestions,
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown workspace scan error.'
-        pushHistory(`[intent] Failed to scan workspace: ${message}`, 'system')
-      }
-    }
-
-    void scan()
-  }, [intentFilePath, nextScanId, pushHistory])
+    runSuggestionScan({
+      kind: 'intent',
+      open: (scanId) => ({ type: 'open-intent', scanId, draft: intentFilePath }),
+      scan: () => scanIntentSuggestions({ cwd: process.cwd(), limit: 200 }),
+    })
+  }, [intentFilePath, runSuggestionScan])
 
   const openInstructionsPopup = useCallback(() => {
     dispatch({ type: 'open-instructions', draft: metaInstructions })
