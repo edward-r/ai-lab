@@ -1,17 +1,17 @@
+import type { WriteStream } from 'node:tty'
+
+import type { MutableRefObject } from 'react'
+
 import type { NotifyOptions } from '../../../notifier'
 import type { HistoryEntry, ModelOption, ProviderStatusMap } from '../../../types'
 
 export type PushHistory = (content: string, kind?: HistoryEntry['kind']) => void
 
-export type UseCommandScreenPopupAndViewOptions = {
+export type CommandContextOptions = {
   interactiveTransportPath?: string | undefined
-  onPopupVisibilityChange?: ((isOpen: boolean) => void) | undefined
-  commandMenuSignal?: number | undefined
-  helpOpen: boolean
-  reservedRows: number
-  notify: (message: string, options?: NotifyOptions) => void
 
-  stdout: import('node:tty').WriteStream | undefined
+  notify: (message: string, options?: NotifyOptions) => void
+  stdout: WriteStream | undefined
 
   // context state
   files: string[]
@@ -37,24 +37,9 @@ export type UseCommandScreenPopupAndViewOptions = {
   setSmartRoot: (value: string) => void
   setMetaInstructions: (value: string) => void
   resetContext: () => void
+}
 
-  // model/generation
-  currentModel: ModelOption['id']
-  modelOptions: ModelOption[]
-  providerStatuses: ProviderStatusMap
-  selectModel: (nextId: ModelOption['id']) => void
-  isGenerating: boolean
-  runGeneration: (payload: { intent?: string; intentFile?: string }) => Promise<void>
-  runSeriesGeneration: (intent: string) => void
-  statusChips: string[]
-  isAwaitingRefinement: boolean
-  submitRefinement: (value: string) => void
-  awaitingInteractiveMode:
-    | import('../../../generation-pipeline-reducer').InteractiveAwaitingMode
-    | null
-  tokenUsageRun: import('../../../token-usage-store').TokenUsageRun | null
-  tokenUsageBreakdown: import('../../../token-usage-store').TokenUsageBreakdown | null
-
+export type CommandInputOptions = {
   // screen state
   terminalRows: number
   terminalColumns: number
@@ -82,21 +67,34 @@ export type UseCommandScreenPopupAndViewOptions = {
   setJsonOutputEnabled: (value: boolean) => void
 
   // refs
-  lastUserIntentRef: import('react').MutableRefObject<string | null>
-  lastTypedIntentRef: import('react').MutableRefObject<string>
+  lastUserIntentRef: MutableRefObject<string | null>
+  lastTypedIntentRef: MutableRefObject<string>
 
   // suppression
   consumeSuppressedTextInputChange: () => boolean
   suppressNextInput: () => void
   updateLastTypedIntent: (next: string) => void
 
+  onDebugKeyEvent: (
+    event: import('../../../components/core/MultilineTextInput').DebugKeyEvent,
+  ) => void
+}
+
+export type CommandPopupOptions = {
+  onPopupVisibilityChange?: ((isOpen: boolean) => void) | undefined
+  commandMenuSignal?: number | undefined
+  helpOpen: boolean
+  reservedRows: number
+}
+
+export type CommandHistoryOptions = {
   // history/test plumbing
-  pushHistoryRef: import('react').MutableRefObject<PushHistory>
+  pushHistoryRef: MutableRefObject<PushHistory>
   pushHistoryProxy: PushHistory
-  clearHistoryRef: import('react').MutableRefObject<() => void>
-  scrollToRef: import('react').MutableRefObject<(row: number) => void>
+  clearHistoryRef: MutableRefObject<() => void>
+  scrollToRef: MutableRefObject<(row: number) => void>
   scrollToProxy: (row: number) => void
-  closeTestPopupRef: import('react').MutableRefObject<() => void>
+  closeTestPopupRef: MutableRefObject<() => void>
 
   commandHistoryValues: string[]
   addCommandHistoryEntry: (value: string) => void
@@ -105,10 +103,33 @@ export type UseCommandScreenPopupAndViewOptions = {
   lastTestFile: string | null
   runTestsFromCommandProxy: (value: string) => void
   onTestPopupSubmit: (value: string) => void
+}
 
-  onDebugKeyEvent: (
-    event: import('../../../components/core/MultilineTextInput').DebugKeyEvent,
-  ) => void
+export type CommandGenerationOptions = {
+  // model/generation
+  currentModel: ModelOption['id']
+  modelOptions: ModelOption[]
+  providerStatuses: ProviderStatusMap
+  selectModel: (nextId: ModelOption['id']) => void
+  isGenerating: boolean
+  runGeneration: (payload: { intent?: string; intentFile?: string }) => Promise<void>
+  runSeriesGeneration: (intent: string) => void
+  statusChips: string[]
+  isAwaitingRefinement: boolean
+  submitRefinement: (value: string) => void
+  awaitingInteractiveMode:
+    | import('../../../generation-pipeline-reducer').InteractiveAwaitingMode
+    | null
+  tokenUsageRun: import('../../../token-usage-store').TokenUsageRun | null
+  tokenUsageBreakdown: import('../../../token-usage-store').TokenUsageBreakdown | null
+}
+
+export type UseCommandScreenPopupAndViewOptions = {
+  context: CommandContextOptions
+  input: CommandInputOptions
+  popup: CommandPopupOptions
+  history: CommandHistoryOptions
+  generation: CommandGenerationOptions
 }
 
 export type UseCommandScreenPopupAndViewResult = {
