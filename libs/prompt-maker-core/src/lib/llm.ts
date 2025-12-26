@@ -50,13 +50,49 @@ type GeminiEmbeddingResponse = {
   embedding?: { value?: number[] }
 }
 
+/**
+ * OpenAI Responses API types (partial, just what we need).
+ * Docs: https://platform.openai.com/docs/api-reference/responses
+ */
+type OpenAIResponsesInputText = { type: 'input_text'; text: string }
+type OpenAIResponsesInputImage = { type: 'input_image'; image_url: string }
+type OpenAIResponsesInputContent =
+  | string
+  | Array<OpenAIResponsesInputText | OpenAIResponsesInputImage>
+
+type OpenAIResponsesInputMessage = {
+  role: 'developer' | 'user' | 'assistant'
+  content: OpenAIResponsesInputContent
+}
+
+type OpenAIResponsesOutputText = { type: 'output_text'; text?: string }
+
+type OpenAIResponsesOutputMessage = {
+  type: 'message'
+  role?: 'assistant' | 'user' | 'developer'
+  content?: OpenAIResponsesOutputText[]
+}
+
+type OpenAIResponsesOutputOther = { type?: string; role?: unknown } & Record<string, unknown>
+type OpenAIResponsesOutputItem = OpenAIResponsesOutputMessage | OpenAIResponsesOutputOther
+
+type OpenAIResponsesResponse = {
+  output_text?: string
+  output?: OpenAIResponsesOutputItem[]
+}
+
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? process.env.GEMINI_MODEL ?? 'gpt-5.1-codex'
 const DEFAULT_OPENAI_EMBEDDING_MODEL = 'text-embedding-3-small'
 const DEFAULT_GEMINI_EMBEDDING_MODEL = 'text-embedding-004'
+
 const rawOpenAiBase = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
 const OPENAI_BASE_URL = rawOpenAiBase.replace(/\/$/, '')
+
+// Keep backwards-compatible behavior if OPENAI_BASE_URL was set to a nested path.
 const OPENAI_CHAT_ENDPOINT = `${OPENAI_BASE_URL.replace(/\/chat\/completions$/, '')}/chat/completions`
+const OPENAI_RESPONSES_ENDPOINT = `${OPENAI_BASE_URL.replace(/\/chat\/completions$/, '')}/responses`
 const OPENAI_EMBEDDING_ENDPOINT = `${OPENAI_BASE_URL.replace(/\/chat\/completions$/, '')}/embeddings`
+
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com'
 
 export const callLLM = async (
@@ -103,6 +139,47 @@ const resolveProvider = (model: string): 'openai' | 'gemini' => {
   return 'openai'
 }
 
+/**
+ * Routing rule:
+ * - Chat Completions endpoint is for chat-tuned models.
+ * - GPT-5.x reasoning models (e.g., gpt-5.2-pro) should go to Responses API.
+ */
+const shouldUseChatCompletions = (model: string): boolean => {
+  const m = model.trim().toLowerCase()
+
+  // GPT-5.x reasoning models (and other "o" series reasoning models) are not supported on chat.
+  if (m.startsWith('gpt-5') && !m.includes('chat') && !m.includes('codex')) {
+    return false
+  }
+
+  if (m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) {
+    return false
+  }
+
+  return true
+}
+
+const toErrorMessage = (error: unknown): string => {
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object' && 'message' in error) {
+    const maybeMessage = (error as { message?: unknown }).message
+    if (typeof maybeMessage === 'string') return maybeMessage
+  }
+  return ''
+}
+
+const isOpenAIEndpointMismatchError = (error: unknown): boolean => {
+  const text = toErrorMessage(error).toLowerCase()
+  if (!text) return false
+
+  const mentionsChat = text.includes('/chat/completions') || text.includes('chat/completions')
+  const mentionsResponses =
+    text.includes('/responses') || text.includes('v1/responses') || text.includes('responses api')
+
+  // Typical error: "does not support the /v1/chat/completions endpoint. Please use /v1/responses"
+  return mentionsChat && mentionsResponses
+}
+
 const callOpenAI = async (messages: Message[], model: string): Promise<string> => {
   const apiKey = process.env.OPENAI_API_KEY
 
@@ -110,6 +187,28 @@ const callOpenAI = async (messages: Message[], model: string): Promise<string> =
     throw new Error('OPENAI_API_KEY env var is not set.')
   }
 
+  const preferChat = shouldUseChatCompletions(model)
+
+  try {
+    return preferChat
+      ? await callOpenAIChatCompletions(messages, model, apiKey)
+      : await callOpenAIResponses(messages, model, apiKey)
+  } catch (error: unknown) {
+    if (!isOpenAIEndpointMismatchError(error)) {
+      throw error
+    }
+
+    return preferChat
+      ? await callOpenAIResponses(messages, model, apiKey)
+      : await callOpenAIChatCompletions(messages, model, apiKey)
+  }
+}
+
+const callOpenAIChatCompletions = async (
+  messages: Message[],
+  model: string,
+  apiKey: string,
+): Promise<string> => {
   const payloadMessages = messages.map(toOpenAIMessage)
 
   const response = await fetch(OPENAI_CHAT_ENDPOINT, {
@@ -147,6 +246,62 @@ const callOpenAI = async (messages: Message[], model: string): Promise<string> =
   }
 
   return content
+}
+
+const callOpenAIResponses = async (
+  messages: Message[],
+  model: string,
+  apiKey: string,
+): Promise<string> => {
+  const input = messages.map(toOpenAIResponsesInputMessage)
+
+  // Note: reasoning models can have parameter compatibility constraints.
+  // Keep this payload minimal to avoid invalid requests.
+  const response = await fetch(OPENAI_RESPONSES_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      input,
+    }),
+  })
+
+  if (!response.ok) {
+    const details = await response.text()
+    throw new Error(`OpenAI request failed with status ${response.status}: ${details}`)
+  }
+
+  const data = (await response.json()) as OpenAIResponsesResponse
+  const content = extractOpenAIResponsesText(data)
+
+  if (!content) {
+    throw new Error('OpenAI response did not include assistant content.')
+  }
+
+  return content
+}
+
+const extractOpenAIResponsesText = (response: OpenAIResponsesResponse): string | null => {
+  const direct = response.output_text?.trim()
+  if (direct && direct.length > 0) return direct
+
+  const output = response.output ?? []
+  const assistantMessages = output.filter(
+    (item): item is OpenAIResponsesOutputMessage =>
+      item.type === 'message' && item.role === 'assistant',
+  )
+
+  const text = assistantMessages
+    .flatMap((msg) => msg.content ?? [])
+    .filter((part): part is OpenAIResponsesOutputText => part.type === 'output_text')
+    .map((part) => (part.text ?? '').toString())
+    .join('')
+    .trim()
+
+  return text.length > 0 ? text : null
 }
 
 const callGemini = async (messages: Message[], model: string): Promise<string> => {
@@ -341,6 +496,45 @@ const toOpenAIContent = (content: MessageContent): OpenAIChatMessageContent => {
     }
 
     return { type: 'text', text: '' }
+  })
+}
+
+const toOpenAIResponsesInputMessage = (message: Message): OpenAIResponsesInputMessage => ({
+  role: message.role === 'system' ? 'developer' : message.role,
+  content: toOpenAIResponsesContent(message.content),
+})
+
+const toOpenAIResponsesContent = (content: MessageContent): OpenAIResponsesInputContent => {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  const hasVideo = content.some((part) => 'fileUri' in part)
+  if (hasVideo) {
+    throw new Error(
+      'Video inputs are only supported when using Gemini models. Remove --video or switch to a Gemini model.',
+    )
+  }
+
+  const isAllText = content.every((part) => 'text' in part)
+  if (isAllText) {
+    return content.map((part) => ('text' in part ? part.text : '')).join('')
+  }
+
+  return content.map((part) => {
+    if ('text' in part) {
+      return { type: 'input_text', text: part.text }
+    }
+
+    if ('data' in part) {
+      const imagePart = part as ImagePart
+      return {
+        type: 'input_image',
+        image_url: `data:${imagePart.mimeType};base64,${imagePart.data}`,
+      }
+    }
+
+    return { type: 'input_text', text: '' }
   })
 }
 
