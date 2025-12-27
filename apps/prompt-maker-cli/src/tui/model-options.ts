@@ -1,6 +1,7 @@
-import { loadCliConfig } from '../config'
+import { loadCliConfig, resolveGeminiCredentials, resolveOpenAiCredentials } from '../config'
 import type { ModelDefinition } from '../model-providers'
 import { inferProviderFromModelId } from '../model-providers'
+import { getAvailableModels } from '../utils/model-manager'
 import type { ModelOption } from './types'
 
 const DEFAULT_MODEL_FALLBACK = 'gpt-4o-mini'
@@ -129,7 +130,48 @@ export const loadModelOptions = async (): Promise<LoadModelOptionsResult> => {
     const normalizedExtras = extraDefinitions.map((definition) =>
       normalizeModelDefinition(definition, 'config'),
     )
-    const merged = mergeModelOptions(BUILT_IN_MODEL_OPTIONS, normalizedExtras)
+
+    const reservedIds = new Set(
+      [...BUILT_IN_MODEL_OPTIONS, ...normalizedExtras].map((option) => option.id),
+    )
+
+    let discoveredOptions: ModelOption[] = []
+    try {
+      const [openAiCredentials, geminiCredentials] = await Promise.all([
+        resolveOpenAiCredentials().catch(() => null),
+        resolveGeminiCredentials().catch(() => null),
+      ])
+
+      const discovered = await getAvailableModels(
+        openAiCredentials?.apiKey,
+        geminiCredentials?.apiKey,
+        {
+          ...(openAiCredentials?.baseUrl ? { openAiBaseUrl: openAiCredentials.baseUrl } : {}),
+          ...(geminiCredentials?.baseUrl ? { geminiBaseUrl: geminiCredentials.baseUrl } : {}),
+          ...(process.env.OPENAI_ORG_ID?.trim()
+            ? { openAiOrganizationId: process.env.OPENAI_ORG_ID.trim() }
+            : {}),
+          ...(process.env.OPENAI_PROJECT_ID?.trim()
+            ? { openAiProjectId: process.env.OPENAI_PROJECT_ID.trim() }
+            : {}),
+        },
+      )
+
+      const discoveredIds = [...discovered.openai, ...discovered.gemini].filter(
+        (modelId) => !reservedIds.has(modelId),
+      )
+
+      discoveredOptions = discoveredIds.map((modelId) =>
+        normalizeModelDefinition({ id: modelId }, 'discovered'),
+      )
+    } catch {
+      // Best-effort; dynamic discovery should never block model selection.
+    }
+
+    const merged = mergeModelOptions(BUILT_IN_MODEL_OPTIONS, [
+      ...normalizedExtras,
+      ...discoveredOptions,
+    ])
     cachedModelOptions = merged
     cachedWarning = null
     return { options: merged.map(cloneOption) }
