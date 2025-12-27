@@ -55,7 +55,10 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
       { name: 'pm-dark', label: 'Prompt Maker Dark' },
       { name: 'pm-light', label: 'Prompt Maker Light' },
     ],
+    smartContextEnabled: false,
     smartContextRoot: null,
+    toggleSmartContext: jest.fn(),
+    setSmartRoot: jest.fn(),
     images: [],
     videos: [],
     addImage: jest.fn(),
@@ -357,12 +360,12 @@ describe('usePopupManager video popup', () => {
   })
 })
 
-describe('usePopupManager smart popup', () => {
+describe('usePopupManager smart-root popup', () => {
   beforeEach(() => {
     fileSuggestions.discoverDirectorySuggestions.mockReset()
   })
 
-  it('initializes smart popup with suggestion defaults', () => {
+  it('initializes smart-root popup with suggestion defaults', () => {
     const deferred = createDeferred<string[]>()
     fileSuggestions.discoverDirectorySuggestions.mockReturnValue(deferred.promise)
 
@@ -370,7 +373,7 @@ describe('usePopupManager smart popup', () => {
     const { result } = renderHook(() => usePopupManager(options))
 
     act(() => {
-      result.current.actions.openSmartPopup()
+      result.current.actions.openSmartRootPopup()
     })
 
     expect(result.current.popupState).toEqual({
@@ -382,7 +385,70 @@ describe('usePopupManager smart popup', () => {
     })
   })
 
-  it('populates smart popup suggestions after scanning', async () => {
+  it('opens smart-root popup from command selection', () => {
+    const deferred = createDeferred<string[]>()
+    fileSuggestions.discoverDirectorySuggestions.mockReturnValue(deferred.promise)
+
+    const options = createOptions({ smartContextRoot: 'src' })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('smart-root')
+    })
+
+    expect(result.current.popupState).toEqual({
+      type: 'smart',
+      draft: 'src',
+      suggestedItems: [],
+      suggestedSelectionIndex: 0,
+      suggestedFocused: false,
+    })
+  })
+
+  it('auto-enables smart context when setting a root via args', () => {
+    const toggleSmartContext = jest.fn()
+    const setSmartRoot = jest.fn()
+
+    const options = createOptions({
+      smartContextEnabled: false,
+      toggleSmartContext,
+      setSmartRoot,
+    })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('smart-root', 'src')
+    })
+
+    expect(setSmartRoot).toHaveBeenCalledWith('src')
+    expect(toggleSmartContext).toHaveBeenCalledTimes(1)
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
+  })
+
+  it('clears the root when running /smart off', () => {
+    const toggleSmartContext = jest.fn()
+    const setSmartRoot = jest.fn()
+
+    const options = createOptions({
+      smartContextEnabled: true,
+      smartContextRoot: 'src',
+      toggleSmartContext,
+      setSmartRoot,
+    })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('smart', 'off')
+    })
+
+    expect(setSmartRoot).toHaveBeenCalledWith('')
+    expect(toggleSmartContext).toHaveBeenCalledTimes(1)
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(result.current.popupState).toBeNull()
+  })
+
+  it('populates smart-root popup suggestions after scanning', async () => {
     const deferred = createDeferred<string[]>()
     fileSuggestions.discoverDirectorySuggestions.mockReturnValue(deferred.promise)
 
@@ -390,7 +456,7 @@ describe('usePopupManager smart popup', () => {
     const { result } = renderHook(() => usePopupManager(options))
 
     act(() => {
-      result.current.actions.openSmartPopup()
+      result.current.actions.openSmartRootPopup()
     })
 
     await act(async () => {
@@ -407,7 +473,7 @@ describe('usePopupManager smart popup', () => {
     })
   })
 
-  it('logs a history entry when scanning fails', async () => {
+  it('logs a history entry when scanning fails for smart-root', async () => {
     const deferred = createDeferred<string[]>()
     fileSuggestions.discoverDirectorySuggestions.mockReturnValue(deferred.promise)
 
@@ -415,7 +481,7 @@ describe('usePopupManager smart popup', () => {
     const { result } = renderHook(() => usePopupManager(options))
 
     act(() => {
-      result.current.actions.openSmartPopup()
+      result.current.actions.openSmartRootPopup()
     })
 
     await act(async () => {

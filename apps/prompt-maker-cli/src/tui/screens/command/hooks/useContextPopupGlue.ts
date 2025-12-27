@@ -391,17 +391,67 @@ export const useContextPopupGlue = ({
       if (smartContextEnabled === nextEnabled) {
         return
       }
+
+      const shouldClearRoot = !nextEnabled && Boolean(smartContextRoot)
+
+      if (shouldClearRoot) {
+        setSmartRoot('')
+        setPopupState((prev) =>
+          prev?.type === 'smart' && prev.draft === smartContextRoot
+            ? {
+                ...prev,
+                draft: '',
+                suggestedFocused: false,
+                suggestedSelectionIndex: 0,
+              }
+            : prev,
+        )
+      }
+
       toggleSmartContext()
-      notify(`Smart context ${nextEnabled ? 'enabled' : 'disabled'}`)
+
+      notify(
+        nextEnabled
+          ? 'Smart context enabled'
+          : shouldClearRoot
+            ? 'Smart context disabled; root cleared'
+            : 'Smart context disabled',
+      )
     },
-    [notify, smartContextEnabled, toggleSmartContext],
+    [
+      notify,
+      setPopupState,
+      setSmartRoot,
+      smartContextEnabled,
+      smartContextRoot,
+      toggleSmartContext,
+    ],
   )
 
   const onSmartRootSubmit = useCallback(
     (value: string) => {
       const trimmed = value.trim()
+      const shouldEnable = Boolean(trimmed) && !smartContextEnabled
+
       setSmartRoot(trimmed)
-      notify(trimmed ? `Smart context root set to ${trimmed}` : 'Smart context root cleared')
+
+      if (shouldEnable) {
+        toggleSmartContext()
+      }
+
+      notify(
+        trimmed
+          ? shouldEnable
+            ? `Smart context enabled; root set to ${trimmed}`
+            : `Smart context root set to ${trimmed}`
+          : 'Smart context root cleared',
+      )
+
+      if (trimmed) {
+        setPopupState((prev) => (prev?.type === 'smart' ? null : prev))
+        return
+      }
+
       setPopupState((prev) =>
         prev?.type === 'smart'
           ? {
@@ -413,7 +463,7 @@ export const useContextPopupGlue = ({
           : prev,
       )
     },
-    [notify, setPopupState, setSmartRoot],
+    [notify, setPopupState, setSmartRoot, smartContextEnabled, toggleSmartContext],
   )
 
   const filePopupDraft = popupState?.type === 'file' ? popupState.draft : ''

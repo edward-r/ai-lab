@@ -11,7 +11,6 @@ import {
 import { resolveWindowedList } from './list-window'
 
 export type SmartPopupProps = {
-  enabled: boolean
   savedRoot: string | null
   draft: string
   suggestedItems: readonly string[]
@@ -54,7 +53,6 @@ const resolveSuggestionWindow = (
 }
 
 export const SmartPopup = ({
-  enabled,
   savedRoot,
   draft,
   suggestedItems,
@@ -110,10 +108,8 @@ export const SmartPopup = ({
       {...(typeof maxHeight === 'number' ? { height: maxHeight } : {})}
       overflow="hidden"
     >
-      <Text {...inkColorProps(theme.accent)}>Smart Context</Text>
-      <Text {...inkColorProps(theme.text)}>
-        Status: {enabled ? 'enabled' : 'disabled'} · Ctrl+T toggle · Tab suggestions · Esc close
-      </Text>
+      <Text {...inkColorProps(theme.accent)}>Smart Context Root</Text>
+      <Text {...inkColorProps(theme.text)}>Enter to save · Tab suggestions · Esc close</Text>
 
       <Box flexDirection="row">
         <Text {...inkColorProps(theme.mutedText)}>Root: </Text>

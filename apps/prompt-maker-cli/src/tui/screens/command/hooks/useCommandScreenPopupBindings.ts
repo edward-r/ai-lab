@@ -140,7 +140,6 @@ export type UseCommandScreenPopupBindingsResult = {
   smartPopupSuggestionsFocused: boolean
   onSmartPopupDraftChange: (next: string) => void
   onSmartRootSubmit: (value: string) => void
-  onSmartToggle: (nextEnabled: boolean) => void
 
   onHistoryPopupDraftChange: (next: string) => void
   onHistoryPopupSubmit: (value: string) => void
@@ -265,9 +264,7 @@ export const useCommandScreenPopupBindings = (
     onRemoveVideo: context.onRemoveVideo,
     historyPopupItems: historyAndIntent.history.historyPopupItems,
     smartPopupSuggestions: context.smartPopupSuggestions,
-    smartContextEnabled: options.smartContextEnabled,
     smartContextRoot: options.smartContextRoot,
-    onSmartToggle: context.onSmartToggle,
     onSmartRootSubmit: context.onSmartRootSubmit,
     intentPopupSuggestions: historyAndIntent.intent.intentPopupSuggestions,
     onIntentFileSubmit: options.handleIntentFileSubmit,
@@ -349,7 +346,6 @@ export const useCommandScreenPopupBindings = (
     smartPopupSuggestionsFocused: context.smartPopupSuggestionsFocused,
     onSmartPopupDraftChange: context.onSmartPopupDraftChange,
     onSmartRootSubmit: context.onSmartRootSubmit,
-    onSmartToggle: context.onSmartToggle,
 
     onHistoryPopupDraftChange: historyAndIntent.history.onHistoryPopupDraftChange,
     onHistoryPopupSubmit: historyAndIntent.history.onHistoryPopupSubmit,
