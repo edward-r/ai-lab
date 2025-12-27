@@ -29,23 +29,12 @@ import { resolveFileContext } from '../../file-context'
 import { resolveSmartContextFiles } from '../../smart-context-service'
 import { resolveUrlContext } from '../../url-context'
 import type { UploadStateChange } from '../../prompt-generator-service'
+import { buildSeriesOutputDirName, sanitizeForPathSegment } from '../../utils/series-path'
 import { MODEL_PROVIDER_LABELS } from '../../model-providers'
 import { checkModelProviderStatus } from '../provider-status'
 import type { TokenUsageStore } from '../token-usage-store'
 import type { NotifyOptions } from '../notifier'
 import type { HistoryEntry, ProviderStatus } from '../types'
-
-const padTwoDigits = (value: number): string => value.toString().padStart(2, '0')
-
-const formatSeriesTimestamp = (date: Date = new Date()): string => {
-  const year = date.getFullYear().toString()
-  const month = padTwoDigits(date.getMonth() + 1)
-  const day = padTwoDigits(date.getDate())
-  const hours = padTwoDigits(date.getHours())
-  const minutes = padTwoDigits(date.getMinutes())
-  const seconds = padTwoDigits(date.getSeconds())
-  return `${year}${month}${day}-${hours}${minutes}${seconds}`
-}
 
 const formatCompactTokens = (count: number): string => {
   if (count < 1000) {
@@ -58,22 +47,6 @@ const formatCompactTokens = (count: number): string => {
     return `${Math.round(count / 1000)}k`
   }
   return `${(count / 1_000_000).toFixed(1)}m`
-}
-
-const sanitizeForPathSegment = (value: string, fallback: string, maxLength?: number): string => {
-  const normalized = value.trim().toLowerCase()
-  const slug = normalized
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-  const candidate = slug || fallback
-  if (!maxLength || candidate.length <= maxLength) {
-    return candidate
-  }
-
-  const truncated = candidate.slice(0, maxLength).replace(/-+$/g, '')
-  return truncated || fallback
 }
 
 const extractValidationSection = (content: string): string | null => {
@@ -687,7 +660,7 @@ export const useGenerationPipeline = ({
 
       const seriesDir = path.join(
         path.resolve(process.cwd(), 'generated', 'series'),
-        `${formatSeriesTimestamp()}-${sanitizeForPathSegment(intent, 'intent')}`,
+        buildSeriesOutputDirName(intent),
       )
 
       let canWriteFiles = true
