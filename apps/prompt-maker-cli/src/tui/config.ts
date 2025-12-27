@@ -31,7 +31,8 @@ export const COMMAND_DESCRIPTORS = [
   {
     id: 'series',
     label: 'Series',
-    description: 'Atomic prompt series (Tab) · prefilled from typed/last intent or intent file',
+    description:
+      'Atomic prompt series (Tab) · standalone prompts; prefilled from typed/last intent or intent file',
   },
   { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },

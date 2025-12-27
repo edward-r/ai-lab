@@ -47,6 +47,23 @@ const promptGeneratorModule = jest.requireMock('../prompt-generator-service') as
   generatePromptSeries: jest.Mock
 }
 
+const fileContextModule = jest.requireMock('../file-context') as {
+  resolveFileContext: jest.Mock
+}
+
+const urlContextModule = jest.requireMock('../url-context') as {
+  resolveUrlContext: jest.Mock
+}
+
+const smartContextModule = jest.requireMock('../smart-context-service') as {
+  resolveSmartContextFiles: jest.Mock
+}
+
+const fsPromisesModule = jest.requireMock('node:fs/promises') as {
+  mkdir: jest.Mock
+  writeFile: jest.Mock
+}
+
 const dom = new JSDOM('<!doctype html><html><body></body></html>')
 const globalEnv = globalThis as typeof globalThis & {
   window: Window & typeof globalThis
@@ -78,6 +95,7 @@ describe('useGenerationPipeline', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+
     generateCommandModule.runGeneratePipeline.mockResolvedValue({
       finalPrompt: 'Prompt',
       model: 'gpt-4o-mini',
@@ -85,6 +103,19 @@ describe('useGenerationPipeline', () => {
       telemetry: null,
       payload: {},
     })
+
+    promptGeneratorModule.generatePromptSeries.mockResolvedValue({
+      reasoning: 'r',
+      overviewPrompt: '# Overview',
+      atomicPrompts: [{ title: 'Step', content: 'Do a thing\n\nValidation: check' }],
+    })
+
+    fileContextModule.resolveFileContext.mockResolvedValue([])
+    urlContextModule.resolveUrlContext.mockResolvedValue([])
+    smartContextModule.resolveSmartContextFiles.mockResolvedValue([])
+
+    fsPromisesModule.mkdir.mockResolvedValue(undefined)
+    fsPromisesModule.writeFile.mockResolvedValue(undefined)
   })
 
   it('aborts runGeneration when provider credentials are missing', async () => {
@@ -426,6 +457,41 @@ describe('useGenerationPipeline', () => {
     expect(pushHistory).toHaveBeenCalledWith(
       'Generation aborted: Gemini unavailable (GEMINI_API_KEY missing).',
       'system',
+    )
+  })
+
+  it('surfaces series validation failures in history output', async () => {
+    providerStatusModule.checkModelProviderStatus.mockResolvedValue({
+      provider: 'openai',
+      status: 'ok',
+      message: 'ready',
+    })
+
+    promptGeneratorModule.generatePromptSeries.mockRejectedValueOnce(
+      new Error(
+        'Atomic prompt 1 contains forbidden cross-reference phrase "from step N". Atomic prompts must be standalone.',
+      ),
+    )
+
+    const pushHistory = jest.fn()
+    const { result } = renderHook(() =>
+      useGenerationPipeline({
+        ...baseOptions,
+        pushHistory,
+        currentModel: 'gpt-4o-mini',
+      }),
+    )
+
+    await act(async () => {
+      await result.current.runSeriesGeneration('Plan work')
+    })
+
+    expect(pushHistory).toHaveBeenCalledWith('[series] Starting series generation…', 'progress')
+    expect(pushHistory).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '[series] Failed: Atomic prompt 1 contains forbidden cross-reference phrase',
+      ),
+      'progress',
     )
   })
 })

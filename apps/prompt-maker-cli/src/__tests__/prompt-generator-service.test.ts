@@ -217,10 +217,38 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
 
   const buildService = async () => new PromptGeneratorService()
 
+  const validAtomicPromptContent = `# Title
+Do a thing
+
+Role
+You are a coding agent.
+
+Context
+This is standalone.
+
+Goals & Tasks
+- Make one small change
+
+Inputs
+- None
+
+Constraints
+- Keep it small
+
+Execution Plan
+1. Do the thing
+
+Output Format
+- Updated file(s)
+
+Validation
+- Run: npx jest apps/prompt-maker-cli/src/__tests__/prompt-generator-service.test.ts --runInBand
+`
+
   const seriesPayload = {
     reasoning: 'analysis',
     overviewPrompt: '# Overview',
-    atomicPrompts: [{ title: 'Step', content: 'Do a thing\n\nValidation: ...' }],
+    atomicPrompts: [{ title: 'Step', content: validAtomicPromptContent }],
   }
 
   it('parses valid JSON into a SeriesResponse and uploads media', async () => {
@@ -269,6 +297,83 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
         videos: [],
       }),
     ).rejects.toThrow('Series atomicPrompts must include at least one entry.')
+  })
+
+  it('throws when an atomic prompt is missing required sections', async () => {
+    callLLMMock.mockResolvedValue(
+      JSON.stringify({
+        reasoning: 'r',
+        overviewPrompt: '# Overview',
+        atomicPrompts: [
+          { title: 'Step', content: '# Title\nMissing most sections\n\nValidation\n- ok' },
+        ],
+      }),
+    )
+
+    const service = await buildService()
+    await expect(
+      service.generatePromptSeries({
+        intent: 'Plan',
+        model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
+        fileContext: [],
+        images: [],
+        videos: [],
+      }),
+    ).rejects.toThrow('Atomic prompt 1 is missing required section(s):')
+  })
+
+  it('throws when an atomic prompt contains cross-references', async () => {
+    callLLMMock.mockResolvedValue(
+      JSON.stringify({
+        reasoning: 'r',
+        overviewPrompt: '# Overview',
+        atomicPrompts: [
+          {
+            title: 'Step',
+            content: `# Title
+Do a thing
+
+Role
+You are a coding agent.
+
+Context
+Continue from step 2.
+
+Goals & Tasks
+- Make one small change
+
+Inputs
+- None
+
+Constraints
+- Keep it small
+
+Execution Plan
+1. Do the thing
+
+Output Format
+- Updated file(s)
+
+Validation
+- Run: npx jest --runInBand
+`,
+          },
+        ],
+      }),
+    )
+
+    const service = await buildService()
+    await expect(
+      service.generatePromptSeries({
+        intent: 'Plan',
+        model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
+        fileContext: [],
+        images: [],
+        videos: [],
+      }),
+    ).rejects.toThrow('Atomic prompt 1 contains forbidden cross-reference phrase')
   })
 
   it('logs reasoning when DEBUG env var is set', async () => {
