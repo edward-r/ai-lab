@@ -26,6 +26,12 @@ export type UseCommandScreenResult = {
   setPasteActive: (isPasteActive: boolean) => void
   setCommandSelectionIndex: (next: SetStateAction<number>) => void
   setDebugKeyLine: (line: string | null) => void
+
+  setIntentFilePath: (next: SetStateAction<string>) => void
+  setPolishEnabled: (next: SetStateAction<boolean>) => void
+  setCopyEnabled: (next: SetStateAction<boolean>) => void
+  setChatGptEnabled: (next: SetStateAction<boolean>) => void
+  setJsonOutputEnabled: (next: SetStateAction<boolean>) => void
 }
 
 export const useCommandScreen = (): UseCommandScreenResult => {
@@ -62,6 +68,26 @@ export const useCommandScreen = (): UseCommandScreenResult => {
     dispatch({ type: 'set-debug-line', line })
   }, [])
 
+  const setIntentFilePath = useCallback((next: SetStateAction<string>) => {
+    dispatch({ type: 'set-intent-file-path', next })
+  }, [])
+
+  const setPolishEnabled = useCallback((next: SetStateAction<boolean>) => {
+    dispatch({ type: 'set-polish-enabled', next })
+  }, [])
+
+  const setCopyEnabled = useCallback((next: SetStateAction<boolean>) => {
+    dispatch({ type: 'set-copy-enabled', next })
+  }, [])
+
+  const setChatGptEnabled = useCallback((next: SetStateAction<boolean>) => {
+    dispatch({ type: 'set-chatgpt-enabled', next })
+  }, [])
+
+  const setJsonOutputEnabled = useCallback((next: SetStateAction<boolean>) => {
+    dispatch({ type: 'set-json-output-enabled', next })
+  }, [])
+
   return {
     state,
     setTerminalSize,
@@ -69,5 +95,10 @@ export const useCommandScreen = (): UseCommandScreenResult => {
     setPasteActive,
     setCommandSelectionIndex,
     setDebugKeyLine,
+    setIntentFilePath,
+    setPolishEnabled,
+    setCopyEnabled,
+    setChatGptEnabled,
+    setJsonOutputEnabled,
   }
 }

@@ -27,6 +27,13 @@ export type CommandScreenState = {
   isPasteActive: boolean
   commandSelectionIndex: number
   debugKeyLine: string | null
+
+  // Command screen UI options (single source of truth).
+  intentFilePath: string
+  polishEnabled: boolean
+  copyEnabled: boolean
+  chatGptEnabled: boolean
+  jsonOutputEnabled: boolean
 }
 
 export type CommandScreenAction =
@@ -35,6 +42,11 @@ export type CommandScreenAction =
   | { type: 'set-paste-active'; isPasteActive: boolean }
   | { type: 'set-command-selection'; next: SetStateAction<number> }
   | { type: 'set-debug-line'; line: string | null }
+  | { type: 'set-intent-file-path'; next: SetStateAction<string> }
+  | { type: 'set-polish-enabled'; next: SetStateAction<boolean> }
+  | { type: 'set-copy-enabled'; next: SetStateAction<boolean> }
+  | { type: 'set-chatgpt-enabled'; next: SetStateAction<boolean> }
+  | { type: 'set-json-output-enabled'; next: SetStateAction<boolean> }
 
 export const createInitialCommandScreenState = (options: {
   terminalRows: number
@@ -46,6 +58,11 @@ export const createInitialCommandScreenState = (options: {
   isPasteActive: false,
   commandSelectionIndex: 0,
   debugKeyLine: null,
+  intentFilePath: '',
+  polishEnabled: false,
+  copyEnabled: false,
+  chatGptEnabled: false,
+  jsonOutputEnabled: false,
 })
 
 export const commandScreenReducer = (
@@ -82,6 +99,38 @@ export const commandScreenReducer = (
 
     case 'set-debug-line':
       return action.line === state.debugKeyLine ? state : { ...state, debugKeyLine: action.line }
+
+    case 'set-intent-file-path': {
+      const nextValue =
+        typeof action.next === 'function' ? action.next(state.intentFilePath) : action.next
+      return nextValue === state.intentFilePath ? state : { ...state, intentFilePath: nextValue }
+    }
+
+    case 'set-polish-enabled': {
+      const nextValue =
+        typeof action.next === 'function' ? action.next(state.polishEnabled) : action.next
+      return nextValue === state.polishEnabled ? state : { ...state, polishEnabled: nextValue }
+    }
+
+    case 'set-copy-enabled': {
+      const nextValue =
+        typeof action.next === 'function' ? action.next(state.copyEnabled) : action.next
+      return nextValue === state.copyEnabled ? state : { ...state, copyEnabled: nextValue }
+    }
+
+    case 'set-chatgpt-enabled': {
+      const nextValue =
+        typeof action.next === 'function' ? action.next(state.chatGptEnabled) : action.next
+      return nextValue === state.chatGptEnabled ? state : { ...state, chatGptEnabled: nextValue }
+    }
+
+    case 'set-json-output-enabled': {
+      const nextValue =
+        typeof action.next === 'function' ? action.next(state.jsonOutputEnabled) : action.next
+      return nextValue === state.jsonOutputEnabled
+        ? state
+        : { ...state, jsonOutputEnabled: nextValue }
+    }
 
     default:
       return state

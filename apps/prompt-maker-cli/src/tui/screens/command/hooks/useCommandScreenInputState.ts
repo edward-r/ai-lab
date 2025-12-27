@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import type { MutableRefObject } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import type { DebugKeyEvent } from '../../../components/core/MultilineTextInput'
 import { isCommandInput } from '../../../drag-drop-path'
@@ -68,6 +68,11 @@ export const useCommandScreenInputState = ({
     setPasteActive,
     setCommandSelectionIndex,
     setDebugKeyLine,
+    setIntentFilePath: setIntentFilePathState,
+    setPolishEnabled: setPolishEnabledState,
+    setCopyEnabled: setCopyEnabledState,
+    setChatGptEnabled: setChatGptEnabledState,
+    setJsonOutputEnabled: setJsonOutputEnabledState,
   } = useCommandScreen()
 
   const terminalRows = screenState.terminalRows
@@ -99,11 +104,46 @@ export const useCommandScreenInputState = ({
     [debugKeysEnabled, setDebugKeyLine],
   )
 
-  const [intentFilePath, setIntentFilePath] = useState('')
-  const [polishEnabled, setPolishEnabled] = useState(false)
-  const [copyEnabled, setCopyEnabled] = useState(false)
-  const [chatGptEnabled, setChatGptEnabled] = useState(false)
-  const [jsonOutputEnabled, setJsonOutputEnabled] = useState(false)
+  const intentFilePath = screenState.intentFilePath
+  const polishEnabled = screenState.polishEnabled
+  const copyEnabled = screenState.copyEnabled
+  const chatGptEnabled = screenState.chatGptEnabled
+  const jsonOutputEnabled = screenState.jsonOutputEnabled
+
+  const setIntentFilePath = useCallback(
+    (value: string) => {
+      setIntentFilePathState(value)
+    },
+    [setIntentFilePathState],
+  )
+
+  const setPolishEnabled = useCallback(
+    (value: boolean) => {
+      setPolishEnabledState(value)
+    },
+    [setPolishEnabledState],
+  )
+
+  const setCopyEnabled = useCallback(
+    (value: boolean) => {
+      setCopyEnabledState(value)
+    },
+    [setCopyEnabledState],
+  )
+
+  const setChatGptEnabled = useCallback(
+    (value: boolean) => {
+      setChatGptEnabledState(value)
+    },
+    [setChatGptEnabledState],
+  )
+
+  const setJsonOutputEnabled = useCallback(
+    (value: boolean) => {
+      setJsonOutputEnabledState(value)
+    },
+    [setJsonOutputEnabledState],
+  )
 
   const suppressNextInputRef = useRef(false)
 
