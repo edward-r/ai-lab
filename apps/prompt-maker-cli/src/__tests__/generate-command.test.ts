@@ -39,12 +39,19 @@ const mockLoadCliConfig = (jest.requireMock('../config') as { loadCliConfig: jes
 jest.mock('clipboardy', () => ({ write: jest.fn() }))
 jest.mock('open', () => jest.fn())
 jest.mock('@prompt-maker/core', () => ({ callLLM: jest.fn() }))
-jest.mock('../prompt-generator-service', () => ({
-  createPromptGeneratorService: jest.fn(),
-  ensureModelCredentials: jest.fn(),
-  isGemini: jest.fn((model: string) => model.startsWith('gemini')),
-  resolveDefaultGenerateModel: jest.fn().mockResolvedValue('gpt-4o-mini'),
-}))
+jest.mock('../prompt-generator-service', () => {
+  const actual = jest.requireActual(
+    '../prompt-generator-service',
+  ) as typeof import('../prompt-generator-service')
+
+  return {
+    createPromptGeneratorService: jest.fn(),
+    ensureModelCredentials: jest.fn(),
+    isGemini: jest.fn((model: string) => model.startsWith('gemini')),
+    resolveDefaultGenerateModel: jest.fn().mockResolvedValue('gpt-4o-mini'),
+    sanitizePromptForTargetModelLeakage: actual.sanitizePromptForTargetModelLeakage,
+  }
+})
 jest.mock('../file-context', () => ({
   resolveFileContext: jest.fn().mockResolvedValue([{ path: 'ctx.md', content: '# ctx' }]),
   formatContextForPrompt: jest.requireActual('../file-context').formatContextForPrompt,
@@ -339,6 +346,31 @@ describe('runGenerateCommand', () => {
     expect(callLLM).toHaveBeenCalledWith(expect.any(Array), 'gpt-4o-mini')
     expect(clipboard.write).toHaveBeenCalledWith('polished prompt')
     expect(open).toHaveBeenCalledWith(expect.stringContaining('https://chatgpt.com'))
+    log.mockRestore()
+  })
+
+  it('sanitizes polished output to avoid leaking --target', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    mockCallLLM.mockResolvedValue(
+      'Target runtime model: gpt-4o-mini\nPolished output for gpt-4o-mini.',
+    )
+
+    await runGenerateCommand(['intent text', '--polish', '--json', '--target', 'gpt-4o-mini'])
+
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output')
+    }
+
+    const payload = JSON.parse(firstCall[0] as string) as {
+      polishedPrompt?: string
+      targetModel: string
+    }
+    expect(payload.targetModel).toBe('gpt-4o-mini')
+    expect(payload.polishedPrompt).toBeDefined()
+    expect(payload.polishedPrompt?.toLowerCase()).not.toContain('target runtime model')
+    expect(payload.polishedPrompt?.toLowerCase()).not.toContain('gpt-4o-mini')
+
     log.mockRestore()
   })
 

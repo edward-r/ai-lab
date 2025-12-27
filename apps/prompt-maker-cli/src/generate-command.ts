@@ -29,6 +29,7 @@ import {
   GEN_SYSTEM_PROMPT,
   isGemini,
   resolveDefaultGenerateModel,
+  sanitizePromptForTargetModelLeakage,
   type PromptGenerationRequest,
   type UploadDetail,
   type UploadState,
@@ -724,7 +725,8 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     })
     .option('target', {
       type: 'string',
-      describe: 'Target/runtime model the generated prompt is optimized for',
+      describe:
+        'Target/runtime model used for optimization (not included in the generated prompt text)',
     })
     .option('polish-model', {
       type: 'string',
@@ -1309,25 +1311,45 @@ const polishPrompt = async (
 ): Promise<string> => {
   await ensureModelCredentials(model)
 
-  return await callLLM(
-    [
-      { role: 'system', content: POLISH_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: [
-          'Intent:',
-          originalIntent,
-          ...(targetModel?.trim() ? ['Target runtime model:', targetModel.trim()] : []),
-          '---',
-          'Generated prompt candidate:',
-          prompt,
-          '---',
-          'Return the polished prompt text, preserving exact sections.',
-        ].join('\n'),
-      },
-    ],
-    model,
-  )
+  const normalizedTargetModel = targetModel?.trim() ?? ''
+
+  const targetGuidance = normalizedTargetModel
+    ? [
+        'Internal Optimization Target (do not include in output):',
+        `- targetRuntimeModel: ${normalizedTargetModel}`,
+        '',
+        'Rules (non-negotiable):',
+        '- Use the target runtime model only to tune compliance, clarity, and formatting expectations.',
+        '- Do NOT mention or output the target runtime model id/label/name anywhere in the polished prompt text.',
+        '- Do NOT include phrases like "Target runtime model" / "Target Runtime Model" in the polished prompt text.',
+        '- Only include the target model id/label/name if the user intent explicitly asks to mention it.',
+      ].join('\n')
+    : ''
+
+  const messages = [
+    { role: 'system' as const, content: POLISH_SYSTEM_PROMPT },
+    ...(targetGuidance ? [{ role: 'system' as const, content: targetGuidance }] : []),
+    {
+      role: 'user' as const,
+      content: [
+        'Intent:',
+        originalIntent,
+        '---',
+        'Generated prompt candidate:',
+        prompt,
+        '---',
+        'Return the polished prompt text, preserving exact sections.',
+      ].join('\n'),
+    },
+  ]
+
+  const raw = await callLLM(messages, model)
+
+  return sanitizePromptForTargetModelLeakage({
+    prompt: raw,
+    intent: originalIntent,
+    targetModel: normalizedTargetModel,
+  })
 }
 
 type FileTokenSummary = {

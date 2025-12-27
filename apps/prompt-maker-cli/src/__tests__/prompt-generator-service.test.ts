@@ -124,7 +124,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     expect(prompt).toContain('Result')
   })
 
-  it('includes meta instructions when provided', async () => {
+  it('includes meta instructions and keeps target guidance internal', async () => {
     const service = await buildService()
     await service.generatePrompt({
       intent: 'Do a thing',
@@ -135,12 +135,66 @@ describe('PromptGeneratorService.generatePrompt', () => {
       videos: [],
       metaInstructions: 'Be concise',
     })
-    const messagePayload = callLLMMock.mock.calls[0]?.[0]
-    const userMessage = messagePayload?.find((msg: { role: string }) => msg.role === 'user')
-    const textPayload = JSON.stringify(userMessage?.content)
-    expect(textPayload).toContain('Target Runtime Model')
-    expect(textPayload).toContain('- id: gpt-4o-mini')
-    expect(textPayload).toContain('Meta-Instructions:\\nBe concise')
+
+    const messagePayload = callLLMMock.mock.calls[0]?.[0] as Array<{
+      role: string
+      content: unknown
+    }>
+    const systemMessages = messagePayload.filter((msg) => msg.role === 'system')
+    const userMessage = messagePayload.find((msg) => msg.role === 'user')
+
+    const userPayloadText = JSON.stringify(userMessage?.content)
+    expect(userPayloadText).toContain('Meta-Instructions:\\nBe concise')
+    expect(userPayloadText).not.toMatch(/target runtime model/i)
+    expect(userPayloadText).not.toContain('gpt-4o-mini')
+
+    const systemPayloadText = JSON.stringify(systemMessages.map((msg) => msg.content))
+    expect(systemPayloadText).toContain('targetRuntimeModel: gpt-4o-mini')
+    expect(systemPayloadText).toMatch(/do not include phrases like/i)
+    expect(systemPayloadText).toMatch(/only include the target model/i)
+  })
+
+  it('sanitizes target model leakage from model output', async () => {
+    callLLMMock.mockResolvedValueOnce(
+      JSON.stringify({
+        reasoning: 'x',
+        prompt: 'Line 1\nTarget runtime model for executing: **GPT-5.2**\nUse gpt-5.2.',
+      }),
+    )
+
+    const service = await buildService()
+    const prompt = await service.generatePrompt({
+      intent: 'Write a prompt about keyboard shortcuts',
+      model: 'gpt-4o-mini',
+      targetModel: 'gpt-5.2',
+      fileContext: [],
+      images: [],
+      videos: [],
+    })
+
+    expect(prompt.toLowerCase()).not.toContain('target runtime model')
+    expect(prompt.toLowerCase()).not.toContain('gpt-5.2')
+  })
+
+  it('keeps target model mentions when user intent includes it', async () => {
+    callLLMMock.mockResolvedValueOnce(
+      JSON.stringify({
+        reasoning: 'x',
+        prompt: 'This prompt must mention gpt-5.2 explicitly.',
+      }),
+    )
+
+    const service = await buildService()
+    const prompt = await service.generatePrompt({
+      intent: 'Write a prompt and explicitly mention gpt-5.2.',
+      model: 'gpt-4o-mini',
+      targetModel: 'gpt-5.2',
+      fileContext: [],
+      images: [],
+      videos: [],
+    })
+
+    expect(prompt).toContain('gpt-5.2')
   })
 
   it('handles refinement flows with previous prompt', async () => {

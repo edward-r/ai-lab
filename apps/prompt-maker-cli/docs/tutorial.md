@@ -30,18 +30,19 @@ Because the global binary is named `prompt-maker-cli`, many users add `alias pmc
 
 `prompt-maker-cli` exposes one entry point with an optional polish pass:
 
-| Flag / Input                                | Description                                                       |
-| ------------------------------------------- | ----------------------------------------------------------------- |
-| `<intent>` / `--intent-file <path>` / stdin | Provide the rough intent text.                                    |
-| `-c, --context <glob>`                      | Attach file context (globs resolved via `fast-glob`). Repeatable. |
-| `--image <path>`                            | Attach PNG/JPG/JPEG/WEBP/GIF (≤ 20 MB). Repeatable.               |
-| `--model <name>`                            | Override the generation model (OpenAI/Gemini).                    |
-| `-i, --interactive`                         | Enable stateful refinement loop (TTY).                            |
-| `--polish`, `--polish-model <name>`         | Run an optional finishing pass.                                   |
-| `--json`                                    | Emit JSON payload (non-interactive).                              |
-| `--copy`, `--open-chatgpt`                  | Copy/open the final artifact.                                     |
-| `--no-progress`                             | Silence the spinner when `--json` is set.                         |
-| `--help`                                    | Show auto-generated help.                                         |
+| Flag / Input                                | Description                                                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `<intent>` / `--intent-file <path>` / stdin | Provide the rough intent text.                                                                      |
+| `-c, --context <glob>`                      | Attach file context (globs resolved via `fast-glob`). Repeatable.                                   |
+| `--image <path>`                            | Attach PNG/JPG/JPEG/WEBP/GIF (≤ 20 MB). Repeatable.                                                 |
+| `--model <name>`                            | Override the generation model (OpenAI/Gemini).                                                      |
+| `--target <name>`                           | Target/runtime model used for optimization (recorded in JSON/history, not included in prompt text). |
+| `-i, --interactive`                         | Enable stateful refinement loop (TTY).                                                              |
+| `--polish`, `--polish-model <name>`         | Run an optional finishing pass.                                                                     |
+| `--json`                                    | Emit JSON payload (non-interactive).                                                                |
+| `--copy`, `--open-chatgpt`                  | Copy/open the final artifact.                                                                       |
+| `--no-progress`                             | Silence the spinner when `--json` is set.                                                           |
+| `--help`                                    | Show auto-generated help.                                                                           |
 
 Every run prints estimated input tokens (`Context Size`) and the size of each generated prompt (`Generated prompt [N tokens]`). All invocations append a JSONL record to `~/.config/prompt-maker-cli/history.jsonl` with timestamps, intent, iterations, etc.
 

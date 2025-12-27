@@ -37,7 +37,7 @@ _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-m
   - Intent: inline argument, `--intent-file`, or stdin.
   - Context: repeated `--context` globs, `--url`, `--image`, `--video`, `--smart-context` (+ `--smart-context-root`).
   - Output controls: `--json`, `--copy`, `--open-chatgpt`, `--context-template`, `--context-file`, `--context-format`.
-  - Models: `--model <name>` (generation) and `--target <name>` (runtime; defaults to resolved default generation model).
+  - Models: `--model <name>` (generation) and `--target <name>` (runtime optimization; recorded in JSON/history, not included in the generated prompt text by default).
   - Interaction: `-i/--interactive`, `--stream jsonl`, `--interactive-transport <path>`, `--quiet`, `--no-progress`.
   - Post-processing: `--polish`, `--polish-model`.
 
@@ -76,7 +76,7 @@ _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-m
 - **Gemini fallback**: `resolveGeminiVideoModel` prefers `promptGenerator.defaultGeminiModel`, otherwise `gemini-3-pro-preview`.
 - **Credential loading**: `ensureModelCredentials` pulls env vars first, then falls back to `~/.config/prompt-maker-cli/config.json`. Missing keys throw descriptive errors before API calls, so the plugin should capture stderr and surface the message.
 - **Polish model**: defaults to the generation model unless `--polish-model` or `PROMPT_MAKER_POLISH_MODEL` overrides it.
-- **Target model**: set via `--target <name>` (or `/target` in the TUI). If omitted, it defaults to the resolved default generation model. The CLI uses it as generation criteria context and emits it as `targetModel` in final payloads/history.
+- **Target model**: set via `--target <name>` (or `/target` in the TUI). If omitted, it defaults to the resolved default generation model. The CLI uses it as internal optimization guidance (and emits it as `targetModel` in payloads/history), but it must not be echoed into the user-facing prompt text unless the intent explicitly asks for it.
 
 ## 9. Generation & Refinement Workflow
 

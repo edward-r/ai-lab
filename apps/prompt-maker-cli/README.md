@@ -180,7 +180,7 @@ Key flags and behaviors:
 | `--smart-context-root <path>`               | Limit smart-context scanning to a specific directory (defaults to the current working directory).                 |
 | `--image <path>` (repeatable)               | Inline images (PNG/JPG/WEBP/GIF ≤ 20 MB) as Base64 so vision-capable models can reference them.                   |
 | `--model <name>`                            | Override the _generation_ model used by the CLI (OpenAI GPT or Gemini). Defaults can be set via config/env.       |
-| `--target <name>`                           | Target/runtime model the generated prompt is optimized for (defaults to the resolved default generation model).   |
+| `--target <name>`                           | Target/runtime model used for optimization (recorded in JSON/history, not included in the generated prompt text). |
 | `-i, --interactive`                         | Enable the refine loop (TTY only). Each new note becomes a stateful edit of the previous prompt.                  |
 | `--polish`, `--polish-model <name>`         | Run the finishing pass and optionally choose a different model for it.                                            |
 | `--json`                                    | Emit machine-readable JSON (non-interactive). Includes `prompt`, optional `polishedPrompt`, iteration count, etc. |

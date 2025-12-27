@@ -1,6 +1,11 @@
 export const COMMAND_DESCRIPTORS = [
   { id: 'model', label: 'Model', description: 'Switch the generation model' },
-  { id: 'target', label: 'Target', description: 'Switch the runtime model (/target)' },
+  {
+    id: 'target',
+    label: 'Target',
+    description:
+      'Switch the runtime model used for optimization (/target; not included in prompt text)',
+  },
   {
     id: 'intent',
     label: 'Intent File',
