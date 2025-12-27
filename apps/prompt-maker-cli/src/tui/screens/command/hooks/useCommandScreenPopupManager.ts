@@ -12,6 +12,7 @@ type PushHistory = (content: string, kind?: HistoryEntry['kind']) => void
 
 type UseCommandScreenPopupManagerOptions = {
   currentModel: ModelOption['id']
+  currentTargetModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
   smartContextRoot: string | null
   images: string[]
@@ -32,6 +33,7 @@ type UseCommandScreenPopupManagerOptions = {
   runTestsFromCommandProxy: (value: string) => void
 
   setCurrentModel: (value: ModelOption['id']) => void
+  setCurrentTargetModel: (value: ModelOption['id']) => void
   setPolishEnabled: (value: boolean) => void
   setCopyEnabled: (value: boolean) => void
   setChatGptEnabled: (value: boolean) => void
@@ -58,6 +60,7 @@ export type UseCommandScreenPopupManagerResult = {
 
 export const useCommandScreenPopupManager = ({
   currentModel,
+  currentTargetModel,
   modelOptions,
   smartContextRoot,
   images,
@@ -74,8 +77,11 @@ export const useCommandScreenPopupManager = ({
   setInputValue,
   runSeriesGeneration,
   runTestsFromCommandProxy,
+
   setCurrentModel,
+  setCurrentTargetModel,
   setPolishEnabled,
+
   setCopyEnabled,
   setChatGptEnabled,
   setJsonOutputEnabled,
@@ -113,6 +119,7 @@ export const useCommandScreenPopupManager = ({
 
   const popupManager = usePopupManager({
     currentModel,
+    currentTargetModel,
     modelOptions,
     activeThemeName,
     themeMode: mode,
@@ -135,6 +142,7 @@ export const useCommandScreenPopupManager = ({
     clearScreen,
     exitApp: exit,
     setCurrentModel,
+    setCurrentTargetModel,
     setPolishEnabled,
     setCopyEnabled,
     setChatGptEnabled,

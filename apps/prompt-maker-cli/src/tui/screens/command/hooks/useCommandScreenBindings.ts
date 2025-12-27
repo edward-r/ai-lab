@@ -27,6 +27,7 @@ export const useCommandScreenBindings = (
 
   const popupManager = useCommandScreenPopupManager({
     currentModel: generation.currentModel,
+    currentTargetModel: generation.currentTargetModel,
     modelOptions: generation.modelOptions,
     smartContextRoot: context.smartContextRoot,
     images: context.images,
@@ -46,6 +47,7 @@ export const useCommandScreenBindings = (
     runSeriesGeneration: generation.runSeriesGeneration,
     runTestsFromCommandProxy: history.runTestsFromCommandProxy,
     setCurrentModel: generation.selectModel,
+    setCurrentTargetModel: generation.selectTargetModel,
     setPolishEnabled: input.setPolishEnabled,
     setCopyEnabled: input.setCopyEnabled,
     setChatGptEnabled: input.setChatGptEnabled,

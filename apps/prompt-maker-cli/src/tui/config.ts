@@ -1,5 +1,6 @@
 export const COMMAND_DESCRIPTORS = [
-  { id: 'model', label: 'Model', description: 'Switch the target LLM' },
+  { id: 'model', label: 'Model', description: 'Switch the generation model' },
+  { id: 'target', label: 'Target', description: 'Switch the runtime model (/target)' },
   {
     id: 'intent',
     label: 'Intent File',

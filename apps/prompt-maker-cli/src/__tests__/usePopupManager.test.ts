@@ -47,6 +47,7 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
 
   const defaults: UsePopupManagerOptions = {
     currentModel: 'gpt-4o-mini',
+    currentTargetModel: 'gpt-4o-mini',
     modelOptions: defaultModelOptions,
     activeThemeName: 'pm-dark',
     themeMode: 'dark',
@@ -71,6 +72,7 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
     runTestsFromCommand: jest.fn(),
     exitApp: jest.fn(),
     setCurrentModel: jest.fn(),
+    setCurrentTargetModel: jest.fn(),
     setPolishEnabled: jest.fn(),
     setCopyEnabled: jest.fn(),
     setChatGptEnabled: jest.fn(),

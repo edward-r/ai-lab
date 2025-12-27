@@ -107,6 +107,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     const prompt = await service.generatePrompt({
       intent: 'Do a thing',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [{ path: 'ctx.md', content: 'context' }],
       images: ['image.png'],
       videos: ['clip.mp4'],
@@ -128,6 +129,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     await service.generatePrompt({
       intent: 'Do a thing',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
@@ -136,6 +138,8 @@ describe('PromptGeneratorService.generatePrompt', () => {
     const messagePayload = callLLMMock.mock.calls[0]?.[0]
     const userMessage = messagePayload?.find((msg: { role: string }) => msg.role === 'user')
     const textPayload = JSON.stringify(userMessage?.content)
+    expect(textPayload).toContain('Target Runtime Model')
+    expect(textPayload).toContain('- id: gpt-4o-mini')
     expect(textPayload).toContain('Meta-Instructions:\\nBe concise')
   })
 
@@ -144,6 +148,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     await service.generatePrompt({
       intent: 'Original',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
@@ -169,6 +174,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     const prompt = await service.generatePrompt({
       intent: 'Intent',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
@@ -187,6 +193,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     await service.generatePrompt({
       intent: 'Intent',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
@@ -222,6 +229,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
     const result = await service.generatePromptSeries({
       intent: 'Plan something',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [{ path: 'ctx.md', content: 'context' }],
       images: ['diagram.png'],
       videos: ['clip.mp4'],
@@ -238,6 +246,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
       service.generatePromptSeries({
         intent: 'Plan',
         model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
         fileContext: [],
         images: [],
         videos: [],
@@ -254,6 +263,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
       service.generatePromptSeries({
         intent: 'Plan',
         model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
         fileContext: [],
         images: [],
         videos: [],
@@ -269,6 +279,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
     await service.generatePromptSeries({
       intent: 'Plan something',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],

@@ -191,6 +191,7 @@ export const PopupArea = ({
     >
       {popupState.type === 'model' ? (
         <ModelPopup
+          title={popupState.kind === 'target' ? 'Select target model' : 'Select model'}
           query={popupState.query}
           options={modelPopupOptions}
           selectedIndex={modelPopupSelection}

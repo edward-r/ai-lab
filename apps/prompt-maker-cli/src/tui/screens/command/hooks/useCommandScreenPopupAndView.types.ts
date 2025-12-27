@@ -108,9 +108,11 @@ export type CommandHistoryOptions = {
 export type CommandGenerationOptions = {
   // model/generation
   currentModel: ModelOption['id']
+  currentTargetModel: ModelOption['id']
   modelOptions: ModelOption[]
   providerStatuses: ProviderStatusMap
   selectModel: (nextId: ModelOption['id']) => void
+  selectTargetModel: (nextId: ModelOption['id']) => void
   isGenerating: boolean
   runGeneration: (payload: { intent?: string; intentFile?: string }) => Promise<void>
   runSeriesGeneration: (intent: string) => void

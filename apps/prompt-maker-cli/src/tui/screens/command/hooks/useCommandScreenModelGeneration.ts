@@ -1,5 +1,10 @@
 import type { NotifyOptions } from '../../../notifier'
-import type { HistoryEntry } from '../../../types'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import type { HistoryEntry, ModelOption } from '../../../types'
+
+import { DEFAULT_MODEL_ID, getPreferredModelId } from '../../../model-options'
+import { resolveDefaultGenerateModel } from '../../../../prompt-generator-service'
 
 import { useModelProviderState } from './useModelProviderState'
 import { useCommandGenerationPipeline } from './useCommandGenerationPipeline'
@@ -35,6 +40,8 @@ export type UseCommandScreenModelGenerationResult = {
   modelOptions: ReturnType<typeof useModelProviderState>['modelOptions']
   currentModel: ReturnType<typeof useModelProviderState>['currentModel']
   selectModel: ReturnType<typeof useModelProviderState>['selectModel']
+  currentTargetModel: ModelOption['id']
+  selectTargetModel: (nextId: ModelOption['id']) => void
   providerStatuses: ReturnType<typeof useModelProviderState>['providerStatuses']
   updateProviderStatus: ReturnType<typeof useModelProviderState>['updateProviderStatus']
   pipeline: ReturnType<typeof useCommandGenerationPipeline>
@@ -63,6 +70,39 @@ export const useCommandScreenModelGeneration = ({
   const { modelOptions, currentModel, selectModel, providerStatuses, updateProviderStatus } =
     useModelProviderState({ pushHistory: pushHistoryProxy })
 
+  const [currentTargetModel, setCurrentTargetModelState] =
+    useState<ModelOption['id']>(DEFAULT_MODEL_ID)
+  const userSelectedTargetModelRef = useRef(false)
+
+  const selectTargetModel = useCallback((nextId: ModelOption['id']) => {
+    userSelectedTargetModelRef.current = true
+    setCurrentTargetModelState((prev) => (prev === nextId ? prev : nextId))
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const syncDefaultTargetModel = async (): Promise<void> => {
+      if (userSelectedTargetModelRef.current) {
+        return
+      }
+
+      const resolvedDefault = await resolveDefaultGenerateModel().catch(() => null)
+      if (cancelled || userSelectedTargetModelRef.current) {
+        return
+      }
+
+      const preferred = getPreferredModelId(modelOptions, resolvedDefault)
+      setCurrentTargetModelState((prev) => (prev === preferred ? prev : preferred))
+    }
+
+    void syncDefaultTargetModel()
+
+    return () => {
+      cancelled = true
+    }
+  }, [modelOptions])
+
   const pipeline = useCommandGenerationPipeline({
     pushHistory: pushHistoryProxy,
     notify,
@@ -74,6 +114,7 @@ export const useCommandScreenModelGeneration = ({
     smartContextRoot,
     metaInstructions,
     currentModel,
+    targetModel: currentTargetModel,
     interactiveTransportPath,
     terminalColumns,
     polishEnabled,
@@ -90,6 +131,8 @@ export const useCommandScreenModelGeneration = ({
     modelOptions,
     currentModel,
     selectModel,
+    currentTargetModel,
+    selectTargetModel,
     providerStatuses,
     updateProviderStatus,
     pipeline,

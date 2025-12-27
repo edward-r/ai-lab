@@ -5,6 +5,8 @@ import { formatContextForPrompt, type FileContext } from './file-context'
 import { resolveImageParts } from './image-loader'
 import { inferVideoMimeType, uploadFileForGemini } from './media-loader'
 import { isGeminiModelId } from './model-providers'
+import { loadModelOptions } from './tui/model-options'
+import type { ModelOption } from './tui/types'
 
 const PROMPT_CONTRACT_REQUIREMENTS = `
 Prompt Contract Requirements:
@@ -73,6 +75,7 @@ export type UploadStateChange = (state: UploadState, detail: UploadDetail) => vo
 export type PromptGenerationRequest = {
   intent: string
   model: string
+  targetModel: string
   fileContext: FileContext[]
   images: string[]
   videos: string[]
@@ -117,6 +120,7 @@ export class PromptGeneratorService {
         previousPrompt,
         refinementInstruction,
         request.intent,
+        request.targetModel,
         request.fileContext,
         request.images,
         request.videos,
@@ -126,6 +130,7 @@ export class PromptGeneratorService {
     } else {
       userContent = await buildInitialUserMessage(
         request.intent,
+        request.targetModel,
         request.fileContext,
         request.images,
         request.videos,
@@ -166,6 +171,7 @@ export class PromptGeneratorService {
 
     const userContent = await buildSeriesUserMessage(
       request.intent,
+      request.targetModel,
       request.fileContext,
       request.images,
       request.videos,
@@ -242,8 +248,53 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
 
 export const isGemini = (model: string): boolean => isGeminiModelId(model)
 
+const resolveKnownModelOption = async (modelId: string): Promise<ModelOption | null> => {
+  const normalized = modelId.trim()
+  if (!normalized) {
+    return null
+  }
+
+  try {
+    const { options } = await loadModelOptions({ includeDiscovered: false })
+    return options.find((option) => option.id === normalized) ?? null
+  } catch {
+    return null
+  }
+}
+
+const buildTargetRuntimeModelSection = async (targetModel: string): Promise<string> => {
+  const normalized = targetModel.trim()
+  const option = normalized ? await resolveKnownModelOption(normalized) : null
+
+  const lines: string[] = ['Target Runtime Model:']
+  lines.push(`- id: ${normalized || '(not set)'}`)
+
+  if (option) {
+    if (option.label && option.label !== option.id) {
+      lines.push(`- label: ${option.label}`)
+    }
+    if (option.capabilities.length > 0) {
+      lines.push(`- capabilities: ${option.capabilities.join(', ')}`)
+    }
+    if (option.notes) {
+      lines.push(`- notes: ${option.notes}`)
+    }
+  }
+
+  lines.push(
+    [
+      '- This is the model the generated prompt will be executed on (not the model doing generation).',
+      '- Optimize the prompt contract for compliance and clarity on this target model.',
+      '- Prefer robust, plain-text instructions unless the target capabilities clearly support more.',
+    ].join('\n'),
+  )
+
+  return lines.join('\n')
+}
+
 const buildInitialUserMessage = async (
   intent: string,
+  targetModel: string,
   files: FileContext[],
   imagePaths: string[],
   videoPaths: string[],
@@ -255,6 +306,8 @@ const buildInitialUserMessage = async (
   if (files.length > 0) {
     sections.push('Context Files:\n' + formatContextForPrompt(files))
   }
+
+  sections.push(await buildTargetRuntimeModelSection(targetModel))
 
   sections.push(`User Intent:\n${intent.trim()}`)
 
@@ -276,8 +329,9 @@ const buildInitialUserMessage = async (
 
 const buildRefinementMessage = async (
   previousPrompt: string,
-  instruction: string,
-  originalIntent: string,
+  refinementInstruction: string,
+  intent: string,
+  targetModel: string,
   files: FileContext[],
   imagePaths: string[],
   videoPaths: string[],
@@ -290,9 +344,11 @@ const buildRefinementMessage = async (
     sections.push('Context Files:\n' + formatContextForPrompt(files))
   }
 
-  sections.push(`Original Intent (for reference):\n${originalIntent}`)
+  sections.push(await buildTargetRuntimeModelSection(targetModel))
+
+  sections.push(`Original Intent (for reference):\n${intent.trim()}`)
   sections.push(`Current Prompt Draft:\n${previousPrompt}`)
-  sections.push(`Refinement Instruction:\n${instruction}`)
+  sections.push(`Refinement Instruction:\n${refinementInstruction.trim()}`)
 
   const trimmedInstructions = metaInstructions?.trim()
   if (trimmedInstructions) {
@@ -312,6 +368,7 @@ const buildRefinementMessage = async (
 
 const buildSeriesUserMessage = async (
   intent: string,
+  targetModel: string,
   files: FileContext[],
   imagePaths: string[],
   videoPaths: string[],
@@ -323,6 +380,8 @@ const buildSeriesUserMessage = async (
   if (files.length > 0) {
     sections.push('Context Files:\n' + formatContextForPrompt(files))
   }
+
+  sections.push(await buildTargetRuntimeModelSection(targetModel))
 
   sections.push(`User Intent:\n${intent.trim()}`)
 

@@ -353,9 +353,11 @@ describe('runGenerateCommand', () => {
     }
     const payload = JSON.parse(firstCall[0] as string) as {
       intent: string
+      targetModel: string
       contextPaths: Array<{ path: string; source: string }>
     }
     expect(payload.intent).toBe('intent text')
+    expect(payload.targetModel).toBe('gpt-4o-mini')
     expect(payload.contextPaths).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ source: 'intent', path: 'inline-intent' }),
@@ -364,6 +366,37 @@ describe('runGenerateCommand', () => {
     )
     expect(payload).not.toHaveProperty('outputPath')
     expect(appendToHistory).toHaveBeenCalledTimes(1)
+    jest.useRealTimers()
+    log.mockRestore()
+  })
+
+  it('uses explicit --target and defaults separately from --model', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'))
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+
+    await runGenerateCommand([
+      'intent text',
+      '--model',
+      'gpt-4o',
+      '--target',
+      'gpt-4o-mini',
+      '--json',
+    ])
+
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output')
+    }
+
+    const payload = JSON.parse(firstCall[0] as string) as { model: string; targetModel: string }
+    expect(payload.model).toBe('gpt-4o')
+    expect(payload.targetModel).toBe('gpt-4o-mini')
+
+    const generationCall = promptService.generatePrompt.mock.calls[0]?.[0]
+    expect(generationCall).toEqual(
+      expect.objectContaining({ model: 'gpt-4o', targetModel: 'gpt-4o-mini' }),
+    )
+
     jest.useRealTimers()
     log.mockRestore()
   })

@@ -169,6 +169,7 @@ const runSingleTest = async ({
     const promptRequest: PromptGenerationRequest = {
       intent: test.intent,
       model,
+      targetModel: model,
       fileContext,
       images: test.image ?? [],
       videos: test.video ?? [],

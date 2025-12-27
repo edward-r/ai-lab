@@ -32,6 +32,7 @@ import type {
 
 export type PopupManagerActions = {
   openModelPopup: () => void
+  openTargetModelPopup: () => void
   openTogglePopup: (field: ToggleField) => void
   openFilePopup: () => void
   openUrlPopup: () => void
@@ -64,6 +65,7 @@ export type ThemeOption = {
 
 export type UsePopupManagerOptions = {
   currentModel: ModelOption['id']
+  currentTargetModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
   activeThemeName: string
   themeMode: ThemeMode
@@ -86,6 +88,7 @@ export type UsePopupManagerOptions = {
   clearScreen?: () => void
   exitApp: () => void
   setCurrentModel: (value: ModelOption['id']) => void
+  setCurrentTargetModel: (value: ModelOption['id']) => void
   setPolishEnabled: (value: boolean) => void
   setCopyEnabled: (value: boolean) => void
   setChatGptEnabled: (value: boolean) => void
@@ -116,6 +119,7 @@ const JSON_INTERACTIVE_ERROR = 'JSON output is unavailable while interactive tra
 
 export const usePopupManager = ({
   currentModel,
+  currentTargetModel,
   modelOptions,
   activeThemeName,
   themeMode,
@@ -138,6 +142,7 @@ export const usePopupManager = ({
   clearScreen,
   exitApp,
   setCurrentModel,
+  setCurrentTargetModel,
   setPolishEnabled,
   setCopyEnabled,
   setChatGptEnabled,
@@ -186,8 +191,19 @@ export const usePopupManager = ({
       options.findIndex((option) => option.id === currentModel),
     )
 
-    dispatch({ type: 'open-model', query: '', selectionIndex: defaultIndex })
+    dispatch({ type: 'open-model', kind: 'generation', query: '', selectionIndex: defaultIndex })
   }, [currentModel, modelOptions])
+
+  const openTargetModelPopup = useCallback(() => {
+    const recentModelIds = getRecentSessionModels()
+    const { options } = buildModelPopupOptions({ query: '', modelOptions, recentModelIds })
+    const defaultIndex = Math.max(
+      0,
+      options.findIndex((option) => option.id === currentTargetModel),
+    )
+
+    dispatch({ type: 'open-model', kind: 'target', query: '', selectionIndex: defaultIndex })
+  }, [currentTargetModel, modelOptions])
 
   const openTogglePopup = useCallback(
     (field: ToggleField) => {
@@ -355,11 +371,29 @@ export const usePopupManager = ({
     [closePopup, notify, setCurrentModel, setInputValue],
   )
 
+  const applyTargetModelSelection = useCallback(
+    (option?: ModelOption) => {
+      if (!option) {
+        return
+      }
+      recordRecentSessionModel(option.id)
+      setCurrentTargetModel(option.id)
+      notify(`Selected target model: ${option.label} (${option.id})`, { kind: 'info' })
+      setInputValue('')
+      closePopup()
+    },
+    [closePopup, notify, setCurrentTargetModel, setInputValue],
+  )
+
   const handleModelPopupSubmit = useCallback(
     (option?: ModelOption) => {
+      if (popupState?.type === 'model' && popupState.kind === 'target') {
+        applyTargetModelSelection(option)
+        return
+      }
       applyModelSelection(option)
     },
-    [applyModelSelection],
+    [applyModelSelection, applyTargetModelSelection, popupState],
   )
 
   const applyToggleSelection = useCallback(
@@ -467,6 +501,9 @@ export const usePopupManager = ({
       switch (commandId) {
         case 'model':
           openModelPopup()
+          return
+        case 'target':
+          openTargetModelPopup()
           return
         case 'polish': {
           if (!trimmedArgs) {
@@ -682,6 +719,7 @@ export const usePopupManager = ({
       addVideo,
       applyToggleSelection,
       chatGptEnabled,
+      clearScreen,
       closePopup,
       copyEnabled,
       exitApp,
@@ -694,25 +732,28 @@ export const usePopupManager = ({
       isGenerating,
       jsonOutputEnabled,
       lastUserIntentRef,
+      notify,
       openFilePopup,
       openHistoryPopup,
       openImagePopup,
       openInstructionsPopup,
       openIntentPopup,
       openModelPopup,
+      openTargetModelPopup,
       openReasoningPopup,
       openSeriesPopup,
       openSettingsPopup,
       openSmartPopup,
       openTestPopup,
-      openThemePopup,
       openThemeModePopup,
+      openThemePopup,
       openTogglePopup,
       openTokensPopup,
       openUrlPopup,
       openVideoPopup,
       polishEnabled,
       pushHistory,
+      runSeriesGeneration,
       runTestsFromCommand,
       setInputValue,
       syncTypedIntentRef,
@@ -725,6 +766,7 @@ export const usePopupManager = ({
   const actions = useMemo<PopupManagerActions>(
     () => ({
       openModelPopup,
+      openTargetModelPopup,
       openTogglePopup,
       openFilePopup,
       openUrlPopup,
@@ -763,6 +805,7 @@ export const usePopupManager = ({
       openInstructionsPopup,
       openIntentPopup,
       openModelPopup,
+      openTargetModelPopup,
       openReasoningPopup,
       openSeriesPopup,
       openSettingsPopup,
