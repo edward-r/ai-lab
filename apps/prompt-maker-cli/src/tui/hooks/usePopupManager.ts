@@ -83,6 +83,7 @@ export type UsePopupManagerOptions = {
   setInputValue: (value: string) => void
   runSeriesGeneration: (intent: string) => void
   runTestsFromCommand: (value: string) => void
+  clearScreen?: () => void
   exitApp: () => void
   setCurrentModel: (value: ModelOption['id']) => void
   setPolishEnabled: (value: boolean) => void
@@ -134,6 +135,7 @@ export const usePopupManager = ({
   setInputValue,
   runSeriesGeneration,
   runTestsFromCommand,
+  clearScreen,
   exitApp,
   setCurrentModel,
   setPolishEnabled,
@@ -599,6 +601,7 @@ export const usePopupManager = ({
         case 'exit':
           pushHistory('Exiting…', 'system')
           setInputValue('')
+          clearScreen?.()
           exitApp()
           return
         case 'series': {

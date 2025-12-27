@@ -1,4 +1,4 @@
-import { useApp } from 'ink'
+import { useApp, useStdout } from 'ink'
 import { useCallback } from 'react'
 
 import { usePopupManager } from '../../../hooks/usePopupManager'
@@ -89,6 +89,13 @@ export const useCommandScreenPopupManager = ({
   jsonOutputEnabled,
 }: UseCommandScreenPopupManagerOptions): UseCommandScreenPopupManagerResult => {
   const { exit } = useApp()
+  const { stdout } = useStdout()
+
+  const clearScreen = useCallback(() => {
+    if (stdout && stdout.isTTY) {
+      stdout.write('\u001b[2J\u001b[H')
+    }
+  }, [stdout])
 
   const getLatestTypedIntent = useCallback(() => {
     const trimmed = lastTypedIntentRef.current.trim()
@@ -125,6 +132,7 @@ export const useCommandScreenPopupManager = ({
     setInputValue,
     runSeriesGeneration,
     runTestsFromCommand: runTestsFromCommandProxy,
+    clearScreen,
     exitApp: exit,
     setCurrentModel,
     setPolishEnabled,

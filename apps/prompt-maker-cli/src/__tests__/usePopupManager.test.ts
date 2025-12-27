@@ -484,6 +484,33 @@ describe('usePopupManager intent command', () => {
   })
 })
 
+describe('usePopupManager exit command', () => {
+  it('clears the screen before exiting', () => {
+    const clearScreen = jest.fn()
+    const exitApp = jest.fn()
+    const options = createOptions({ clearScreen, exitApp })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('exit')
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith('Exiting…', 'system')
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(clearScreen).toHaveBeenCalledTimes(1)
+    expect(exitApp).toHaveBeenCalledTimes(1)
+
+    const clearOrder = clearScreen.mock.invocationCallOrder[0]
+    const exitOrder = exitApp.mock.invocationCallOrder[0]
+
+    if (clearOrder === undefined || exitOrder === undefined) {
+      throw new Error('Expected clearScreen and exitApp to be called')
+    }
+
+    expect(clearOrder).toBeLessThan(exitOrder)
+  })
+})
+
 describe('usePopupManager tokens command', () => {
   it('opens the token usage popup', () => {
     const options = createOptions()
