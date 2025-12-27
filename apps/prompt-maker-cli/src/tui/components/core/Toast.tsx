@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink'
 
 import type { ToastKind } from '../../notifier'
+import { TOAST_HEIGHT } from '../../toast-constants'
 import { useTheme } from '../../theme/theme-provider'
 import {
   inkBackgroundColorProps,
@@ -38,7 +39,7 @@ const toastChrome = (kind: ToastKind): ToastChrome => {
   }
 }
 
-export const TOAST_HEIGHT = 4
+export { TOAST_HEIGHT }
 
 export const Toast = ({ message, kind }: ToastProps) => {
   const { theme } = useTheme()
@@ -65,6 +66,7 @@ export const Toast = ({ message, kind }: ToastProps) => {
       paddingX={1}
       paddingY={0}
       height={TOAST_HEIGHT}
+      width="100%"
       overflow="hidden"
       {...inkBorderColorProps(borderColor)}
       {...inkBackgroundColorProps(theme.popupBackground)}

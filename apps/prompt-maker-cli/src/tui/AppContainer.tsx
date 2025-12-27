@@ -5,11 +5,11 @@ import cliCursor from 'cli-cursor'
 import { CommandScreen, type CommandScreenHandle } from './CommandScreen'
 import { TestRunnerScreen, type TestRunnerScreenHandle } from './TestRunnerScreen'
 import { ContextProvider } from './context'
+import { ToastProvider, useNotifier } from './notifier'
 import { ThemeProvider, useTheme } from './theme/theme-provider'
 import { inkBackgroundColorProps, inkColorProps } from './theme/theme-types'
 import { HelpOverlay } from './components/core/HelpOverlay'
-import { Toast, TOAST_HEIGHT } from './components/core/Toast'
-import { useNotifier } from './notifier'
+import { ToastOverlay } from './components/core/ToastOverlay'
 import { COMMAND_DESCRIPTORS } from './config'
 import { createHelpSections, estimateHelpOverlayHeight } from './help-config'
 import { resolveAppContainerKeyAction } from './app-container-keymap'
@@ -27,7 +27,7 @@ const AppContainerInner: React.FC<AppContainerProps> = ({ interactiveTransport }
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [pendingCommandMenu, setPendingCommandMenu] = useState(false)
   const [commandMenuSignal, setCommandMenuSignal] = useState(0)
-  const { toast, notify } = useNotifier({ autoDismissMs: 2200 })
+  const { notify } = useNotifier({ autoDismissMs: 2200 })
   const commandScreenRef = useRef<CommandScreenHandle | null>(null)
   const testRunnerRef = useRef<TestRunnerScreenHandle | null>(null)
 
@@ -122,9 +122,7 @@ const AppContainerInner: React.FC<AppContainerProps> = ({ interactiveTransport }
   )
   const helpIdealHeight = useMemo(() => estimateHelpOverlayHeight(helpSections), [helpSections])
   const helpOverlayHeight = Math.min(helpIdealHeight, helpMaxHeight)
-  const helpReservedRows = isHelpOpen ? helpOverlayHeight + 1 : 0
-  const toastReservedRows = toast ? TOAST_HEIGHT : 0
-  const reservedRows = helpReservedRows + toastReservedRows
+  const reservedRows = isHelpOpen ? helpOverlayHeight + 1 : 0
 
   return (
     <ContextProvider>
@@ -140,11 +138,6 @@ const AppContainerInner: React.FC<AppContainerProps> = ({ interactiveTransport }
         <Text {...inkColorProps(theme.mutedText)}>
           Ctrl+G → Command Palette · Ctrl+T → Test Runner · ? → Help · Ctrl+C or /exit to exit.
         </Text>
-        {toast ? (
-          <Box justifyContent="flex-end" width="100%" flexShrink={0}>
-            <Toast message={toast.message} kind={toast.kind} />
-          </Box>
-        ) : null}
         <Box flexDirection="column" flexGrow={1} marginTop={1}>
           {view === 'generate' ? (
             <>
@@ -183,6 +176,7 @@ const AppContainerInner: React.FC<AppContainerProps> = ({ interactiveTransport }
             <HelpOverlay activeView={view} maxHeight={helpMaxHeight} />
           </Box>
         ) : null}
+        <ToastOverlay />
       </Box>
     </ContextProvider>
   )
@@ -190,6 +184,8 @@ const AppContainerInner: React.FC<AppContainerProps> = ({ interactiveTransport }
 
 export const AppContainer: React.FC<AppContainerProps> = ({ interactiveTransport }) => (
   <ThemeProvider>
-    <AppContainerInner interactiveTransport={interactiveTransport} />
+    <ToastProvider>
+      <AppContainerInner interactiveTransport={interactiveTransport} />
+    </ToastProvider>
   </ThemeProvider>
 )
