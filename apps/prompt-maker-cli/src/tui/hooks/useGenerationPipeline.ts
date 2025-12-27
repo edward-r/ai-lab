@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
 import wrapAnsi from 'wrap-ansi'
 
@@ -34,8 +34,6 @@ import { checkModelProviderStatus } from '../provider-status'
 import type { TokenUsageStore } from '../token-usage-store'
 import type { NotifyOptions } from '../notifier'
 import type { HistoryEntry, ProviderStatus } from '../types'
-
-const SPINNER_FRAMES = ['◴', '◷', '◶', '◵'] as const
 
 const padTwoDigits = (value: number): string => value.toString().padStart(2, '0')
 
@@ -179,8 +177,6 @@ export const useGenerationPipeline = ({
   onReasoningUpdate,
   onLastGeneratedPromptUpdate,
 }: UseGenerationPipelineOptions) => {
-  const [spinnerIndex, setSpinnerIndex] = useState(0)
-
   const [pipelineState, dispatch] = useReducer(
     generationPipelineReducer,
     INITIAL_GENERATION_PIPELINE_STATE,
@@ -284,19 +280,6 @@ export const useGenerationPipeline = ({
       submitRefinement('')
     }
   }, [submitRefinement])
-
-  const isBusy = isGenerating || isTestCommandRunning
-
-  useEffect(() => {
-    if (!isBusy) {
-      setSpinnerIndex(0)
-      return
-    }
-    const timer = setInterval(() => {
-      setSpinnerIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
-    }, 120)
-    return () => clearInterval(timer)
-  }, [isBusy])
 
   const handleStreamEvent = useCallback(
     (event: StreamEventInput) => {
@@ -887,9 +870,7 @@ export const useGenerationPipeline = ({
         ? 'Running tests'
         : statusMessage
 
-    const statusChip = isBusy
-      ? `[status:${SPINNER_FRAMES[spinnerIndex]} ${effectiveStatusMessage}]`
-      : `[status:${effectiveStatusMessage}]`
+    const statusChip = `[status:${effectiveStatusMessage}]`
     const chips = [statusChip, `[${currentModel}]`]
     if (latestTelemetry) {
       chips.push(`[tokens:${formatCompactTokens(latestTelemetry.totalTokens)}]`)
@@ -908,14 +889,11 @@ export const useGenerationPipeline = ({
 
     return chips
   }, [
-    isBusy,
     isGenerating,
-    spinnerIndex,
     statusMessage,
     currentModel,
     latestTelemetry,
     polishEnabled,
-
     copyEnabled,
     chatGptEnabled,
     jsonOutputEnabled,
@@ -929,7 +907,6 @@ export const useGenerationPipeline = ({
   return {
     isGenerating,
     statusMessage,
-    spinnerIndex,
     runGeneration,
     runSeriesGeneration,
     statusChips,

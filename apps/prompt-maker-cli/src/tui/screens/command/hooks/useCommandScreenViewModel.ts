@@ -133,6 +133,7 @@ export type UseCommandScreenViewModelOptions = {
       isPopupOpen: boolean
       helpOpen: boolean
       isAwaitingRefinement: boolean
+      isBusy: boolean
     }
 
     statusChips: string[]
@@ -197,6 +198,7 @@ export const useCommandScreenViewModel = ({
       mode: input.state.isAwaitingRefinement ? 'refinement' : 'intent',
       isDisabled: input.state.isPopupOpen || input.state.helpOpen,
       isPasteActive: input.base.isPasteActive,
+      isBusy: input.state.isBusy,
       statusChips: input.statusChips,
       hint: input.base.hint,
       debugLine: input.base.debugLine,

@@ -124,6 +124,7 @@ export const useCommandScreenPopupAndView = (
         isPopupOpen: popupManager.isPopupOpen,
         helpOpen: popup.helpOpen,
         isAwaitingRefinement: generation.isAwaitingRefinement,
+        isBusy: generation.isGenerating || history.isTestCommandRunning,
       },
       statusChips: enhancedStatusChips,
     },
