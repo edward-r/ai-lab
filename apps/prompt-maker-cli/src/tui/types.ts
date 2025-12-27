@@ -14,7 +14,7 @@ export type ModelOption = {
   capabilities: string[]
   default?: boolean
   notes?: string
-  source: 'builtin' | 'config'
+  source: 'builtin' | 'config' | 'discovered'
 }
 
 export type ProviderStatus = {
