@@ -329,7 +329,6 @@ export const PopupArea = ({
         />
       ) : popupState.type === 'smart' ? (
         <SmartPopup
-          enabled={smartContextEnabled}
           savedRoot={smartContextRoot}
           draft={popupState.draft}
           suggestedItems={smartPopupSuggestions}

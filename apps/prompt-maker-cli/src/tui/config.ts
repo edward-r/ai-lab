@@ -29,7 +29,12 @@ export const COMMAND_DESCRIPTORS = [
   },
   { id: 'file', label: 'File', description: 'Attach file context' },
   { id: 'url', label: 'URL', description: 'Add URL context' },
-  { id: 'smart', label: 'Smart Context', description: 'Toggle smart context root' },
+  { id: 'smart', label: 'Smart', description: 'Toggle smart context (/smart on|off)' },
+  {
+    id: 'smart-root',
+    label: 'Smart Context Root',
+    description: 'Set/clear smart context root (/smart-root path or /smart-root --clear)',
+  },
   { id: 'image', label: 'Image', description: 'Attach reference images' },
   { id: 'video', label: 'Video', description: 'Attach reference videos' },
   { id: 'polish', label: 'Polish', description: 'Enable prompt polishing' },

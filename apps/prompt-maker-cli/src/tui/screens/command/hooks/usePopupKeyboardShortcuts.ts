@@ -55,9 +55,7 @@ export type UsePopupKeyboardShortcutsOptions = {
 
   // smart
   smartPopupSuggestions: string[]
-  smartContextEnabled: boolean
   smartContextRoot: string | null
-  onSmartToggle: (nextEnabled: boolean) => void
   onSmartRootSubmit: (value: string) => void
 
   // intent
@@ -97,9 +95,7 @@ export const usePopupKeyboardShortcuts = ({
   onRemoveVideo,
   historyPopupItems,
   smartPopupSuggestions,
-  smartContextEnabled,
   smartContextRoot,
-  onSmartToggle,
   onSmartRootSubmit,
   intentPopupSuggestions,
   onIntentFileSubmit,
@@ -762,11 +758,6 @@ export const usePopupKeyboardShortcuts = ({
         maxSuggestedIndex,
       )
       const draftIsEmpty = popupState.draft.trim().length === 0
-
-      if (isControlKey(input, key, 't')) {
-        onSmartToggle(!smartContextEnabled)
-        return
-      }
 
       if (key.escape) {
         closePopup()

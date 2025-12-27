@@ -39,7 +39,7 @@ export type PopupManagerActions = {
   openImagePopup: () => void
   openVideoPopup: () => void
   openHistoryPopup: () => void
-  openSmartPopup: () => void
+  openSmartRootPopup: () => void
   openTokensPopup: () => void
   openSettingsPopup: () => void
   openThemePopup: () => void
@@ -70,7 +70,10 @@ export type UsePopupManagerOptions = {
   activeThemeName: string
   themeMode: ThemeMode
   themes: readonly ThemeOption[]
+  smartContextEnabled: boolean
   smartContextRoot: string | null
+  toggleSmartContext: () => void
+  setSmartRoot: (value: string) => void
   images: string[]
   videos: string[]
   addImage: (value: string) => void
@@ -124,7 +127,10 @@ export const usePopupManager = ({
   activeThemeName,
   themeMode,
   themes,
+  smartContextEnabled,
   smartContextRoot,
+  toggleSmartContext,
+  setSmartRoot,
   images,
   videos,
   addImage,
@@ -288,7 +294,7 @@ export const usePopupManager = ({
     dispatch({ type: 'open-history' })
   }, [])
 
-  const openSmartPopup = useCallback(() => {
+  const openSmartRootPopup = useCallback(() => {
     const draft = smartContextRoot ?? ''
 
     runSuggestionScan({
@@ -594,9 +600,76 @@ export const usePopupManager = ({
           openVideoPopup()
           return
         }
-        case 'smart':
-          openSmartPopup()
+        case 'smart': {
+          const nextEnabled = !trimmedArgs
+            ? !smartContextEnabled
+            : normalizedToggleArgs === 'on'
+              ? true
+              : normalizedToggleArgs === 'off'
+                ? false
+                : null
+
+          if (nextEnabled === null) {
+            notify('Smart context expects /smart on|off', { kind: 'warning' })
+            setInputValue('')
+            closePopup()
+            return
+          }
+
+          const isDisabling = nextEnabled === false
+          const shouldClearRoot = isDisabling && Boolean(smartContextRoot)
+
+          if (shouldClearRoot) {
+            setSmartRoot('')
+          }
+
+          if (smartContextEnabled !== nextEnabled) {
+            toggleSmartContext()
+          }
+
+          notify(
+            nextEnabled
+              ? 'Smart context enabled'
+              : shouldClearRoot
+                ? 'Smart context disabled; root cleared'
+                : 'Smart context disabled',
+            { kind: nextEnabled ? 'info' : 'warning' },
+          )
+
+          setInputValue('')
+          closePopup()
           return
+        }
+        case 'smart-root': {
+          if (trimmedArgs) {
+            const normalizedRootArgs = trimmedArgs.toLowerCase()
+            const rootValue =
+              normalizedRootArgs === '--clear' || normalizedRootArgs === 'clear' ? '' : trimmedArgs
+
+            const shouldEnable = Boolean(rootValue) && !smartContextEnabled
+
+            setSmartRoot(rootValue)
+            if (shouldEnable) {
+              toggleSmartContext()
+            }
+
+            notify(
+              rootValue
+                ? shouldEnable
+                  ? `Smart context enabled; root set to ${rootValue}`
+                  : `Smart context root set to ${rootValue}`
+                : 'Smart context root cleared',
+              { kind: rootValue ? 'info' : 'warning' },
+            )
+
+            setInputValue('')
+            closePopup()
+            return
+          }
+
+          openSmartRootPopup()
+          return
+        }
         case 'tokens':
           openTokensPopup()
           setInputValue('')
@@ -743,7 +816,7 @@ export const usePopupManager = ({
       openReasoningPopup,
       openSeriesPopup,
       openSettingsPopup,
-      openSmartPopup,
+      openSmartRootPopup,
       openTestPopup,
       openThemeModePopup,
       openThemePopup,
@@ -773,7 +846,7 @@ export const usePopupManager = ({
       openImagePopup,
       openVideoPopup,
       openHistoryPopup,
-      openSmartPopup,
+      openSmartRootPopup,
       openTokensPopup,
       openSettingsPopup,
       openThemePopup,
@@ -809,7 +882,7 @@ export const usePopupManager = ({
       openReasoningPopup,
       openSeriesPopup,
       openSettingsPopup,
-      openSmartPopup,
+      openSmartRootPopup,
       openTestPopup,
       openThemePopup,
       openThemeModePopup,

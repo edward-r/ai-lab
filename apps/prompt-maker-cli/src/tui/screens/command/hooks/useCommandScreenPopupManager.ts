@@ -14,7 +14,10 @@ type UseCommandScreenPopupManagerOptions = {
   currentModel: ModelOption['id']
   currentTargetModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
+  smartContextEnabled: boolean
   smartContextRoot: string | null
+  toggleSmartContext: () => void
+  setSmartRoot: (value: string) => void
   images: string[]
   videos: string[]
   addImage: (value: string) => void
@@ -62,7 +65,10 @@ export const useCommandScreenPopupManager = ({
   currentModel,
   currentTargetModel,
   modelOptions,
+  smartContextEnabled,
   smartContextRoot,
+  toggleSmartContext,
+  setSmartRoot,
   images,
   videos,
   addImage,
@@ -124,7 +130,10 @@ export const useCommandScreenPopupManager = ({
     activeThemeName,
     themeMode: mode,
     themes: themes.map((theme) => ({ name: theme.name, label: theme.label })),
+    smartContextEnabled,
     smartContextRoot,
+    toggleSmartContext,
+    setSmartRoot,
     images,
     videos,
     addImage,
