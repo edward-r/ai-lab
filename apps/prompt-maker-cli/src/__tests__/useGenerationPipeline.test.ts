@@ -312,7 +312,7 @@ describe('useGenerationPipeline', () => {
     })
   })
 
-  it('animates the status chip while tests run', () => {
+  it('sets the status chip while tests run', () => {
     jest.useFakeTimers()
 
     const pushHistory = jest.fn()
@@ -332,15 +332,14 @@ describe('useGenerationPipeline', () => {
     rerender({ isTestCommandRunning: true })
 
     const firstFrame = result.current.statusChips[0]
-    expect(firstFrame).toContain('Running tests')
+    expect(firstFrame).toBe('[status:Running tests]')
 
     act(() => {
-      jest.advanceTimersByTime(120)
+      jest.advanceTimersByTime(240)
     })
 
     const secondFrame = result.current.statusChips[0]
-    expect(secondFrame).toContain('Running tests')
-    expect(secondFrame).not.toEqual(firstFrame)
+    expect(secondFrame).toBe(firstFrame)
 
     rerender({ isTestCommandRunning: false })
 

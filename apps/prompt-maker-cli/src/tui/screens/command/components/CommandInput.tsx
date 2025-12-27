@@ -19,6 +19,7 @@ export type CommandInputProps = {
   mode: 'intent' | 'refinement'
   isDisabled: boolean
   isPasteActive: boolean
+  isBusy: boolean
   statusChips: string[]
   hint?: string | undefined
   debugLine?: string | undefined
@@ -34,6 +35,7 @@ export const CommandInput = ({
   mode,
   isDisabled,
   isPasteActive,
+  isBusy,
   statusChips,
   hint,
   debugLine,
@@ -49,6 +51,7 @@ export const CommandInput = ({
       mode={mode}
       isDisabled={isDisabled}
       isPasteActive={isPasteActive}
+      isBusy={isBusy}
       statusChips={statusChips}
       hint={hint}
       debugLine={debugLine}

@@ -7,6 +7,8 @@ import { resolveInputBarPresentation, type InputBarMode } from './input-bar-pres
 import type { TokenLabelLookup } from './tokenized-text'
 import { getLineCount } from './multiline-text-buffer'
 
+import { OpencodeSpinner } from '../OpencodeSpinner'
+
 import { useTheme } from '../../theme/theme-provider'
 import {
   inkBackgroundColorProps,
@@ -21,6 +23,7 @@ export type InputBarProps = {
   mode?: InputBarMode
   isDisabled?: boolean
   isPasteActive?: boolean
+  isBusy?: boolean
   statusChips: readonly string[]
   placeholder?: string
   hint?: string | undefined
@@ -53,6 +56,7 @@ export const InputBar: React.FC<InputBarProps> = ({
   mode = 'intent',
   isDisabled = false,
   isPasteActive = false,
+  isBusy = false,
   statusChips,
   placeholder,
   hint,
@@ -104,23 +108,31 @@ export const InputBar: React.FC<InputBarProps> = ({
       />
 
       {summary.status || summary.model ? (
-        <Text {...inkColorProps(theme.mutedText)}>
+        <Box flexDirection="row" flexWrap="wrap">
           {summary.status ? (
-            <>
+            <Box flexDirection="row" flexShrink={0}>
               <Text {...inkColorProps(theme.mutedText)}>Status: </Text>
-              <Text {...inkColorProps(theme.accent)}>{summary.status.value}</Text>
-            </>
+              {isBusy ? (
+                <Box flexDirection="row" flexShrink={0}>
+                  <OpencodeSpinner />
+                  <Text {...inkColorProps(theme.mutedText)}> </Text>
+                  <Text {...inkColorProps(theme.accent)}>{summary.status.value}</Text>
+                </Box>
+              ) : (
+                <Text {...inkColorProps(theme.accent)}>{summary.status.value}</Text>
+              )}
+            </Box>
           ) : null}
           {summary.status && summary.model ? (
             <Text {...inkColorProps(theme.mutedText)}> · </Text>
           ) : null}
           {summary.model ? (
-            <>
+            <Box flexDirection="row" flexShrink={0}>
               <Text {...inkColorProps(theme.mutedText)}>Model: </Text>
               <Text {...inkColorProps(theme.text)}>{summary.model.value}</Text>
-            </>
+            </Box>
           ) : null}
-        </Text>
+        </Box>
       ) : null}
     </Box>
   )
