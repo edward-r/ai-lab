@@ -51,6 +51,8 @@ You are a Lead Architect Agent. Decompose the user's intent into a cohesive plan
 Atomic Prompt Standards (non-negotiable):
 - Standalone rule (critical): Every atomic prompt must be fully self-contained. Do NOT reference any other prompt, step number, or earlier/later content.
   - Forbidden examples include: "as above", "previous step", "prior step", "earlier step", "from step 2", "in step 3", "see step 1", "continue from step".
+  - If a prompt depends on earlier work, express the dependency as "Expected Repo State" / "Prerequisites" using concrete artifacts (file paths, exported functions/types, UI elements), never by referencing another prompt.
+  - Include a short re-entry check: "If this is already implemented, verify and skip to Validation".
 - Single outcome: Each atomic prompt must target exactly one verifiable state change.
 - Completeness: Each atomic prompt must include all context, assumptions, file paths, commands, and acceptance criteria needed to execute the step in a fresh session.
 - Validation required: Each atomic prompt must end with a "Validation" section describing concrete commands + expected outcomes.
@@ -79,9 +81,35 @@ Return strict JSON matching this schema (do not wrap in markdown fences):
 Do not perform the work yourself. Only return the JSON payload described above.
 `
 
+export const SERIES_REPAIR_SYSTEM_PROMPT = `
+You are a Prompt Repair Agent.
+
+You will be given:
+- The user's intent
+- A previously generated SeriesResponse JSON payload
+- A validation error describing what is non-compliant
+
+Your task:
+- Return a corrected SeriesResponse JSON payload (same schema) that passes validation.
+- Preserve the overall plan and keep the number/order of atomicPrompts the same unless the validation error explicitly indicates the shape is invalid.
+- Fix any missing required sections in atomic prompt content.
+- Remove ALL cross-references between prompts. Do NOT mention any other step/prompt number.
+  - If a prompt depends on earlier work, restate the dependency as "Expected Repo State" / "Prerequisites" using concrete artifacts (file paths, exported functions/types, UI elements), not step references.
+  - Add a re-entry instruction (e.g., "If already implemented, verify and skip to Validation") inside the prompt content.
+- Ensure each atomic prompt ends with a "Validation" section containing concrete checks.
+
+Return strict JSON only. Do not wrap in markdown fences. Do not perform the work yourself.
+`
+
 export type UploadState = 'start' | 'finish'
 export type UploadDetail = { kind: 'image' | 'video'; filePath: string }
 export type UploadStateChange = (state: UploadState, detail: UploadDetail) => void
+
+export type SeriesRepairAttemptDetail = {
+  attempt: number
+  maxAttempts: number
+  validationError: string
+}
 
 export type PromptGenerationRequest = {
   intent: string
@@ -94,6 +122,7 @@ export type PromptGenerationRequest = {
   previousPrompt?: string
   refinementInstruction?: string
   onUploadStateChange?: UploadStateChange
+  onSeriesRepairAttempt?: (detail: SeriesRepairAttemptDetail) => void
 }
 
 type CoTResponse = {
@@ -213,7 +242,37 @@ export class PromptGeneratorService {
       { role: 'user', content: userContent },
     ]
 
-    const rawResponse = await callLLM(messages, request.model)
+    const MAX_SERIES_REPAIR_ATTEMPTS = 2
+
+    const isRepairableSeriesValidationError = (error: unknown): boolean => {
+      const message = error instanceof Error ? error.message : String(error)
+      return (
+        message.startsWith('Atomic prompt ') &&
+        (message.includes('missing required section(s)') ||
+          message.includes('contains forbidden cross-reference phrase') ||
+          message.includes('is missing a title') ||
+          message.includes('is missing content'))
+      )
+    }
+
+    const buildSeriesRepairUserMessage = (options: {
+      intent: string
+      validationError: string
+      previousSeries: SeriesResponse
+    }): string => {
+      return [
+        `User Intent:\n${options.intent.trim()}`,
+        '',
+        `Validation Error:\n${options.validationError.trim()}`,
+        '',
+        'Previous SeriesResponse JSON:',
+        JSON.stringify(options.previousSeries, null, 2),
+        '',
+        'Return a corrected SeriesResponse JSON payload now.',
+      ].join('\n')
+    }
+
+    let rawResponse = await callLLM(messages, request.model)
 
     let series: SeriesResponse
     try {
@@ -222,7 +281,44 @@ export class PromptGeneratorService {
       throw new Error('LLM did not return valid SeriesResponse JSON.')
     }
 
-    validateSeriesResponse(series)
+    for (let attempt = 0; attempt <= MAX_SERIES_REPAIR_ATTEMPTS; attempt++) {
+      try {
+        validateSeriesResponse(series)
+        break
+      } catch (error) {
+        if (attempt === MAX_SERIES_REPAIR_ATTEMPTS || !isRepairableSeriesValidationError(error)) {
+          throw error
+        }
+
+        const validationError = error instanceof Error ? error.message : String(error)
+
+        request.onSeriesRepairAttempt?.({
+          attempt: attempt + 1,
+          maxAttempts: MAX_SERIES_REPAIR_ATTEMPTS,
+          validationError,
+        })
+
+        const repairUserContent = buildSeriesRepairUserMessage({
+          intent: request.intent,
+          validationError,
+          previousSeries: series,
+        })
+
+        const repairMessages: Message[] = [
+          { role: 'system', content: SERIES_REPAIR_SYSTEM_PROMPT },
+          ...(targetGuidance ? [{ role: 'system' as const, content: targetGuidance }] : []),
+          { role: 'user', content: repairUserContent },
+        ]
+
+        rawResponse = await callLLM(repairMessages, request.model)
+
+        try {
+          series = parseLLMJson<SeriesResponse>(rawResponse)
+        } catch {
+          throw new Error('LLM did not return valid SeriesResponse JSON.')
+        }
+      }
+    }
 
     const sanitizedOverviewPrompt = sanitizePromptForTargetModelLeakage({
       prompt: series.overviewPrompt,

@@ -759,6 +759,23 @@ export const useGenerationPipeline = ({
           images: [...images],
           videos: [...videos],
           onUploadStateChange: handleUploadState,
+          onSeriesRepairAttempt: ({ attempt, maxAttempts, validationError }) => {
+            const normalizedError = validationError.replace(/\s+/g, ' ').trim()
+            const shortError =
+              normalizedError.length > 140 ? `${normalizedError.slice(0, 137)}…` : normalizedError
+
+            pushHistoryRef.current(
+              `[series] Validation failed; attempting automatic repair (${attempt}/${maxAttempts})… Reason: ${shortError}`,
+              'progress',
+            )
+
+            if (process.env.DEBUG || process.env.VERBOSE) {
+              pushHistoryRef.current(
+                `[series][debug] Full validation error: ${normalizedError}`,
+                'progress',
+              )
+            }
+          },
           ...(normalizedMetaInstructions ? { metaInstructions: normalizedMetaInstructions } : {}),
         }
 

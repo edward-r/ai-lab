@@ -353,39 +353,52 @@ Validation
     ).rejects.toThrow('Series atomicPrompts must include at least one entry.')
   })
 
-  it('throws when an atomic prompt is missing required sections', async () => {
-    callLLMMock.mockResolvedValue(
-      JSON.stringify({
-        reasoning: 'r',
-        overviewPrompt: '# Overview',
-        atomicPrompts: [
-          { title: 'Step', content: '# Title\nMissing most sections\n\nValidation\n- ok' },
-        ],
+  it('repairs atomic prompts that are missing required sections', async () => {
+    callLLMMock
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          reasoning: 'r',
+          overviewPrompt: '# Overview',
+          atomicPrompts: [
+            { title: 'Step', content: '# Title\nMissing most sections\n\nValidation\n- ok' },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(JSON.stringify(seriesPayload))
+
+    const onSeriesRepairAttempt = jest.fn()
+    const service = await buildService()
+    const result = await service.generatePromptSeries({
+      intent: 'Plan',
+      model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
+      fileContext: [],
+      images: [],
+      videos: [],
+      onSeriesRepairAttempt,
+    })
+
+    expect(callLLMMock).toHaveBeenCalledTimes(2)
+    expect(onSeriesRepairAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attempt: 1,
+        maxAttempts: 2,
+        validationError: expect.stringContaining('missing required section(s)'),
       }),
     )
-
-    const service = await buildService()
-    await expect(
-      service.generatePromptSeries({
-        intent: 'Plan',
-        model: 'gpt-4o-mini',
-        targetModel: 'gpt-4o-mini',
-        fileContext: [],
-        images: [],
-        videos: [],
-      }),
-    ).rejects.toThrow('Atomic prompt 1 is missing required section(s):')
+    expect(result).toEqual(seriesPayload)
   })
 
-  it('throws when an atomic prompt contains cross-references', async () => {
-    callLLMMock.mockResolvedValue(
-      JSON.stringify({
-        reasoning: 'r',
-        overviewPrompt: '# Overview',
-        atomicPrompts: [
-          {
-            title: 'Step',
-            content: `# Title
+  it('repairs atomic prompts that contain cross-references', async () => {
+    callLLMMock
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          reasoning: 'r',
+          overviewPrompt: '# Overview',
+          atomicPrompts: [
+            {
+              title: 'Step',
+              content: `# Title
 Do a thing
 
 Role
@@ -412,22 +425,33 @@ Output Format
 Validation
 - Run: npx jest --runInBand
 `,
-          },
-        ],
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(JSON.stringify(seriesPayload))
+
+    const onSeriesRepairAttempt = jest.fn()
+    const service = await buildService()
+    const result = await service.generatePromptSeries({
+      intent: 'Plan',
+      model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
+      fileContext: [],
+      images: [],
+      videos: [],
+      onSeriesRepairAttempt,
+    })
+
+    expect(callLLMMock).toHaveBeenCalledTimes(2)
+    expect(onSeriesRepairAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attempt: 1,
+        maxAttempts: 2,
+        validationError: expect.stringContaining('contains forbidden cross-reference phrase'),
       }),
     )
-
-    const service = await buildService()
-    await expect(
-      service.generatePromptSeries({
-        intent: 'Plan',
-        model: 'gpt-4o-mini',
-        targetModel: 'gpt-4o-mini',
-        fileContext: [],
-        images: [],
-        videos: [],
-      }),
-    ).rejects.toThrow('Atomic prompt 1 contains forbidden cross-reference phrase')
+    expect(result).toEqual(seriesPayload)
   })
 
   it('logs reasoning when DEBUG env var is set', async () => {
