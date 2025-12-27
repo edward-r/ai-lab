@@ -179,7 +179,8 @@ Key flags and behaviors:
 | `--context-format text\|json`               | Choose how `--show-context` and `--context-file` render the context payloads.                                     |
 | `--smart-context-root <path>`               | Limit smart-context scanning to a specific directory (defaults to the current working directory).                 |
 | `--image <path>` (repeatable)               | Inline images (PNG/JPG/WEBP/GIF ≤ 20 MB) as Base64 so vision-capable models can reference them.                   |
-| `--model <name>`                            | Override the generation model (OpenAI GPT or Gemini). Defaults can be set via config/env.                         |
+| `--model <name>`                            | Override the _generation_ model used by the CLI (OpenAI GPT or Gemini). Defaults can be set via config/env.       |
+| `--target <name>`                           | Target/runtime model used for optimization (recorded in JSON/history, not included in the generated prompt text). |
 | `-i, --interactive`                         | Enable the refine loop (TTY only). Each new note becomes a stateful edit of the previous prompt.                  |
 | `--polish`, `--polish-model <name>`         | Run the finishing pass and optionally choose a different model for it.                                            |
 | `--json`                                    | Emit machine-readable JSON (non-interactive). Includes `prompt`, optional `polishedPrompt`, iteration count, etc. |
@@ -245,6 +246,7 @@ Key concepts:
 - **Intent & model entry** – the left column mirrors Opencode’s editable panels. Type intent/model, then press `g` or `Enter` from the Actions section to run.
 - **Context & media management** – right-side panels let you add/remove file globs, URLs (including GitHub paths), smart context toggles/root, images, and videos. Keyboard shortcuts (`f`, `u`, `s`, `e`, `v`) focus each pane.
 - **Interactive refinement** – toggle local refinement with `r` (or provide `--interactive-transport` to accept remote commands). The refinement timeline shows each iteration, remote transport status, and inline prompts for instructions. Remote runs stream events to both the TUI and the connected socket.
+- **Target model command** – type `/target` to pick the runtime model the generated prompt should be optimized for (distinct from the generation `/model`).
 - **JSON command** – type `/json on` (or select JSON from the command menu) to emit the same machine-readable payload as `--json` without leaving the TUI; the payload is also rendered in the history panel for copy/paste. `/json off` restores standard output, and JSON mode is disabled automatically when an interactive transport is active.
 - **Telemetry & logs** – upload/progress lines, smart-context warnings, and transport status appear under Actions. Errors (missing credentials, URL failures, etc.) surface in-place and continue to emit console warnings for automation.
 - **Test Runner** – switch to the Test view (Ctrl+T) to enter a YAML file, run suites, and watch test rows update live. Recent warnings and failures are mirrored in the log panel to keep Opencode-style feedback consistent.
@@ -257,6 +259,7 @@ All JSON/JSONL outputs, history logging, and clipboard/ChatGPT behaviors remain 
 {
   "intent": "Draft a confident onboarding-bot spec",
   "model": "gpt-4o-mini",
+  "targetModel": "gpt-4o-mini",
   "prompt": "(Role/Context/Constraints...)",
   "polishedPrompt": "(tightened version)",
   "refinements": [],

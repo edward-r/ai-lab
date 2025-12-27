@@ -37,6 +37,7 @@ _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-m
   - Intent: inline argument, `--intent-file`, or stdin.
   - Context: repeated `--context` globs, `--url`, `--image`, `--video`, `--smart-context` (+ `--smart-context-root`).
   - Output controls: `--json`, `--copy`, `--open-chatgpt`, `--context-template`, `--context-file`, `--context-format`.
+  - Models: `--model <name>` (generation) and `--target <name>` (runtime optimization; recorded in JSON/history, not included in the generated prompt text by default).
   - Interaction: `-i/--interactive`, `--stream jsonl`, `--interactive-transport <path>`, `--quiet`, `--no-progress`.
   - Post-processing: `--polish`, `--polish-model`.
 
@@ -75,6 +76,7 @@ _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-m
 - **Gemini fallback**: `resolveGeminiVideoModel` prefers `promptGenerator.defaultGeminiModel`, otherwise `gemini-3-pro-preview`.
 - **Credential loading**: `ensureModelCredentials` pulls env vars first, then falls back to `~/.config/prompt-maker-cli/config.json`. Missing keys throw descriptive errors before API calls, so the plugin should capture stderr and surface the message.
 - **Polish model**: defaults to the generation model unless `--polish-model` or `PROMPT_MAKER_POLISH_MODEL` overrides it.
+- **Target model**: set via `--target <name>` (or `/target` in the TUI). If omitted, it defaults to the resolved default generation model. The CLI uses it as internal optimization guidance (and emits it as `targetModel` in payloads/history), but it must not be echoed into the user-facing prompt text unless the intent explicitly asks for it.
 
 ## 9. Generation & Refinement Workflow
 
@@ -104,7 +106,7 @@ _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-m
 
 ## 11. Output Assembly & Delivery
 
-- **GenerateJsonPayload**: includes `intent`, `model`, `prompt`, `refinements`, `iterations`, `interactive`, `timestamp`, `contextPaths`, optional `outputPath`, `polishedPrompt`, `polishModel`, `contextTemplate`, `renderedPrompt`.
+- **GenerateJsonPayload**: includes `intent`, `model` (generation model), `targetModel` (runtime model), `prompt`, `refinements`, `iterations`, `interactive`, `timestamp`, `contextPaths`, optional `outputPath`, `polishedPrompt`, `polishModel`, `contextTemplate`, `renderedPrompt`.
 - **Context templates**: built-in `nvim` template injects a header and instructions before inserting `{{prompt}}`. User-defined templates live under `contextTemplates` in `config.json`. Plugin should let users select templates per run or default to `nvim` when targeting scratch buffers.
 - **Clipboard/browser**: `--copy` uses `clipboardy`; `--open-chatgpt` opens `https://chatgpt.com/?q=...`. In headless editor environments these options should default to false unless explicitly enabled.
 - **History logging**: every run (JSON payload) appends to `$HOME/.config/prompt-maker-cli/history.jsonl`. Plugins can tail this file to show recent prompts or rehydrate drafts.
@@ -162,6 +164,8 @@ _Comprehensive reference for building a NeoVim plugin that orchestrates prompt-m
 | `--stream jsonl`                           | Emit newline-delimited structured events.         |
 | `--json`                                   | Print final payload for programmatic consumption. |
 | `--context-template <name>`                | Wrap final prompt (built-in `nvim`).              |
+| `--model <name>`                           | Generation model used by the CLI.                 |
+| `--target <name>`                          | Runtime model the prompt is optimized for.        |
 | `--copy`, `--open-chatgpt`                 | Clipboard/browser handoff.                        |
 | `--polish`, `--polish-model`               | Post-generation refinement.                       |
 | `--quiet`, `--no-progress`                 | Suppress UI spinners/banners.                     |

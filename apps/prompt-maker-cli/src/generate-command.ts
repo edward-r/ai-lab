@@ -21,6 +21,7 @@ import { appendToHistory } from './history-logger'
 import { resolveSmartContextFiles } from './smart-context-service'
 import { resolveUrlContext, type ResolveUrlContextOptions } from './url-context'
 import { countTokens, formatTokenCount } from './token-counter'
+import { loadModelOptions } from './tui/model-options'
 
 import {
   createPromptGeneratorService,
@@ -28,6 +29,7 @@ import {
   GEN_SYSTEM_PROMPT,
   isGemini,
   resolveDefaultGenerateModel,
+  sanitizePromptForTargetModelLeakage,
   type PromptGenerationRequest,
   type UploadDetail,
   type UploadState,
@@ -42,6 +44,7 @@ const VALUE_FLAGS = new Set([
   '--intent-file',
   '-f',
   '--model',
+  '--target',
   '--polish-model',
   '--context',
   '-c',
@@ -83,6 +86,7 @@ export type GenerateArgs = {
   intent?: string
   intentFile?: string
   model?: string
+  target?: string
   interactive: boolean
   copy: boolean
   openChatGpt: boolean
@@ -117,6 +121,7 @@ type LoopContext = {
   intent: string
   refinements: string[]
   model: string
+  targetModel: string
   fileContext: FileContext[]
   images: string[]
   videos: string[]
@@ -133,6 +138,7 @@ export type ContextPathMetadata = {
 export type GenerateJsonPayload = {
   intent: string
   model: string
+  targetModel: string
   prompt: string
   reasoning?: string
   refinements: string[]
@@ -400,7 +406,13 @@ export const runGeneratePipeline = async (
     recordContextPaths(fileContext, 'file')
 
     const service = await createPromptGeneratorService()
-    let model = args.model ?? (await resolveDefaultGenerateModel())
+    const defaultGenerateModel = await resolveDefaultGenerateModel()
+
+    let model = args.model ?? defaultGenerateModel
+    const targetModel = await resolveTargetModel({
+      defaultTargetModel: defaultGenerateModel,
+      ...(args.target !== undefined ? { explicitTarget: args.target } : {}),
+    })
 
     if (args.video.length > 0 && !isGemini(model)) {
       model = await resolveGeminiVideoModel()
@@ -578,6 +590,7 @@ export const runGeneratePipeline = async (
         intent,
         refinements,
         model,
+        targetModel,
         fileContext,
         images: args.images,
         videos: args.video,
@@ -602,7 +615,7 @@ export const runGeneratePipeline = async (
       emitProgress(label, 'start', 'polish')
       const polishSpinner = startSpinner(label)
       try {
-        polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel)
+        polishedPrompt = await polishPrompt(intent, generatedPrompt, polishModel, targetModel)
       } finally {
         polishSpinner?.stop('Polished prompt ✓')
         emitProgress(label, 'stop', 'polish')
@@ -621,6 +634,7 @@ export const runGeneratePipeline = async (
     const payload: GenerateJsonPayload = {
       intent,
       model,
+      targetModel,
       prompt: generatedPrompt,
       ...(typeof generationReasoning === 'string' ? { reasoning: generationReasoning } : {}),
       refinements: [...refinements],
@@ -708,6 +722,11 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     .option('model', {
       type: 'string',
       describe: 'Override model for generation',
+    })
+    .option('target', {
+      type: 'string',
+      describe:
+        'Target/runtime model used for optimization (not included in the generated prompt text)',
     })
     .option('polish-model', {
       type: 'string',
@@ -825,6 +844,7 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
   const parsed = parser.parseSync() as ArgumentsCamelCase<{
     intentFile?: string
     model?: string
+    target?: string
     polishModel?: string
     interactive: boolean
     copy: boolean
@@ -899,6 +919,10 @@ const parseGenerateArgs = (argv: string[]): ParsedArgs => {
     args.model = parsed.model
   }
 
+  if (parsed.target) {
+    args.target = parsed.target
+  }
+
   if (parsed.polishModel) {
     args.polishModel = parsed.polishModel
   }
@@ -916,6 +940,45 @@ const resolveGeminiVideoModel = async (): Promise<string> => {
     return configured
   }
   return 'gemini-3-pro-preview'
+}
+
+type ResolveTargetModelOptions = {
+  explicitTarget?: string
+  defaultTargetModel: string
+}
+
+const resolveTargetModel = async ({
+  explicitTarget,
+  defaultTargetModel,
+}: ResolveTargetModelOptions): Promise<string> => {
+  if (explicitTarget === undefined) {
+    return defaultTargetModel
+  }
+
+  const normalized = explicitTarget.trim()
+  if (!normalized) {
+    throw new Error('--target requires a non-empty model id.')
+  }
+
+  const { options } = await loadModelOptions()
+  const match = options.find((option) => option.id === normalized)
+
+  if (!match) {
+    const known = options
+      .slice(0, 12)
+      .map((option) => option.id)
+      .join(', ')
+
+    throw new Error(
+      [
+        `Unknown --target model: ${normalized}`,
+        known ? `Known models include: ${known}` : 'No known models are configured.',
+        'Add custom entries under promptGenerator.models in ~/.config/prompt-maker-cli/config.json.',
+      ].join('\n'),
+    )
+  }
+
+  return match.id
 }
 
 const resolveIntent = async (args: GenerateArgs): Promise<string> => {
@@ -1176,6 +1239,7 @@ const generateAndMaybeDisplay = async (
   const request: PromptGenerationRequest = {
     intent: context.intent,
     model: context.model,
+    targetModel: context.targetModel,
     fileContext: context.fileContext,
     images: context.images,
     videos: context.videos,
@@ -1243,27 +1307,49 @@ const polishPrompt = async (
   originalIntent: string,
   prompt: string,
   model: string,
+  targetModel?: string,
 ): Promise<string> => {
   await ensureModelCredentials(model)
 
-  return await callLLM(
-    [
-      { role: 'system', content: POLISH_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: [
-          'Intent:',
-          originalIntent,
-          '---',
-          'Generated prompt candidate:',
-          prompt,
-          '---',
-          'Return the polished prompt text, preserving exact sections.',
-        ].join('\n'),
-      },
-    ],
-    model,
-  )
+  const normalizedTargetModel = targetModel?.trim() ?? ''
+
+  const targetGuidance = normalizedTargetModel
+    ? [
+        'Internal Optimization Target (do not include in output):',
+        `- targetRuntimeModel: ${normalizedTargetModel}`,
+        '',
+        'Rules (non-negotiable):',
+        '- Use the target runtime model only to tune compliance, clarity, and formatting expectations.',
+        '- Do NOT mention or output the target runtime model id/label/name anywhere in the polished prompt text.',
+        '- Do NOT include phrases like "Target runtime model" / "Target Runtime Model" in the polished prompt text.',
+        '- Only include the target model id/label/name if the user intent explicitly asks to mention it.',
+      ].join('\n')
+    : ''
+
+  const messages = [
+    { role: 'system' as const, content: POLISH_SYSTEM_PROMPT },
+    ...(targetGuidance ? [{ role: 'system' as const, content: targetGuidance }] : []),
+    {
+      role: 'user' as const,
+      content: [
+        'Intent:',
+        originalIntent,
+        '---',
+        'Generated prompt candidate:',
+        prompt,
+        '---',
+        'Return the polished prompt text, preserving exact sections.',
+      ].join('\n'),
+    },
+  ]
+
+  const raw = await callLLM(messages, model)
+
+  return sanitizePromptForTargetModelLeakage({
+    prompt: raw,
+    intent: originalIntent,
+    targetModel: normalizedTargetModel,
+  })
 }
 
 type FileTokenSummary = {

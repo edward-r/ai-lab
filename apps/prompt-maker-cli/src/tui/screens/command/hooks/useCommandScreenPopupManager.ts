@@ -1,4 +1,4 @@
-import { useApp } from 'ink'
+import { useApp, useStdout } from 'ink'
 import { useCallback } from 'react'
 
 import { usePopupManager } from '../../../hooks/usePopupManager'
@@ -12,6 +12,7 @@ type PushHistory = (content: string, kind?: HistoryEntry['kind']) => void
 
 type UseCommandScreenPopupManagerOptions = {
   currentModel: ModelOption['id']
+  currentTargetModel: ModelOption['id']
   modelOptions: readonly ModelOption[]
   smartContextRoot: string | null
   images: string[]
@@ -32,6 +33,7 @@ type UseCommandScreenPopupManagerOptions = {
   runTestsFromCommandProxy: (value: string) => void
 
   setCurrentModel: (value: ModelOption['id']) => void
+  setCurrentTargetModel: (value: ModelOption['id']) => void
   setPolishEnabled: (value: boolean) => void
   setCopyEnabled: (value: boolean) => void
   setChatGptEnabled: (value: boolean) => void
@@ -58,6 +60,7 @@ export type UseCommandScreenPopupManagerResult = {
 
 export const useCommandScreenPopupManager = ({
   currentModel,
+  currentTargetModel,
   modelOptions,
   smartContextRoot,
   images,
@@ -74,8 +77,11 @@ export const useCommandScreenPopupManager = ({
   setInputValue,
   runSeriesGeneration,
   runTestsFromCommandProxy,
+
   setCurrentModel,
+  setCurrentTargetModel,
   setPolishEnabled,
+
   setCopyEnabled,
   setChatGptEnabled,
   setJsonOutputEnabled,
@@ -89,6 +95,13 @@ export const useCommandScreenPopupManager = ({
   jsonOutputEnabled,
 }: UseCommandScreenPopupManagerOptions): UseCommandScreenPopupManagerResult => {
   const { exit } = useApp()
+  const { stdout } = useStdout()
+
+  const clearScreen = useCallback(() => {
+    if (stdout && stdout.isTTY) {
+      stdout.write('\u001b[2J\u001b[H')
+    }
+  }, [stdout])
 
   const getLatestTypedIntent = useCallback(() => {
     const trimmed = lastTypedIntentRef.current.trim()
@@ -106,6 +119,7 @@ export const useCommandScreenPopupManager = ({
 
   const popupManager = usePopupManager({
     currentModel,
+    currentTargetModel,
     modelOptions,
     activeThemeName,
     themeMode: mode,
@@ -125,8 +139,10 @@ export const useCommandScreenPopupManager = ({
     setInputValue,
     runSeriesGeneration,
     runTestsFromCommand: runTestsFromCommandProxy,
+    clearScreen,
     exitApp: exit,
     setCurrentModel,
+    setCurrentTargetModel,
     setPolishEnabled,
     setCopyEnabled,
     setChatGptEnabled,

@@ -1,5 +1,11 @@
 export const COMMAND_DESCRIPTORS = [
-  { id: 'model', label: 'Model', description: 'Switch the target LLM' },
+  { id: 'model', label: 'Model', description: 'Switch the generation model' },
+  {
+    id: 'target',
+    label: 'Target',
+    description:
+      'Switch the runtime model used for optimization (/target; not included in prompt text)',
+  },
   {
     id: 'intent',
     label: 'Intent File',
@@ -30,7 +36,8 @@ export const COMMAND_DESCRIPTORS = [
   {
     id: 'series',
     label: 'Series',
-    description: 'Atomic prompt series (Tab) · prefilled from typed/last intent or intent file',
+    description:
+      'Atomic prompt series (Tab) · standalone prompts; prefilled from typed/last intent or intent file',
   },
   { id: 'copy', label: 'Copy', description: 'Auto-copy final prompt' },
   { id: 'chatgpt', label: 'ChatGPT', description: 'Open ChatGPT automatically' },

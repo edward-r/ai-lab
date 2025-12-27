@@ -26,7 +26,7 @@ export type ProviderStatus = {
 export type ProviderStatusMap = Record<ModelProvider, ProviderStatus>
 
 export type PopupState =
-  | { type: 'model'; query: string; selectionIndex: number }
+  | { type: 'model'; kind: 'generation' | 'target'; query: string; selectionIndex: number }
   | { type: 'toggle'; field: ToggleField; selectionIndex: number }
   | {
       type: 'file'

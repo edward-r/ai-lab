@@ -73,6 +73,9 @@ const resolveSegmentLabel = (chip: ParsedChip): string => {
   if (chip.key === 'model') {
     return 'Model'
   }
+  if (chip.key === 'target') {
+    return 'Target'
+  }
   if (chip.key === 'instr') {
     return 'Meta'
   }
@@ -98,7 +101,7 @@ const resolveSegmentLabel = (chip: ParsedChip): string => {
 }
 
 const resolveSegmentStyle = (chip: ParsedChip): IndicatorStyle => {
-  if (chip.key === 'status' || chip.key === 'model') {
+  if (chip.key === 'status' || chip.key === 'model' || chip.key === 'target') {
     return 'primary'
   }
 
@@ -146,6 +149,8 @@ const resolveSortWeight = (segment: IndicatorSegment): number => {
     case 'Status':
       return 0
     case 'Model':
+      return 1
+    case 'Target':
       return 1
     case 'OpenAI':
     case 'Gemini':

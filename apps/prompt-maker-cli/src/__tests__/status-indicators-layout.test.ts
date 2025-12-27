@@ -8,6 +8,7 @@ describe('status indicator layout', () => {
   const chips = [
     '[status:Idle]',
     '[gpt-4o-mini]',
+    '[target:gpt-4o]',
     '[openai:ok]',
     '[tokens:1.2k]',
     '[polish:on]',
@@ -37,6 +38,7 @@ describe('status indicator layout', () => {
     const text = flattenLine(firstLine)
     expect(text).toContain('Status: Idle')
     expect(text).toContain('Model: gpt-4o-mini')
+    expect(text).toContain('Target: gpt-4o')
     expect(text).toContain('OpenAI: ok')
     expect(text).toContain('Tokens: 1.2k')
   })

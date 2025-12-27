@@ -74,7 +74,8 @@ export const InputBar: React.FC<InputBarProps> = ({
     const segments = resolveIndicatorSegments(statusChips)
     const status = segments.find((segment) => segment.label === 'Status')
     const model = segments.find((segment) => segment.label === 'Model')
-    return { status, model }
+    const target = segments.find((segment) => segment.label === 'Target')
+    return { status, model, target }
   }, [statusChips])
 
   const borderColor = presentation.borderTone === 'warning' ? theme.warning : theme.border
@@ -107,7 +108,7 @@ export const InputBar: React.FC<InputBarProps> = ({
         onDebugKeyEvent={onDebugKeyEvent}
       />
 
-      {summary.status || summary.model ? (
+      {summary.status || summary.model || summary.target ? (
         <Box flexDirection="row" flexWrap="wrap">
           {summary.status ? (
             <Box flexDirection="row" flexShrink={0}>
@@ -123,13 +124,22 @@ export const InputBar: React.FC<InputBarProps> = ({
               )}
             </Box>
           ) : null}
-          {summary.status && summary.model ? (
+          {summary.status && (summary.model || summary.target) ? (
             <Text {...inkColorProps(theme.mutedText)}> · </Text>
           ) : null}
           {summary.model ? (
             <Box flexDirection="row" flexShrink={0}>
               <Text {...inkColorProps(theme.mutedText)}>Model: </Text>
               <Text {...inkColorProps(theme.text)}>{summary.model.value}</Text>
+            </Box>
+          ) : null}
+          {summary.model && summary.target ? (
+            <Text {...inkColorProps(theme.mutedText)}> · </Text>
+          ) : null}
+          {summary.target ? (
+            <Box flexDirection="row" flexShrink={0}>
+              <Text {...inkColorProps(theme.mutedText)}>Target: </Text>
+              <Text {...inkColorProps(theme.text)}>{summary.target.value}</Text>
             </Box>
           ) : null}
         </Box>

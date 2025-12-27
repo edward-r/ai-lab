@@ -15,6 +15,7 @@ import { resolveWindowedList } from './list-window'
 import type { ModelOption, ProviderStatusMap } from '../../types'
 
 export type ModelPopupProps = {
+  title?: string
   query: string
   options: readonly ModelOption[]
   selectedIndex: number
@@ -103,6 +104,7 @@ const ensureHeaderVisible = (
 }
 
 export const ModelPopup = ({
+  title,
   query,
   options,
   selectedIndex,
@@ -174,7 +176,7 @@ export const ModelPopup = ({
       {...inkBackgroundColorProps(theme.popupBackground)}
     >
       <Box flexDirection="row" justifyContent="space-between">
-        <Text {...inkColorProps(theme.accent)}>Select model</Text>
+        <Text {...inkColorProps(theme.accent)}>{title ?? 'Select model'}</Text>
         <Text {...inkColorProps(theme.mutedText)}>esc</Text>
       </Box>
 

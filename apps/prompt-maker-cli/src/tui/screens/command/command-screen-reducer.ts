@@ -60,7 +60,7 @@ export const createInitialCommandScreenState = (options: {
   debugKeyLine: null,
   intentFilePath: '',
   polishEnabled: false,
-  copyEnabled: false,
+  copyEnabled: true,
   chatGptEnabled: false,
   jsonOutputEnabled: false,
 })

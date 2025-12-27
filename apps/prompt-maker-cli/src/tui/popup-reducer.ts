@@ -32,7 +32,7 @@ export type PopupManagerState = {
 export type PopupAction =
   | { type: 'set'; next: SetStateAction<PopupState> }
   | { type: 'close' }
-  | { type: 'open-model'; query: string; selectionIndex: number }
+  | { type: 'open-model'; kind: 'generation' | 'target'; query: string; selectionIndex: number }
   | { type: 'open-toggle'; field: ToggleField; selectionIndex: number }
   | { type: 'open-file'; scanId: number }
   | { type: 'open-url' }
@@ -176,7 +176,12 @@ export const popupReducer = (state: PopupManagerState, action: PopupAction): Pop
 
     case 'open-model':
       return {
-        popupState: { type: 'model', query: action.query, selectionIndex: action.selectionIndex },
+        popupState: {
+          type: 'model',
+          kind: action.kind,
+          query: action.query,
+          selectionIndex: action.selectionIndex,
+        },
         activeScan: null,
       }
 

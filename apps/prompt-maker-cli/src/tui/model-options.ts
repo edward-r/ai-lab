@@ -103,6 +103,9 @@ const BUILT_IN_MODEL_OPTIONS = BUILT_IN_MODEL_DEFINITIONS.map((definition) =>
 let cachedModelOptions: ModelOption[] | null = null
 let cachedWarning: string | null = null
 
+let cachedModelOptionsNoDiscovery: ModelOption[] | null = null
+let cachedWarningNoDiscovery: string | null = null
+
 const mergeModelOptions = (base: ModelOption[], overrides: ModelOption[]): ModelOption[] => {
   const merged = new Map<string, ModelOption>()
   base.forEach((option) => merged.set(option.id, option))
@@ -117,13 +120,24 @@ export type LoadModelOptionsResult = {
   warning?: string
 }
 
-export const loadModelOptions = async (): Promise<LoadModelOptionsResult> => {
-  if (cachedModelOptions) {
-    const warningResult = cachedWarning
-      ? { options: cachedModelOptions.map(cloneOption), warning: cachedWarning }
-      : { options: cachedModelOptions.map(cloneOption) }
+export type LoadModelOptionsOptions = {
+  includeDiscovered?: boolean
+}
+
+export const loadModelOptions = async (
+  options: LoadModelOptionsOptions = {},
+): Promise<LoadModelOptionsResult> => {
+  const includeDiscovered = options.includeDiscovered !== false
+  const cached = includeDiscovered ? cachedModelOptions : cachedModelOptionsNoDiscovery
+  const warning = includeDiscovered ? cachedWarning : cachedWarningNoDiscovery
+
+  if (cached) {
+    const warningResult = warning
+      ? { options: cached.map(cloneOption), warning }
+      : { options: cached.map(cloneOption) }
     return warningResult
   }
+
   try {
     const config = await loadCliConfig()
     const extraDefinitions = config?.promptGenerator?.models ?? []
@@ -136,50 +150,68 @@ export const loadModelOptions = async (): Promise<LoadModelOptionsResult> => {
     )
 
     let discoveredOptions: ModelOption[] = []
-    try {
-      const [openAiCredentials, geminiCredentials] = await Promise.all([
-        resolveOpenAiCredentials().catch(() => null),
-        resolveGeminiCredentials().catch(() => null),
-      ])
+    if (includeDiscovered) {
+      try {
+        const [openAiCredentials, geminiCredentials] = await Promise.all([
+          resolveOpenAiCredentials().catch(() => null),
+          resolveGeminiCredentials().catch(() => null),
+        ])
 
-      const discovered = await getAvailableModels(
-        openAiCredentials?.apiKey,
-        geminiCredentials?.apiKey,
-        {
-          ...(openAiCredentials?.baseUrl ? { openAiBaseUrl: openAiCredentials.baseUrl } : {}),
-          ...(geminiCredentials?.baseUrl ? { geminiBaseUrl: geminiCredentials.baseUrl } : {}),
-          ...(process.env.OPENAI_ORG_ID?.trim()
-            ? { openAiOrganizationId: process.env.OPENAI_ORG_ID.trim() }
-            : {}),
-          ...(process.env.OPENAI_PROJECT_ID?.trim()
-            ? { openAiProjectId: process.env.OPENAI_PROJECT_ID.trim() }
-            : {}),
-        },
-      )
+        const discovered = await getAvailableModels(
+          openAiCredentials?.apiKey,
+          geminiCredentials?.apiKey,
+          {
+            ...(openAiCredentials?.baseUrl ? { openAiBaseUrl: openAiCredentials.baseUrl } : {}),
+            ...(geminiCredentials?.baseUrl ? { geminiBaseUrl: geminiCredentials.baseUrl } : {}),
+            ...(process.env.OPENAI_ORG_ID?.trim()
+              ? { openAiOrganizationId: process.env.OPENAI_ORG_ID.trim() }
+              : {}),
+            ...(process.env.OPENAI_PROJECT_ID?.trim()
+              ? { openAiProjectId: process.env.OPENAI_PROJECT_ID.trim() }
+              : {}),
+          },
+        )
 
-      const discoveredIds = [...discovered.openai, ...discovered.gemini].filter(
-        (modelId) => !reservedIds.has(modelId),
-      )
+        const discoveredIds = [...discovered.openai, ...discovered.gemini].filter(
+          (modelId) => !reservedIds.has(modelId),
+        )
 
-      discoveredOptions = discoveredIds.map((modelId) =>
-        normalizeModelDefinition({ id: modelId }, 'discovered'),
-      )
-    } catch {
-      // Best-effort; dynamic discovery should never block model selection.
+        discoveredOptions = discoveredIds.map((modelId) =>
+          normalizeModelDefinition({ id: modelId }, 'discovered'),
+        )
+      } catch {
+        // Best-effort; dynamic discovery should never block model selection.
+      }
     }
 
     const merged = mergeModelOptions(BUILT_IN_MODEL_OPTIONS, [
       ...normalizedExtras,
       ...discoveredOptions,
     ])
-    cachedModelOptions = merged
-    cachedWarning = null
+
+    if (includeDiscovered) {
+      cachedModelOptions = merged
+      cachedWarning = null
+    } else {
+      cachedModelOptionsNoDiscovery = merged
+      cachedWarningNoDiscovery = null
+    }
+
     return { options: merged.map(cloneOption) }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown CLI config error.'
-    cachedModelOptions = BUILT_IN_MODEL_OPTIONS
-    cachedWarning = `Failed to load CLI model entries: ${message}`
-    return { options: BUILT_IN_MODEL_OPTIONS.map(cloneOption), warning: cachedWarning }
+    const fallbackOptions = BUILT_IN_MODEL_OPTIONS
+    const fallbackWarning = `Failed to load CLI model entries: ${message}`
+
+    if (includeDiscovered) {
+      cachedModelOptions = fallbackOptions
+      cachedWarning = fallbackWarning
+    } else {
+      cachedModelOptionsNoDiscovery = fallbackOptions
+      cachedWarningNoDiscovery = fallbackWarning
+    }
+
+    return { options: fallbackOptions.map(cloneOption), warning: fallbackWarning }
   }
 }
 

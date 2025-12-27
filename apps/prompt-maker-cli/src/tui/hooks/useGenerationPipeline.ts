@@ -141,6 +141,7 @@ export type UseGenerationPipelineOptions = {
   smartContextRoot: string | null
   metaInstructions: string
   currentModel: string
+  targetModel?: string
   interactiveTransportPath?: string | undefined
   terminalColumns: number
   polishEnabled: boolean
@@ -165,6 +166,7 @@ export const useGenerationPipeline = ({
   smartContextRoot,
   metaInstructions,
   currentModel,
+  targetModel,
   interactiveTransportPath,
   terminalColumns,
   polishEnabled,
@@ -511,6 +513,7 @@ export const useGenerationPipeline = ({
         return
       }
       const normalizedModel = currentModel.trim() || 'gpt-4o-mini'
+      const normalizedTargetModel = (targetModel ?? '').trim() || normalizedModel
       const providerReady = await ensureProviderReady(normalizedModel)
       if (!providerReady) {
         return
@@ -552,6 +555,7 @@ export const useGenerationPipeline = ({
           video: [...videos],
           smartContext: smartContextEnabled,
           model: normalizedModel,
+          target: normalizedTargetModel,
         }
         if (normalizedMetaInstructions) {
           args.metaInstructions = normalizedMetaInstructions
@@ -635,6 +639,7 @@ export const useGenerationPipeline = ({
       chatGptEnabled,
       copyEnabled,
       currentModel,
+      targetModel,
       files,
       urls,
       images,
@@ -661,16 +666,18 @@ export const useGenerationPipeline = ({
 
   const runSeriesGeneration = useCallback(
     async (intent: string) => {
-      let targetModel = currentModel.trim() || 'gpt-4o-mini'
-      if (videos.length > 0 && !isGemini(targetModel)) {
-        targetModel = 'gemini-3-pro-preview'
+      let generationModel = currentModel.trim() || 'gpt-4o-mini'
+      if (videos.length > 0 && !isGemini(generationModel)) {
+        generationModel = 'gemini-3-pro-preview'
         pushHistoryRef.current(
           '[series] Switching to gemini-3-pro-preview for video support.',
           'progress',
         )
       }
 
-      const providerReady = await ensureProviderReady(targetModel)
+      const runtimeTargetModel = (targetModel ?? '').trim() || generationModel
+
+      const providerReady = await ensureProviderReady(generationModel)
       if (!providerReady) {
         return
       }
@@ -773,7 +780,8 @@ export const useGenerationPipeline = ({
 
         const request: PromptGenerationRequest = {
           intent,
-          model: targetModel,
+          model: generationModel,
+          targetModel: runtimeTargetModel,
           fileContext: resolvedContext,
           images: [...images],
           videos: [...videos],
@@ -849,7 +857,9 @@ export const useGenerationPipeline = ({
     },
     [
       currentModel,
+      targetModel,
       files,
+
       urls,
       images,
       videos,
@@ -871,7 +881,8 @@ export const useGenerationPipeline = ({
         : statusMessage
 
     const statusChip = `[status:${effectiveStatusMessage}]`
-    const chips = [statusChip, `[${currentModel}]`]
+    const normalizedTarget = (targetModel ?? '').trim() || currentModel
+    const chips = [statusChip, `[${currentModel}]`, `[target:${normalizedTarget}]`]
     if (latestTelemetry) {
       chips.push(`[tokens:${formatCompactTokens(latestTelemetry.totalTokens)}]`)
     }
@@ -892,7 +903,9 @@ export const useGenerationPipeline = ({
     isGenerating,
     statusMessage,
     currentModel,
+    targetModel,
     latestTelemetry,
+
     polishEnabled,
     copyEnabled,
     chatGptEnabled,

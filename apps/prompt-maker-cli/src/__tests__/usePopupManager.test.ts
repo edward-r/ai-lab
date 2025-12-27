@@ -47,6 +47,7 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
 
   const defaults: UsePopupManagerOptions = {
     currentModel: 'gpt-4o-mini',
+    currentTargetModel: 'gpt-4o-mini',
     modelOptions: defaultModelOptions,
     activeThemeName: 'pm-dark',
     themeMode: 'dark',
@@ -71,6 +72,7 @@ const createOptions = (overrides: Partial<UsePopupManagerOptions> = {}): UsePopu
     runTestsFromCommand: jest.fn(),
     exitApp: jest.fn(),
     setCurrentModel: jest.fn(),
+    setCurrentTargetModel: jest.fn(),
     setPolishEnabled: jest.fn(),
     setCopyEnabled: jest.fn(),
     setChatGptEnabled: jest.fn(),
@@ -481,6 +483,33 @@ describe('usePopupManager intent command', () => {
     expect(options.pushHistory).toHaveBeenCalledWith('Intent file set to /tmp/intent.md')
     expect(options.setInputValue).toHaveBeenCalledWith('')
     expect(result.current.popupState).toBeNull()
+  })
+})
+
+describe('usePopupManager exit command', () => {
+  it('clears the screen before exiting', () => {
+    const clearScreen = jest.fn()
+    const exitApp = jest.fn()
+    const options = createOptions({ clearScreen, exitApp })
+    const { result } = renderHook(() => usePopupManager(options))
+
+    act(() => {
+      result.current.actions.handleCommandSelection('exit')
+    })
+
+    expect(options.pushHistory).toHaveBeenCalledWith('Exiting…', 'system')
+    expect(options.setInputValue).toHaveBeenCalledWith('')
+    expect(clearScreen).toHaveBeenCalledTimes(1)
+    expect(exitApp).toHaveBeenCalledTimes(1)
+
+    const clearOrder = clearScreen.mock.invocationCallOrder[0]
+    const exitOrder = exitApp.mock.invocationCallOrder[0]
+
+    if (clearOrder === undefined || exitOrder === undefined) {
+      throw new Error('Expected clearScreen and exitApp to be called')
+    }
+
+    expect(clearOrder).toBeLessThan(exitOrder)
   })
 })
 

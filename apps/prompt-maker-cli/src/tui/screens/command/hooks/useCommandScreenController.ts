@@ -259,9 +259,11 @@ export const useCommandScreenController = ({
   const generationOptions: UseCommandScreenPopupAndViewOptions['generation'] = useMemo(
     () => ({
       currentModel: modelAndGeneration.currentModel,
+      currentTargetModel: modelAndGeneration.currentTargetModel,
       modelOptions: modelAndGeneration.modelOptions,
       providerStatuses: modelAndGeneration.providerStatuses,
       selectModel: modelAndGeneration.selectModel,
+      selectTargetModel: modelAndGeneration.selectTargetModel,
       isGenerating: modelAndGeneration.pipeline.isGenerating,
       runGeneration: modelAndGeneration.pipeline.runGeneration,
       runSeriesGeneration: modelAndGeneration.pipeline.runSeriesGeneration,
@@ -274,9 +276,11 @@ export const useCommandScreenController = ({
     }),
     [
       modelAndGeneration.currentModel,
+      modelAndGeneration.currentTargetModel,
       modelAndGeneration.modelOptions,
       modelAndGeneration.providerStatuses,
       modelAndGeneration.selectModel,
+      modelAndGeneration.selectTargetModel,
       modelAndGeneration.pipeline.isGenerating,
       modelAndGeneration.pipeline.runGeneration,
       modelAndGeneration.pipeline.runSeriesGeneration,

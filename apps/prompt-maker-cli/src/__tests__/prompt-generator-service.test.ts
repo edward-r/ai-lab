@@ -107,6 +107,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     const prompt = await service.generatePrompt({
       intent: 'Do a thing',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [{ path: 'ctx.md', content: 'context' }],
       images: ['image.png'],
       videos: ['clip.mp4'],
@@ -123,20 +124,77 @@ describe('PromptGeneratorService.generatePrompt', () => {
     expect(prompt).toContain('Result')
   })
 
-  it('includes meta instructions when provided', async () => {
+  it('includes meta instructions and keeps target guidance internal', async () => {
     const service = await buildService()
     await service.generatePrompt({
       intent: 'Do a thing',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
       metaInstructions: 'Be concise',
     })
-    const messagePayload = callLLMMock.mock.calls[0]?.[0]
-    const userMessage = messagePayload?.find((msg: { role: string }) => msg.role === 'user')
-    const textPayload = JSON.stringify(userMessage?.content)
-    expect(textPayload).toContain('Meta-Instructions:\\nBe concise')
+
+    const messagePayload = callLLMMock.mock.calls[0]?.[0] as Array<{
+      role: string
+      content: unknown
+    }>
+    const systemMessages = messagePayload.filter((msg) => msg.role === 'system')
+    const userMessage = messagePayload.find((msg) => msg.role === 'user')
+
+    const userPayloadText = JSON.stringify(userMessage?.content)
+    expect(userPayloadText).toContain('Meta-Instructions:\\nBe concise')
+    expect(userPayloadText).not.toMatch(/target runtime model/i)
+    expect(userPayloadText).not.toContain('gpt-4o-mini')
+
+    const systemPayloadText = JSON.stringify(systemMessages.map((msg) => msg.content))
+    expect(systemPayloadText).toContain('targetRuntimeModel: gpt-4o-mini')
+    expect(systemPayloadText).toMatch(/do not include phrases like/i)
+    expect(systemPayloadText).toMatch(/only include the target model/i)
+  })
+
+  it('sanitizes target model leakage from model output', async () => {
+    callLLMMock.mockResolvedValueOnce(
+      JSON.stringify({
+        reasoning: 'x',
+        prompt: 'Line 1\nTarget runtime model for executing: **GPT-5.2**\nUse gpt-5.2.',
+      }),
+    )
+
+    const service = await buildService()
+    const prompt = await service.generatePrompt({
+      intent: 'Write a prompt about keyboard shortcuts',
+      model: 'gpt-4o-mini',
+      targetModel: 'gpt-5.2',
+      fileContext: [],
+      images: [],
+      videos: [],
+    })
+
+    expect(prompt.toLowerCase()).not.toContain('target runtime model')
+    expect(prompt.toLowerCase()).not.toContain('gpt-5.2')
+  })
+
+  it('keeps target model mentions when user intent includes it', async () => {
+    callLLMMock.mockResolvedValueOnce(
+      JSON.stringify({
+        reasoning: 'x',
+        prompt: 'This prompt must mention gpt-5.2 explicitly.',
+      }),
+    )
+
+    const service = await buildService()
+    const prompt = await service.generatePrompt({
+      intent: 'Write a prompt and explicitly mention gpt-5.2.',
+      model: 'gpt-4o-mini',
+      targetModel: 'gpt-5.2',
+      fileContext: [],
+      images: [],
+      videos: [],
+    })
+
+    expect(prompt).toContain('gpt-5.2')
   })
 
   it('handles refinement flows with previous prompt', async () => {
@@ -144,6 +202,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     await service.generatePrompt({
       intent: 'Original',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
@@ -169,6 +228,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     const prompt = await service.generatePrompt({
       intent: 'Intent',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
@@ -187,6 +247,7 @@ describe('PromptGeneratorService.generatePrompt', () => {
     await service.generatePrompt({
       intent: 'Intent',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],
@@ -210,10 +271,38 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
 
   const buildService = async () => new PromptGeneratorService()
 
+  const validAtomicPromptContent = `# Title
+Do a thing
+
+Role
+You are a coding agent.
+
+Context
+This is standalone.
+
+Goals & Tasks
+- Make one small change
+
+Inputs
+- None
+
+Constraints
+- Keep it small
+
+Execution Plan
+1. Do the thing
+
+Output Format
+- Updated file(s)
+
+Validation
+- Run: npx jest apps/prompt-maker-cli/src/__tests__/prompt-generator-service.test.ts --runInBand
+`
+
   const seriesPayload = {
     reasoning: 'analysis',
     overviewPrompt: '# Overview',
-    atomicPrompts: [{ title: 'Step', content: 'Do a thing\n\nValidation: ...' }],
+    atomicPrompts: [{ title: 'Step', content: validAtomicPromptContent }],
   }
 
   it('parses valid JSON into a SeriesResponse and uploads media', async () => {
@@ -222,6 +311,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
     const result = await service.generatePromptSeries({
       intent: 'Plan something',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [{ path: 'ctx.md', content: 'context' }],
       images: ['diagram.png'],
       videos: ['clip.mp4'],
@@ -238,6 +328,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
       service.generatePromptSeries({
         intent: 'Plan',
         model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
         fileContext: [],
         images: [],
         videos: [],
@@ -254,11 +345,89 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
       service.generatePromptSeries({
         intent: 'Plan',
         model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
         fileContext: [],
         images: [],
         videos: [],
       }),
     ).rejects.toThrow('Series atomicPrompts must include at least one entry.')
+  })
+
+  it('throws when an atomic prompt is missing required sections', async () => {
+    callLLMMock.mockResolvedValue(
+      JSON.stringify({
+        reasoning: 'r',
+        overviewPrompt: '# Overview',
+        atomicPrompts: [
+          { title: 'Step', content: '# Title\nMissing most sections\n\nValidation\n- ok' },
+        ],
+      }),
+    )
+
+    const service = await buildService()
+    await expect(
+      service.generatePromptSeries({
+        intent: 'Plan',
+        model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
+        fileContext: [],
+        images: [],
+        videos: [],
+      }),
+    ).rejects.toThrow('Atomic prompt 1 is missing required section(s):')
+  })
+
+  it('throws when an atomic prompt contains cross-references', async () => {
+    callLLMMock.mockResolvedValue(
+      JSON.stringify({
+        reasoning: 'r',
+        overviewPrompt: '# Overview',
+        atomicPrompts: [
+          {
+            title: 'Step',
+            content: `# Title
+Do a thing
+
+Role
+You are a coding agent.
+
+Context
+Continue from step 2.
+
+Goals & Tasks
+- Make one small change
+
+Inputs
+- None
+
+Constraints
+- Keep it small
+
+Execution Plan
+1. Do the thing
+
+Output Format
+- Updated file(s)
+
+Validation
+- Run: npx jest --runInBand
+`,
+          },
+        ],
+      }),
+    )
+
+    const service = await buildService()
+    await expect(
+      service.generatePromptSeries({
+        intent: 'Plan',
+        model: 'gpt-4o-mini',
+        targetModel: 'gpt-4o-mini',
+        fileContext: [],
+        images: [],
+        videos: [],
+      }),
+    ).rejects.toThrow('Atomic prompt 1 contains forbidden cross-reference phrase')
   })
 
   it('logs reasoning when DEBUG env var is set', async () => {
@@ -269,6 +438,7 @@ describe('PromptGeneratorService.generatePromptSeries', () => {
     await service.generatePromptSeries({
       intent: 'Plan something',
       model: 'gpt-4o-mini',
+      targetModel: 'gpt-4o-mini',
       fileContext: [],
       images: [],
       videos: [],

@@ -39,12 +39,19 @@ const mockLoadCliConfig = (jest.requireMock('../config') as { loadCliConfig: jes
 jest.mock('clipboardy', () => ({ write: jest.fn() }))
 jest.mock('open', () => jest.fn())
 jest.mock('@prompt-maker/core', () => ({ callLLM: jest.fn() }))
-jest.mock('../prompt-generator-service', () => ({
-  createPromptGeneratorService: jest.fn(),
-  ensureModelCredentials: jest.fn(),
-  isGemini: jest.fn((model: string) => model.startsWith('gemini')),
-  resolveDefaultGenerateModel: jest.fn().mockResolvedValue('gpt-4o-mini'),
-}))
+jest.mock('../prompt-generator-service', () => {
+  const actual = jest.requireActual(
+    '../prompt-generator-service',
+  ) as typeof import('../prompt-generator-service')
+
+  return {
+    createPromptGeneratorService: jest.fn(),
+    ensureModelCredentials: jest.fn(),
+    isGemini: jest.fn((model: string) => model.startsWith('gemini')),
+    resolveDefaultGenerateModel: jest.fn().mockResolvedValue('gpt-4o-mini'),
+    sanitizePromptForTargetModelLeakage: actual.sanitizePromptForTargetModelLeakage,
+  }
+})
 jest.mock('../file-context', () => ({
   resolveFileContext: jest.fn().mockResolvedValue([{ path: 'ctx.md', content: '# ctx' }]),
   formatContextForPrompt: jest.requireActual('../file-context').formatContextForPrompt,
@@ -342,6 +349,31 @@ describe('runGenerateCommand', () => {
     log.mockRestore()
   })
 
+  it('sanitizes polished output to avoid leaking --target', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+    mockCallLLM.mockResolvedValue(
+      'Target runtime model: gpt-4o-mini\nPolished output for gpt-4o-mini.',
+    )
+
+    await runGenerateCommand(['intent text', '--polish', '--json', '--target', 'gpt-4o-mini'])
+
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output')
+    }
+
+    const payload = JSON.parse(firstCall[0] as string) as {
+      polishedPrompt?: string
+      targetModel: string
+    }
+    expect(payload.targetModel).toBe('gpt-4o-mini')
+    expect(payload.polishedPrompt).toBeDefined()
+    expect(payload.polishedPrompt?.toLowerCase()).not.toContain('target runtime model')
+    expect(payload.polishedPrompt?.toLowerCase()).not.toContain('gpt-4o-mini')
+
+    log.mockRestore()
+  })
+
   it('emits json payload when --json is provided', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'))
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
@@ -353,9 +385,11 @@ describe('runGenerateCommand', () => {
     }
     const payload = JSON.parse(firstCall[0] as string) as {
       intent: string
+      targetModel: string
       contextPaths: Array<{ path: string; source: string }>
     }
     expect(payload.intent).toBe('intent text')
+    expect(payload.targetModel).toBe('gpt-4o-mini')
     expect(payload.contextPaths).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ source: 'intent', path: 'inline-intent' }),
@@ -364,6 +398,37 @@ describe('runGenerateCommand', () => {
     )
     expect(payload).not.toHaveProperty('outputPath')
     expect(appendToHistory).toHaveBeenCalledTimes(1)
+    jest.useRealTimers()
+    log.mockRestore()
+  })
+
+  it('uses explicit --target and defaults separately from --model', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'))
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined)
+
+    await runGenerateCommand([
+      'intent text',
+      '--model',
+      'gpt-4o',
+      '--target',
+      'gpt-4o-mini',
+      '--json',
+    ])
+
+    const firstCall = log.mock.calls[0]
+    if (!firstCall) {
+      throw new Error('Expected JSON output')
+    }
+
+    const payload = JSON.parse(firstCall[0] as string) as { model: string; targetModel: string }
+    expect(payload.model).toBe('gpt-4o')
+    expect(payload.targetModel).toBe('gpt-4o-mini')
+
+    const generationCall = promptService.generatePrompt.mock.calls[0]?.[0]
+    expect(generationCall).toEqual(
+      expect.objectContaining({ model: 'gpt-4o', targetModel: 'gpt-4o-mini' }),
+    )
+
     jest.useRealTimers()
     log.mockRestore()
   })

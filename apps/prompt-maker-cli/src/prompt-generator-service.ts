@@ -48,10 +48,23 @@ You are a Lead Architect Agent. Decompose the user's intent into a cohesive plan
 - One overview prompt that frames the entire effort.
 - A sequence of atomic prompts that can be executed and tested independently.
 
-Atomic Prompt Standards:
-- Every atomic prompt must be self-contained—never rely on text from previous steps.
-- Each atomic prompt must target a single, verifiable state change.
-- Each atomic prompt must end with a "Validation" section describing how a human can confirm the work is complete.
+Atomic Prompt Standards (non-negotiable):
+- Standalone rule (critical): Every atomic prompt must be fully self-contained. Do NOT reference any other prompt, step number, or earlier/later content.
+  - Forbidden examples include: "as above", "previous step", "prior step", "earlier step", "from step 2", "in step 3", "see step 1", "continue from step".
+- Single outcome: Each atomic prompt must target exactly one verifiable state change.
+- Completeness: Each atomic prompt must include all context, assumptions, file paths, commands, and acceptance criteria needed to execute the step in a fresh session.
+- Validation required: Each atomic prompt must end with a "Validation" section describing concrete commands + expected outcomes.
+
+Required Atomic Prompt Structure (must appear in EACH atomic prompt content, in this order):
+- # Title
+- Role
+- Context
+- Goals & Tasks
+- Inputs
+- Constraints
+- Execution Plan
+- Output Format
+- Validation
 
 Return strict JSON matching this schema (do not wrap in markdown fences):
 {
@@ -73,6 +86,7 @@ export type UploadStateChange = (state: UploadState, detail: UploadDetail) => vo
 export type PromptGenerationRequest = {
   intent: string
   model: string
+  targetModel: string
   fileContext: FileContext[]
   images: string[]
   videos: string[]
@@ -134,8 +148,11 @@ export class PromptGeneratorService {
       )
     }
 
+    const targetGuidance = buildTargetRuntimeModelGuidance(request.targetModel)
+
     const messages: Message[] = [
       { role: 'system', content: systemContent },
+      ...(targetGuidance ? [{ role: 'system' as const, content: targetGuidance }] : []),
       { role: 'user', content: userContent },
     ]
 
@@ -150,9 +167,24 @@ export class PromptGeneratorService {
         console.error('--------------------\n')
       }
 
-      return { prompt: result.prompt, ...(result.reasoning ? { reasoning: result.reasoning } : {}) }
+      const sanitizedPrompt = sanitizePromptForTargetModelLeakage({
+        prompt: result.prompt,
+        intent: request.intent,
+        targetModel: request.targetModel,
+      })
+
+      return {
+        prompt: sanitizedPrompt,
+        ...(result.reasoning ? { reasoning: result.reasoning } : {}),
+      }
     } catch {
-      return { prompt: rawResponse }
+      return {
+        prompt: sanitizePromptForTargetModelLeakage({
+          prompt: rawResponse,
+          intent: request.intent,
+          targetModel: request.targetModel,
+        }),
+      }
     }
   }
 
@@ -173,8 +205,11 @@ export class PromptGeneratorService {
       request.onUploadStateChange,
     )
 
+    const targetGuidance = buildTargetRuntimeModelGuidance(request.targetModel)
+
     const messages: Message[] = [
       { role: 'system', content: SERIES_SYSTEM_PROMPT },
+      ...(targetGuidance ? [{ role: 'system' as const, content: targetGuidance }] : []),
       { role: 'user', content: userContent },
     ]
 
@@ -189,13 +224,32 @@ export class PromptGeneratorService {
 
     validateSeriesResponse(series)
 
+    const sanitizedOverviewPrompt = sanitizePromptForTargetModelLeakage({
+      prompt: series.overviewPrompt,
+      intent: request.intent,
+      targetModel: request.targetModel,
+    })
+
+    const sanitizedAtomicPrompts = series.atomicPrompts.map((step) => ({
+      ...step,
+      content: sanitizePromptForTargetModelLeakage({
+        prompt: step.content,
+        intent: request.intent,
+        targetModel: request.targetModel,
+      }),
+    }))
+
     if (process.env.DEBUG || process.env.VERBOSE) {
       console.error('\n--- Series Reasoning ---')
       console.error(series.reasoning)
       console.error('------------------------\n')
     }
 
-    return series
+    return {
+      ...series,
+      overviewPrompt: sanitizedOverviewPrompt,
+      atomicPrompts: sanitizedAtomicPrompts,
+    }
   }
 }
 
@@ -242,6 +296,78 @@ export const ensureModelCredentials = async (model: string): Promise<void> => {
 
 export const isGemini = (model: string): boolean => isGeminiModelId(model)
 
+const TARGET_RUNTIME_MODEL_PHRASE_REGEX = /target runtime model/i
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+export const sanitizePromptForTargetModelLeakage = ({
+  prompt,
+  intent,
+  targetModel,
+}: {
+  prompt: string
+  intent: string
+  targetModel: string
+}): string => {
+  const normalizedTargetModel = targetModel.trim()
+  if (!normalizedTargetModel) {
+    return prompt
+  }
+
+  const normalizedIntent = intent.trim().toLowerCase()
+  const normalizedTargetLower = normalizedTargetModel.toLowerCase()
+  if (normalizedIntent.includes(normalizedTargetLower)) {
+    return prompt
+  }
+
+  const normalizedPromptLower = prompt.toLowerCase()
+  if (
+    !TARGET_RUNTIME_MODEL_PHRASE_REGEX.test(prompt) &&
+    !normalizedPromptLower.includes(normalizedTargetLower)
+  ) {
+    return prompt
+  }
+
+  const withoutTargetModelLines = prompt
+    .split('\n')
+    .filter((line) => !TARGET_RUNTIME_MODEL_PHRASE_REGEX.test(line))
+    .join('\n')
+
+  const targetRegex = new RegExp(escapeRegExp(normalizedTargetModel), 'gi')
+  const withoutTargetMentions = withoutTargetModelLines.replace(targetRegex, '')
+
+  const cleaned = withoutTargetMentions
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/\*\*\s*\*\*/g, '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trimEnd(),
+    )
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+
+  return cleaned.trim()
+}
+
+const buildTargetRuntimeModelGuidance = (targetModel: string): string => {
+  const normalized = targetModel.trim()
+  if (!normalized) {
+    return ''
+  }
+
+  return [
+    'Internal Optimization Target (do not include in output):',
+    `- targetRuntimeModel: ${normalized}`,
+    '',
+    'Rules (non-negotiable):',
+    '- Use the target runtime model only to tune the contract for compliance, clarity, and formatting expectations.',
+    '- Do NOT mention or output the target runtime model id/label/name anywhere in the returned prompt text.',
+    '- Do NOT include phrases like "Target runtime model" / "Target Runtime Model" in the returned prompt text.',
+    '- Only include the target model id/label/name if the user intent explicitly asks to mention it.',
+  ].join('\n')
+}
+
 const buildInitialUserMessage = async (
   intent: string,
   files: FileContext[],
@@ -276,8 +402,8 @@ const buildInitialUserMessage = async (
 
 const buildRefinementMessage = async (
   previousPrompt: string,
-  instruction: string,
-  originalIntent: string,
+  refinementInstruction: string,
+  intent: string,
   files: FileContext[],
   imagePaths: string[],
   videoPaths: string[],
@@ -290,9 +416,9 @@ const buildRefinementMessage = async (
     sections.push('Context Files:\n' + formatContextForPrompt(files))
   }
 
-  sections.push(`Original Intent (for reference):\n${originalIntent}`)
+  sections.push(`Original Intent (for reference):\n${intent.trim()}`)
   sections.push(`Current Prompt Draft:\n${previousPrompt}`)
-  sections.push(`Refinement Instruction:\n${instruction}`)
+  sections.push(`Refinement Instruction:\n${refinementInstruction.trim()}`)
 
   const trimmedInstructions = metaInstructions?.trim()
   if (trimmedInstructions) {
@@ -392,6 +518,51 @@ const resolveVideoParts = async (
   return parts
 }
 
+const REQUIRED_ATOMIC_PROMPT_SECTIONS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
+  { label: '# Title', pattern: /^#\s*Title\b/im },
+  { label: 'Role', pattern: /^(?:#{1,6}\s*)?Role\b/im },
+  { label: 'Context', pattern: /^(?:#{1,6}\s*)?Context\b/im },
+  {
+    label: 'Goals & Tasks',
+    pattern: /^(?:#{1,6}\s*)?Goals\s*(?:&|and)\s*Tasks\b/im,
+  },
+  { label: 'Inputs', pattern: /^(?:#{1,6}\s*)?Inputs\b/im },
+  { label: 'Constraints', pattern: /^(?:#{1,6}\s*)?Constraints\b/im },
+  { label: 'Execution Plan', pattern: /^(?:#{1,6}\s*)?Execution\s+Plan\b/im },
+  { label: 'Output Format', pattern: /^(?:#{1,6}\s*)?Output\s+Format\b/im },
+  { label: 'Validation', pattern: /^(?:#{1,6}\s*)?Validation\b/im },
+]
+
+const FORBIDDEN_CROSS_REFERENCE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
+  { label: '"as above"', pattern: /\bas above\b/i },
+  { label: '"as mentioned earlier"', pattern: /\bas mentioned earlier\b/i },
+  { label: '"as described earlier"', pattern: /\bas described earlier\b/i },
+  {
+    label: '"previous step" / "prior step" / "earlier step"',
+    pattern: /\b(previous|prior|earlier)\s+step\b/i,
+  },
+  {
+    label: '"previous prompt" / "prior prompt" / "earlier prompt"',
+    pattern: /\b(previous|prior|earlier)\s+prompt\b/i,
+  },
+  { label: '"from step N"', pattern: /\bfrom\s+step\s+\d+\b/i },
+  { label: '"in step N"', pattern: /\bin\s+step\s+\d+\b/i },
+  { label: '"see step N"', pattern: /\bsee\s+step\s+\d+\b/i },
+  { label: '"step N above/below"', pattern: /\bstep\s+\d+\s+(above|below)\b/i },
+  { label: '"continue from step N"', pattern: /\bcontinue\s+from\s+step\s+\d+\b/i },
+]
+
+const findMissingAtomicPromptSections = (content: string): string[] => {
+  return REQUIRED_ATOMIC_PROMPT_SECTIONS.filter((section) => !section.pattern.test(content)).map(
+    (section) => section.label,
+  )
+}
+
+const findForbiddenCrossReference = (content: string): string | null => {
+  const hit = FORBIDDEN_CROSS_REFERENCE_PATTERNS.find((entry) => entry.pattern.test(content))
+  return hit?.label ?? null
+}
+
 const validateSeriesResponse = (response: SeriesResponse): void => {
   if (!response || typeof response !== 'object') {
     throw new Error('LLM returned SeriesResponse with invalid shape.')
@@ -410,14 +581,30 @@ const validateSeriesResponse = (response: SeriesResponse): void => {
   }
 
   response.atomicPrompts.forEach((entry, index) => {
+    const promptNumber = index + 1
+
     if (!entry || typeof entry !== 'object') {
-      throw new Error(`Atomic prompt ${index + 1} is invalid.`)
+      throw new Error(`Atomic prompt ${promptNumber} is invalid.`)
     }
     if (typeof entry.title !== 'string' || !entry.title.trim()) {
-      throw new Error(`Atomic prompt ${index + 1} is missing a title.`)
+      throw new Error(`Atomic prompt ${promptNumber} is missing a title.`)
     }
     if (typeof entry.content !== 'string' || !entry.content.trim()) {
-      throw new Error(`Atomic prompt ${index + 1} is missing content.`)
+      throw new Error(`Atomic prompt ${promptNumber} is missing content.`)
+    }
+
+    const missingSections = findMissingAtomicPromptSections(entry.content)
+    if (missingSections.length > 0) {
+      throw new Error(
+        `Atomic prompt ${promptNumber} is missing required section(s): ${missingSections.join(', ')}.`,
+      )
+    }
+
+    const forbiddenCrossReference = findForbiddenCrossReference(entry.content)
+    if (forbiddenCrossReference) {
+      throw new Error(
+        `Atomic prompt ${promptNumber} contains forbidden cross-reference phrase ${forbiddenCrossReference}. Atomic prompts must be standalone.`,
+      )
     }
   })
 }

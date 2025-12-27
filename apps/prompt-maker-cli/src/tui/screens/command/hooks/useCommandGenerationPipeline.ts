@@ -20,6 +20,7 @@ export type UseCommandGenerationPipelineOptions = {
 
   metaInstructions: string
   currentModel: string
+  targetModel: string
   interactiveTransportPath?: string | undefined
   terminalColumns: number
 
@@ -59,6 +60,7 @@ export const useCommandGenerationPipeline = ({
   smartContextRoot,
   metaInstructions,
   currentModel,
+  targetModel,
   interactiveTransportPath,
   terminalColumns,
   polishEnabled,
@@ -87,6 +89,7 @@ export const useCommandGenerationPipeline = ({
     smartContextEnabled,
     smartContextRoot,
     currentModel,
+    targetModel,
     ...(interactiveTransportPath ? { interactiveTransportPath } : {}),
     terminalColumns,
     metaInstructions: trimmedMetaInstructions,
