@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Box, Text } from 'ink'
+import { useMemo, type ComponentProps } from 'react'
+import { Box, Text, useStdout } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
 import { useTheme } from '../../theme/theme-provider'
@@ -9,6 +9,18 @@ import {
   inkColorProps,
 } from '../../theme/theme-types'
 import { resolveWindowedList } from './list-window'
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(value, max))
+
+const padRight = (value: string, width: number): string => {
+  if (width <= 0) {
+    return ''
+  }
+
+  const trimmed = value.length > width ? value.slice(0, width) : value
+  return trimmed.length === width ? trimmed : trimmed.padEnd(width, ' ')
+}
 
 export type IntentFilePopupProps = {
   draft: string
@@ -61,6 +73,16 @@ export const IntentFilePopup = ({
   onSubmitDraft,
 }: IntentFilePopupProps) => {
   const { theme } = useTheme()
+  const { stdout } = useStdout()
+
+  const terminalColumns = stdout?.columns ?? 80
+  const popupWidth = clamp(terminalColumns - 10, 40, 72)
+
+  const borderColumns = 2
+  const paddingColumns = 2
+  const contentWidth = Math.max(0, popupWidth - borderColumns - paddingColumns)
+
+  const backgroundProps = inkBackgroundColorProps(theme.popupBackground)
 
   const resolvedHeight = maxHeight ?? 9
 
@@ -95,65 +117,113 @@ export const IntentFilePopup = ({
     ...inkBackgroundColorProps(theme.chipBackground),
   }
 
+  const suggestionLines = useMemo(() => {
+    const lines: Array<{ key: string; label: string; props: ComponentProps<typeof Text> }> = []
+
+    if (!hasSuggestions) {
+      lines.push({
+        key: 'empty',
+        label: '(type to search)',
+        props: { ...backgroundProps, ...inkColorProps(theme.mutedText) },
+      })
+    } else {
+      if (visibleSuggestions.showBefore) {
+        lines.push({
+          key: 'before',
+          label: '… earlier …',
+          props: { ...backgroundProps, ...inkColorProps(theme.mutedText) },
+        })
+      }
+
+      visibleSuggestions.values.forEach((value, index) => {
+        const actualIndex = visibleSuggestions.start + index
+        const isSelected = actualIndex === safeSuggestedSelection
+        const textProps = isSelected
+          ? effectiveSuggestedFocused
+            ? focusedSelectionProps
+            : unfocusedSelectionProps
+          : { ...backgroundProps, ...inkColorProps(theme.text) }
+
+        lines.push({ key: `${value}-${actualIndex}`, label: value, props: textProps })
+      })
+
+      if (visibleSuggestions.showAfter) {
+        lines.push({
+          key: 'after',
+          label: '… later …',
+          props: { ...backgroundProps, ...inkColorProps(theme.mutedText) },
+        })
+      }
+    }
+
+    while (lines.length < suggestionRows) {
+      lines.push({ key: `pad-${lines.length}`, label: '', props: backgroundProps })
+    }
+
+    return lines
+  }, [
+    backgroundProps,
+    effectiveSuggestedFocused,
+    focusedSelectionProps,
+    hasSuggestions,
+    safeSuggestedSelection,
+    suggestionRows,
+    theme.mutedText,
+    theme.text,
+    unfocusedSelectionProps,
+    visibleSuggestions.showAfter,
+    visibleSuggestions.showBefore,
+    visibleSuggestions.start,
+    visibleSuggestions.values,
+  ])
+
+  const pathLabel = 'Path: '
+  const inputWidth = Math.max(1, contentWidth - pathLabel.length)
+
   return (
     <Box
       flexDirection="column"
       borderStyle="round"
       paddingX={1}
       paddingY={0}
+      width={popupWidth}
       {...inkBorderColorProps(theme.border)}
-      {...inkBackgroundColorProps(theme.popupBackground)}
+      {...backgroundProps}
       {...(typeof maxHeight === 'number' ? { height: maxHeight } : {})}
       overflow="hidden"
     >
-      <Text {...inkColorProps(theme.accent)}>Intent File</Text>
+      <Text {...backgroundProps} {...inkColorProps(theme.accent)}>
+        {padRight('Intent File', contentWidth)}
+      </Text>
 
       <Box flexDirection="row">
-        <Text {...inkColorProps(theme.mutedText)}>Path: </Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {pathLabel}
+        </Text>
         <SingleLineTextInput
           value={draft}
           onChange={onDraftChange}
           onSubmit={() => onSubmitDraft(draft)}
           placeholder="prompts/intent.md"
           focus={!effectiveSuggestedFocused}
+          width={inputWidth}
+          backgroundColor={theme.popupBackground}
         />
       </Box>
 
       {suggestionRows > 0 ? (
         <Box flexDirection="column" height={suggestionRows} flexShrink={0} overflow="hidden">
-          {hasSuggestions ? (
-            <>
-              {visibleSuggestions.showBefore ? (
-                <Text {...inkColorProps(theme.mutedText)}>… earlier …</Text>
-              ) : null}
-              {visibleSuggestions.values.map((value: string, index: number) => {
-                const actualIndex = visibleSuggestions.start + index
-                const isSelected = actualIndex === safeSuggestedSelection
-                const textProps = isSelected
-                  ? effectiveSuggestedFocused
-                    ? focusedSelectionProps
-                    : unfocusedSelectionProps
-                  : inkColorProps(theme.text)
-
-                return (
-                  <Text key={`${value}-${actualIndex}`} {...textProps}>
-                    {value}
-                  </Text>
-                )
-              })}
-              {visibleSuggestions.showAfter ? (
-                <Text {...inkColorProps(theme.mutedText)}>… later …</Text>
-              ) : null}
-            </>
-          ) : (
-            <Text {...inkColorProps(theme.mutedText)}>(type to search)</Text>
-          )}
+          {suggestionLines.map((line) => (
+            <Text key={line.key} {...line.props}>
+              {padRight(line.label, contentWidth)}
+            </Text>
+          ))}
         </Box>
       ) : null}
 
       <Box flexShrink={0}>
-        <Text {...inkColorProps(theme.mutedText)}>
-          Tab suggestions · ↑/↓ select · Enter apply · Esc close
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight('Tab suggestions · ↑/↓ select · Enter apply · Esc close', contentWidth)}
         </Text>
       </Box>
     </Box>

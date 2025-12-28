@@ -3,16 +3,28 @@ import { Box, Text } from 'ink'
 
 import type { HistoryEntry } from '../../types'
 import { useTheme } from '../../theme/theme-provider'
-import { inkColorProps } from '../../theme/theme-types'
+import { inkBackgroundColorProps, inkColorProps, type InkColorValue } from '../../theme/theme-types'
+
+const padRight = (value: string, width: number | undefined): string => {
+  if (typeof width !== 'number' || width <= 0) {
+    return value
+  }
+
+  const trimmed = value.length > width ? value.slice(0, width) : value
+  return trimmed.length === width ? trimmed : trimmed.padEnd(width, ' ')
+}
 
 export type ScrollableOutputProps = {
   lines: readonly HistoryEntry[]
   visibleRows: number
   scrollOffset: number
+
+  contentWidth?: number | undefined
+  backgroundColor?: InkColorValue
 }
 
 export const ScrollableOutput = memo(
-  ({ lines, visibleRows, scrollOffset }: ScrollableOutputProps) => {
+  ({ lines, visibleRows, scrollOffset, contentWidth, backgroundColor }: ScrollableOutputProps) => {
     const { theme } = useTheme()
 
     const startIndex = Math.max(0, Math.min(scrollOffset, Math.max(0, lines.length - visibleRows)))
@@ -22,9 +34,27 @@ export const ScrollableOutput = memo(
       [lines, startIndex, endIndex],
     )
 
+    const backgroundProps = inkBackgroundColorProps(backgroundColor)
+
+    const padded = useMemo(() => {
+      const next: Array<HistoryEntry | null> = [...visibleLines]
+      while (next.length < visibleRows) {
+        next.push(null)
+      }
+      return next
+    }, [visibleLines, visibleRows])
+
     return (
       <Box flexDirection="column" height={visibleRows} overflow="hidden">
-        {visibleLines.map((entry, index) => {
+        {padded.map((entry, index) => {
+          if (!entry) {
+            return (
+              <Text key={`blank-${startIndex + index}`} {...backgroundProps}>
+                {padRight('', contentWidth)}
+              </Text>
+            )
+          }
+
           const key = `${entry.id}-${startIndex + index}`
 
           const color =
@@ -35,8 +65,8 @@ export const ScrollableOutput = memo(
                 : theme.text
 
           return (
-            <Text key={key} {...inkColorProps(color)}>
-              {entry.content}
+            <Text key={key} {...backgroundProps} {...inkColorProps(color)}>
+              {padRight(entry.content, contentWidth)}
             </Text>
           )
         })}

@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Box, Text } from 'ink'
+import { useMemo, type ComponentProps } from 'react'
+import { Box, Text, useStdout } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
 import { useTheme } from '../../theme/theme-provider'
@@ -9,6 +9,18 @@ import {
   inkColorProps,
 } from '../../theme/theme-types'
 import { resolveWindowedList } from './list-window'
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(value, max))
+
+const padRight = (value: string, width: number): string => {
+  if (width <= 0) {
+    return ''
+  }
+
+  const trimmed = value.length > width ? value.slice(0, width) : value
+  return trimmed.length === width ? trimmed : trimmed.padEnd(width, ' ')
+}
 
 export type SmartPopupProps = {
   savedRoot: string | null
@@ -63,6 +75,16 @@ export const SmartPopup = ({
   onSubmitRoot,
 }: SmartPopupProps) => {
   const { theme } = useTheme()
+  const { stdout } = useStdout()
+
+  const terminalColumns = stdout?.columns ?? 80
+  const popupWidth = clamp(terminalColumns - 10, 40, 72)
+
+  const borderColumns = 2
+  const paddingColumns = 2
+  const contentWidth = Math.max(0, popupWidth - borderColumns - paddingColumns)
+
+  const backgroundProps = inkBackgroundColorProps(theme.popupBackground)
 
   const hasSuggestions = suggestedItems.length > 0
   const safeSuggestedSelection = Math.max(
@@ -97,64 +119,118 @@ export const SmartPopup = ({
     ...inkBackgroundColorProps(theme.chipBackground),
   }
 
+  const suggestionLines = useMemo(() => {
+    const lines: Array<{ key: string; label: string; props: ComponentProps<typeof Text> }> = []
+
+    if (!hasSuggestions) {
+      lines.push({
+        key: 'empty',
+        label: '(type to filter)',
+        props: { ...backgroundProps, ...inkColorProps(theme.mutedText) },
+      })
+    } else {
+      if (visibleSuggestions.showBefore) {
+        lines.push({
+          key: 'before',
+          label: '… earlier …',
+          props: { ...backgroundProps, ...inkColorProps(theme.mutedText) },
+        })
+      }
+
+      visibleSuggestions.values.forEach((value, index) => {
+        const actualIndex = visibleSuggestions.start + index
+        const isSelected = actualIndex === safeSuggestedSelection
+        const textProps = isSelected
+          ? effectiveSuggestedFocused
+            ? focusedSelectionProps
+            : unfocusedSelectionProps
+          : { ...backgroundProps, ...inkColorProps(theme.text) }
+
+        lines.push({ key: `${value}-${actualIndex}`, label: value, props: textProps })
+      })
+
+      if (visibleSuggestions.showAfter) {
+        lines.push({
+          key: 'after',
+          label: '… later …',
+          props: { ...backgroundProps, ...inkColorProps(theme.mutedText) },
+        })
+      }
+    }
+
+    while (lines.length < suggestionRows) {
+      lines.push({ key: `pad-${lines.length}`, label: '', props: backgroundProps })
+    }
+
+    return lines
+  }, [
+    backgroundProps,
+    effectiveSuggestedFocused,
+    focusedSelectionProps,
+    hasSuggestions,
+    safeSuggestedSelection,
+    suggestionRows,
+    theme.mutedText,
+    theme.text,
+    unfocusedSelectionProps,
+    visibleSuggestions.showAfter,
+    visibleSuggestions.showBefore,
+    visibleSuggestions.start,
+    visibleSuggestions.values,
+  ])
+
+  const rootLabel = 'Root: '
+  const inputWidth = Math.max(1, contentWidth - rootLabel.length)
+
   return (
     <Box
       flexDirection="column"
       borderStyle="round"
       paddingX={1}
       paddingY={0}
+      width={popupWidth}
       {...inkBorderColorProps(theme.border)}
-      {...inkBackgroundColorProps(theme.popupBackground)}
+      {...backgroundProps}
       {...(typeof maxHeight === 'number' ? { height: maxHeight } : {})}
       overflow="hidden"
     >
-      <Text {...inkColorProps(theme.accent)}>Smart Context Root</Text>
-      <Text {...inkColorProps(theme.text)}>Enter to save · Tab suggestions · Esc close</Text>
+      <Text {...backgroundProps} {...inkColorProps(theme.accent)}>
+        {padRight('Smart Context Root', contentWidth)}
+      </Text>
+      <Text {...backgroundProps} {...inkColorProps(theme.text)}>
+        {padRight('Enter to save · Tab suggestions · Esc close', contentWidth)}
+      </Text>
 
       <Box flexDirection="row">
-        <Text {...inkColorProps(theme.mutedText)}>Root: </Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {rootLabel}
+        </Text>
         <SingleLineTextInput
           value={draft}
           onChange={onDraftChange}
           onSubmit={onSubmitRoot}
           placeholder="relative/dir"
           focus={!effectiveSuggestedFocused}
+          width={inputWidth}
+          backgroundColor={theme.popupBackground}
         />
       </Box>
 
-      <Text {...inkColorProps(theme.mutedText)}>Saved root: {savedLabel}</Text>
+      <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+        {padRight(`Saved root: ${savedLabel}`, contentWidth)}
+      </Text>
 
-      <Text {...inkColorProps(theme.mutedText)}>Suggestions</Text>
+      <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+        {padRight('Suggestions', contentWidth)}
+      </Text>
 
       {suggestionRows > 0 ? (
         <Box flexDirection="column" height={suggestionRows} flexShrink={0} overflow="hidden">
-          {hasSuggestions ? (
-            <>
-              {visibleSuggestions.showBefore ? (
-                <Text {...inkColorProps(theme.mutedText)}>… earlier …</Text>
-              ) : null}
-              {visibleSuggestions.values.map((value, index) => {
-                const actualIndex = visibleSuggestions.start + index
-                const isSelected = actualIndex === safeSuggestedSelection
-                const textProps = isSelected
-                  ? effectiveSuggestedFocused
-                    ? focusedSelectionProps
-                    : unfocusedSelectionProps
-                  : inkColorProps(theme.text)
-
-                return (
-                  <Text key={`${value}-${actualIndex}`} {...textProps}>
-                    {value}
-                  </Text>
-                )
-              })}
-              {visibleSuggestions.showAfter ? (
-                <Text {...inkColorProps(theme.mutedText)}>… later …</Text>
-              ) : null}
-            </>
-          ) : (
-            <Text {...inkColorProps(theme.mutedText)}>(type to filter)</Text>
-          )}
+          {suggestionLines.map((line) => (
+            <Text key={line.key} {...line.props}>
+              {padRight(line.label, contentWidth)}
+            </Text>
+          ))}
         </Box>
       ) : null}
     </Box>

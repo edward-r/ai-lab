@@ -1,4 +1,4 @@
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 
 import type { ThemeMode } from '../../theme/theme-types'
 import { useTheme } from '../../theme/theme-provider'
@@ -7,6 +7,18 @@ import {
   inkBorderColorProps,
   inkColorProps,
 } from '../../theme/theme-types'
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(value, max))
+
+const padRight = (value: string, width: number): string => {
+  if (width <= 0) {
+    return ''
+  }
+
+  const trimmed = value.length > width ? value.slice(0, width) : value
+  return trimmed.length === width ? trimmed : trimmed.padEnd(width, ' ')
+}
 
 export type ThemeModePopupProps = {
   selectionIndex: number
@@ -24,6 +36,16 @@ const formatMode = (mode: ThemeMode): string => {
 
 export const ThemeModePopup = ({ selectionIndex, initialMode }: ThemeModePopupProps) => {
   const { theme, mode, error } = useTheme()
+  const { stdout } = useStdout()
+
+  const terminalColumns = stdout?.columns ?? 80
+  const popupWidth = clamp(terminalColumns - 10, 40, 72)
+
+  const borderColumns = 2
+  const paddingColumns = 2
+  const contentWidth = Math.max(0, popupWidth - borderColumns - paddingColumns)
+
+  const backgroundProps = inkBackgroundColorProps(theme.popupBackground)
 
   const selected = Math.min(selectionIndex, OPTIONS.length - 1)
 
@@ -33,12 +55,18 @@ export const ThemeModePopup = ({ selectionIndex, initialMode }: ThemeModePopupPr
       borderStyle="round"
       paddingX={1}
       paddingY={0}
+      width={popupWidth}
       {...inkBorderColorProps(theme.border)}
-      {...inkBackgroundColorProps(theme.popupBackground)}
+      {...backgroundProps}
     >
-      <Text {...inkColorProps(theme.accent)}>Theme Mode</Text>
-      <Text {...inkColorProps(theme.mutedText)}>
-        Current: {formatMode(initialMode)} · Active: {formatMode(mode)}
+      <Text {...backgroundProps} {...inkColorProps(theme.accent)}>
+        {padRight('Theme Mode', contentWidth)}
+      </Text>
+      <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+        {padRight(
+          `Current: ${formatMode(initialMode)} · Active: ${formatMode(mode)}`,
+          contentWidth,
+        )}
       </Text>
       <Box flexDirection="column" marginTop={1}>
         {OPTIONS.map((option, index) => {
@@ -49,18 +77,24 @@ export const ThemeModePopup = ({ selectionIndex, initialMode }: ThemeModePopupPr
                 ...inkColorProps(theme.selectionText),
                 ...inkBackgroundColorProps(theme.selectionBackground),
               }
-            : inkColorProps(theme.text)
+            : { ...backgroundProps, ...inkColorProps(theme.text) }
 
           return (
             <Text key={option} {...textProps}>
-              {formatMode(option)}
+              {padRight(formatMode(option), contentWidth)}
             </Text>
           )
         })}
       </Box>
-      {error ? <Text {...inkColorProps(theme.error)}>{error.message}</Text> : null}
+      {error ? (
+        <Text {...backgroundProps} {...inkColorProps(theme.error)}>
+          {padRight(error.message, contentWidth)}
+        </Text>
+      ) : null}
       <Box marginTop={1}>
-        <Text {...inkColorProps(theme.mutedText)}>↑/↓ select · Enter apply · Esc close</Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight('↑/↓ select · Enter apply · Esc close', contentWidth)}
+        </Text>
       </Box>
     </Box>
   )

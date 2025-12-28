@@ -1,4 +1,4 @@
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 
 import type { TokenUsageBreakdown, TokenUsageRun } from '../../token-usage-store'
 import { useTheme } from '../../theme/theme-provider'
@@ -9,6 +9,18 @@ import {
 } from '../../theme/theme-types'
 
 const formatNumber = (value: number): string => value.toLocaleString('en-US')
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(value, max))
+
+const padRight = (value: string, width: number): string => {
+  if (width <= 0) {
+    return ''
+  }
+
+  const trimmed = value.length > width ? value.slice(0, width) : value
+  return trimmed.length === width ? trimmed : trimmed.padEnd(width, ' ')
+}
 
 const formatUsd = (value: number | null): string => {
   if (value === null) {
@@ -54,6 +66,16 @@ export type TokenUsagePopupProps = {
 
 export const TokenUsagePopup = ({ run, breakdown }: TokenUsagePopupProps) => {
   const { theme } = useTheme()
+  const { stdout } = useStdout()
+
+  const terminalColumns = stdout?.columns ?? 80
+  const popupWidth = clamp(terminalColumns - 10, 40, 72)
+
+  const borderColumns = 2
+  const paddingColumns = 2
+  const contentWidth = Math.max(0, popupWidth - borderColumns - paddingColumns)
+
+  const backgroundProps = inkBackgroundColorProps(theme.popupBackground)
 
   if (!run || !breakdown) {
     return (
@@ -62,17 +84,22 @@ export const TokenUsagePopup = ({ run, breakdown }: TokenUsagePopupProps) => {
         borderStyle="round"
         paddingX={1}
         paddingY={0}
+        width={popupWidth}
         {...inkBorderColorProps(theme.border)}
-        {...inkBackgroundColorProps(theme.popupBackground)}
+        {...backgroundProps}
       >
-        <Text {...inkColorProps(theme.accent)}>Token Usage</Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.accent)}>
+          {padRight('Token Usage', contentWidth)}
+        </Text>
         <Box marginTop={1}>
-          <Text {...inkColorProps(theme.mutedText)}>
-            No token usage recorded yet. Run generation first.
+          <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+            {padRight('No token usage recorded yet. Run generation first.', contentWidth)}
           </Text>
         </Box>
         <Box marginTop={1}>
-          <Text {...inkColorProps(theme.mutedText)}>Esc to close</Text>
+          <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+            {padRight('Esc to close', contentWidth)}
+          </Text>
         </Box>
       </Box>
     )
@@ -97,45 +124,60 @@ export const TokenUsagePopup = ({ run, breakdown }: TokenUsagePopupProps) => {
       borderStyle="round"
       paddingX={1}
       paddingY={0}
+      width={popupWidth}
       {...inkBorderColorProps(theme.border)}
-      {...inkBackgroundColorProps(theme.popupBackground)}
+      {...backgroundProps}
     >
-      <Text {...inkColorProps(theme.accent)}>Token Usage</Text>
+      <Text {...backgroundProps} {...inkColorProps(theme.accent)}>
+        {padRight('Token Usage', contentWidth)}
+      </Text>
       <Box marginTop={1} flexDirection="column">
-        <Text {...inkColorProps(theme.text)}>Model: {run.model}</Text>
-        <Text {...inkColorProps(theme.mutedText)}>Started: {run.startedAt}</Text>
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text {...inkColorProps(theme.mutedText)}>Input</Text>
-        {inputRows.map((line) => (
-          <Text key={`input-${line}`} {...inkColorProps(theme.text)}>
-            {line}
-          </Text>
-        ))}
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text {...inkColorProps(theme.mutedText)}>Output</Text>
-        {outputRows.map((line) => (
-          <Text key={`output-${line}`} {...inkColorProps(theme.text)}>
-            {line}
-          </Text>
-        ))}
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text {...inkColorProps(theme.mutedText)}>Totals</Text>
-        <Text {...inkColorProps(theme.text)}>
-          Total tokens {formatNumber(breakdown.totals.tokens)}
+        <Text {...backgroundProps} {...inkColorProps(theme.text)}>
+          {padRight(`Model: ${run.model}`, contentWidth)}
         </Text>
-        <Text {...inkColorProps(theme.text)}>
-          Estimated cost {formatUsd(breakdown.totals.estimatedCostUsd)}
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight(`Started: ${run.startedAt}`, contentWidth)}
+        </Text>
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight('Input', contentWidth)}
+        </Text>
+        {inputRows.map((line) => (
+          <Text key={`input-${line}`} {...backgroundProps} {...inkColorProps(theme.text)}>
+            {padRight(line, contentWidth)}
+          </Text>
+        ))}
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight('Output', contentWidth)}
+        </Text>
+        {outputRows.map((line) => (
+          <Text key={`output-${line}`} {...backgroundProps} {...inkColorProps(theme.text)}>
+            {padRight(line, contentWidth)}
+          </Text>
+        ))}
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight('Totals', contentWidth)}
+        </Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.text)}>
+          {padRight(`Total tokens ${formatNumber(breakdown.totals.tokens)}`, contentWidth)}
+        </Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.text)}>
+          {padRight(`Estimated cost ${formatUsd(breakdown.totals.estimatedCostUsd)}`, contentWidth)}
         </Text>
       </Box>
 
       <Box marginTop={1}>
-        <Text {...inkColorProps(theme.mutedText)}>Esc to close</Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight('Esc to close', contentWidth)}
+        </Text>
       </Box>
     </Box>
   )

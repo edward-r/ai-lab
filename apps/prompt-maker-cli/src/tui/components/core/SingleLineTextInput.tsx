@@ -5,7 +5,7 @@ import { clampCursor, type MultilineTextBufferState } from './multiline-text-buf
 import { resolveSingleLineKeyAction } from './single-line-text-input-keymap'
 
 import { useTheme } from '../../theme/theme-provider'
-import { inkColorProps } from '../../theme/theme-types'
+import { inkBackgroundColorProps, inkColorProps, type InkColorValue } from '../../theme/theme-types'
 
 export type DebugKeyEvent = {
   input: string
@@ -20,6 +20,10 @@ export type SingleLineTextInputProps = {
   focus?: boolean
   isDisabled?: boolean
   onDebugKeyEvent?: ((event: DebugKeyEvent) => void) | undefined
+
+  // Optional rendering constraints (useful for overlays that must paint their full width).
+  width?: number | undefined
+  backgroundColor?: InkColorValue
 }
 
 type RenderLine = {
@@ -59,6 +63,8 @@ export const SingleLineTextInput: React.FC<SingleLineTextInputProps> = ({
   focus = false,
   isDisabled = false,
   onDebugKeyEvent,
+  width,
+  backgroundColor,
 }) => {
   const { theme } = useTheme()
   const [cursor, setCursor] = useState<number>(value.length)
@@ -114,15 +120,27 @@ export const SingleLineTextInput: React.FC<SingleLineTextInputProps> = ({
     [placeholder, state.cursor, value],
   )
 
+  const backgroundProps = inkBackgroundColorProps(backgroundColor)
+
   const colorProps = rendered.isPlaceholder ? inkColorProps(theme.mutedText) : {}
+
+  const renderedLength =
+    rendered.before.length + rendered.cursorCharacter.length + rendered.after.length
+  const filler =
+    typeof width === 'number' && width > renderedLength ? ' '.repeat(width - renderedLength) : ''
 
   return (
     <Box>
-      <Text {...colorProps}>{rendered.before}</Text>
-      <Text inverse {...colorProps}>
+      <Text {...backgroundProps} {...colorProps}>
+        {rendered.before}
+      </Text>
+      <Text inverse {...backgroundProps} {...colorProps}>
         {rendered.cursorCharacter}
       </Text>
-      <Text {...colorProps}>{rendered.after}</Text>
+      <Text {...backgroundProps} {...colorProps}>
+        {rendered.after}
+      </Text>
+      {filler ? <Text {...backgroundProps}>{filler}</Text> : null}
     </Box>
   )
 }

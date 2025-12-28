@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 
 import { SingleLineTextInput } from '../core/SingleLineTextInput'
 
@@ -13,6 +13,33 @@ import {
 import type { InkColorValue } from '../../theme/theme-types'
 import { resolveWindowedList } from './list-window'
 import type { ModelOption, ProviderStatusMap } from '../../types'
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(value, max))
+
+const padRight = (value: string, width: number): string => {
+  if (width <= 0) {
+    return ''
+  }
+
+  const trimmed = value.length > width ? value.slice(0, width) : value
+  return trimmed.length === width ? trimmed : trimmed.padEnd(width, ' ')
+}
+
+const joinColumns = (left: string, right: string, width: number): string => {
+  const safeWidth = Math.max(0, width)
+  if (safeWidth === 0) {
+    return ''
+  }
+
+  const leftTrimmed = left.length > safeWidth ? left.slice(0, safeWidth) : left
+  const remaining = Math.max(0, safeWidth - leftTrimmed.length)
+
+  const rightTrimmed = right.length > remaining ? right.slice(0, remaining) : right
+  const gap = Math.max(1, safeWidth - leftTrimmed.length - rightTrimmed.length)
+
+  return `${leftTrimmed}${' '.repeat(gap)}${rightTrimmed}`
+}
 
 export type ModelPopupProps = {
   title?: string
@@ -115,6 +142,16 @@ export const ModelPopup = ({
   onSubmit,
 }: ModelPopupProps) => {
   const { theme } = useTheme()
+  const { stdout } = useStdout()
+
+  const terminalColumns = stdout?.columns ?? 80
+  const popupWidth = clamp(terminalColumns - 10, 40, 72)
+
+  const borderColumns = 2
+  const paddingColumns = 2
+  const contentWidth = Math.max(0, popupWidth - borderColumns - paddingColumns)
+
+  const backgroundProps = inkBackgroundColorProps(theme.popupBackground)
 
   const resolveOptionColor = (option: ModelOption): InkColorValue => {
     const status = providerStatuses[option.provider]?.status
@@ -159,12 +196,28 @@ export const ModelPopup = ({
     [listRows, rows, window.end, window.start],
   )
 
-  const visibleRows = rows.slice(slice.start, slice.end)
+  const visibleRows = useMemo(() => {
+    const base = rows.slice(slice.start, slice.end)
+    if (base.length >= listRows) {
+      return base
+    }
+
+    const padded: ModelRow[] = [...base]
+    while (padded.length < listRows) {
+      padded.push({ type: 'spacer' })
+    }
+
+    return padded
+  }, [listRows, rows, slice.end, slice.start])
 
   const selectedTextProps = {
     ...inkColorProps(theme.selectionText),
     ...inkBackgroundColorProps(theme.selectionBackground),
   }
+
+  const headerLeft = title ?? 'Select model'
+  const headerRight = 'esc'
+  const headerGap = Math.max(0, contentWidth - headerLeft.length - headerRight.length)
 
   return (
     <Box
@@ -172,12 +225,18 @@ export const ModelPopup = ({
       borderStyle="round"
       paddingX={1}
       paddingY={0}
+      width={popupWidth}
       {...inkBorderColorProps(theme.border)}
-      {...inkBackgroundColorProps(theme.popupBackground)}
+      {...backgroundProps}
     >
-      <Box flexDirection="row" justifyContent="space-between">
-        <Text {...inkColorProps(theme.accent)}>{title ?? 'Select model'}</Text>
-        <Text {...inkColorProps(theme.mutedText)}>esc</Text>
+      <Box flexDirection="row">
+        <Text {...backgroundProps} {...inkColorProps(theme.accent)}>
+          {headerLeft}
+        </Text>
+        <Text {...backgroundProps}>{' '.repeat(headerGap)}</Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {headerRight}
+        </Text>
       </Box>
 
       <Box marginTop={1}>
@@ -187,25 +246,41 @@ export const ModelPopup = ({
           onSubmit={() => onSubmit(selectedOption)}
           placeholder="Search"
           focus
+          width={contentWidth}
+          backgroundColor={theme.popupBackground}
         />
       </Box>
 
       <Box flexDirection="column" marginTop={1} height={listRows} overflow="hidden">
         {rows.length === 0 ? (
-          <Text {...inkColorProps(theme.mutedText)}>No models match.</Text>
+          <>
+            <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+              {padRight('No models match.', contentWidth)}
+            </Text>
+            {Array.from({ length: Math.max(0, listRows - 1) }).map((_, index) => (
+              <Text key={`empty-${index}`} {...backgroundProps}>
+                {padRight('', contentWidth)}
+              </Text>
+            ))}
+          </>
         ) : (
           visibleRows.map((row, rowIndex) => {
             if (row.type === 'spacer') {
-              return <Text key={`spacer-${slice.start + rowIndex}`}> </Text>
+              return (
+                <Text key={`spacer-${slice.start + rowIndex}`} {...backgroundProps}>
+                  {padRight('', contentWidth)}
+                </Text>
+              )
             }
 
             if (row.type === 'header') {
               return (
                 <Text
                   key={`header-${row.title}-${slice.start + rowIndex}`}
+                  {...backgroundProps}
                   {...inkColorProps(theme.accent)}
                 >
-                  {row.title}
+                  {padRight(row.title, contentWidth)}
                 </Text>
               )
             }
@@ -215,29 +290,23 @@ export const ModelPopup = ({
 
             const rowTextProps = isSelected
               ? selectedTextProps
-              : inkColorProps(resolveOptionColor(row.option))
+              : { ...backgroundProps, ...inkColorProps(resolveOptionColor(row.option)) }
 
-            const providerTextProps = isSelected
-              ? selectedTextProps
-              : inkColorProps(theme.mutedText)
+            const line = joinColumns(row.option.label, providerLabel, contentWidth)
 
             return (
-              <Box
-                key={`option-${row.option.id}`}
-                flexDirection="row"
-                justifyContent="space-between"
-                width="100%"
-              >
-                <Text {...rowTextProps}>{row.option.label}</Text>
-                <Text {...providerTextProps}>{providerLabel}</Text>
-              </Box>
+              <Text key={`option-${row.option.id}`} {...rowTextProps}>
+                {padRight(line, contentWidth)}
+              </Text>
             )
           })
         )}
       </Box>
 
       <Box marginTop={1}>
-        <Text {...inkColorProps(theme.mutedText)}>Enter to select</Text>
+        <Text {...backgroundProps} {...inkColorProps(theme.mutedText)}>
+          {padRight('Enter to select', contentWidth)}
+        </Text>
       </Box>
     </Box>
   )
