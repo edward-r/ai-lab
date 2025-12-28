@@ -8,11 +8,14 @@
  * is laid out.
  */
 
-import { Box } from 'ink'
+import { Box, useStdout } from 'ink'
 
 import { ScrollableOutput } from '../../../components/core/ScrollableOutput'
 import { useTheme } from '../../../theme/theme-provider'
 import { inkBackgroundColorProps } from '../../../theme/theme-types'
+
+const APP_CONTAINER_PADDING_X = 2
+const COMMAND_SCREEN_PADDING_X = 1
 import type { HistoryEntry } from '../../../types'
 
 export type HistoryPaneProps = {
@@ -23,6 +26,13 @@ export type HistoryPaneProps = {
 
 export const HistoryPane = ({ lines, visibleRows, scrollOffset }: HistoryPaneProps) => {
   const { theme } = useTheme()
+  const { stdout } = useStdout()
+
+  const terminalColumns = stdout?.columns ?? 80
+  const contentWidth = Math.max(
+    0,
+    terminalColumns - 2 * (APP_CONTAINER_PADDING_X + COMMAND_SCREEN_PADDING_X),
+  )
 
   return (
     <Box
@@ -34,7 +44,13 @@ export const HistoryPane = ({ lines, visibleRows, scrollOffset }: HistoryPanePro
       marginBottom={1}
       {...inkBackgroundColorProps(theme.panelBackground)}
     >
-      <ScrollableOutput lines={lines} visibleRows={visibleRows} scrollOffset={scrollOffset} />
+      <ScrollableOutput
+        lines={lines}
+        visibleRows={visibleRows}
+        scrollOffset={scrollOffset}
+        contentWidth={contentWidth}
+        backgroundColor={theme.panelBackground}
+      />
     </Box>
   )
 }

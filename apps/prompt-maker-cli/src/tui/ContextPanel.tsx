@@ -125,6 +125,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
         onChange={setFileDraft}
         placeholder="src/**/*.ts"
         focus={focus === 'files'}
+        backgroundColor={theme.panelBackground}
         onSubmit={() => {
           if (fileDraft.trim()) {
             addFile(fileDraft)
@@ -156,6 +157,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
           onChange={setUrlDraft}
           placeholder="https://github.com/..."
           focus={focus === 'urls'}
+          backgroundColor={theme.panelBackground}
           onSubmit={() => {
             if (urlDraft.trim()) {
               addUrl(urlDraft)
@@ -189,6 +191,7 @@ export const ContextPanel: React.FC<{ focus: ContextPanelFocus }> = ({ focus }) 
           value={smartRootDraft}
           onChange={setSmartRootDraft}
           focus={focus === 'smart'}
+          backgroundColor={theme.panelBackground}
           onSubmit={() => setSmartRoot(smartRootDraft)}
         />
         {smartContextRoot ? (

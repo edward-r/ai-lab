@@ -107,6 +107,7 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
         onChange={setImageDraft}
         placeholder="assets/example.png"
         focus={focus === 'images'}
+        backgroundColor={theme.panelBackground}
         onSubmit={() => {
           if (imageDraft.trim()) {
             addImage(imageDraft)
@@ -138,6 +139,7 @@ export const MediaPanel: React.FC<{ focus: MediaPanelFocus }> = ({ focus }) => {
           onChange={setVideoDraft}
           placeholder="assets/demo.mp4"
           focus={focus === 'videos'}
+          backgroundColor={theme.panelBackground}
           onSubmit={() => {
             if (videoDraft.trim()) {
               addVideo(videoDraft)
