@@ -58,24 +58,28 @@ export const CommandScreen = memo(
       const { theme } = useTheme()
 
       return (
-        <Box
-          flexDirection="column"
-          flexGrow={1}
-          paddingX={1}
-          paddingY={1}
-          width="100%"
-          {...inkBackgroundColorProps(theme.background)}
-        >
-          {transportMessage ? (
-            <Box flexShrink={0}>
-              <Text {...inkColorProps(theme.warning)}>{transportMessage}</Text>
-            </Box>
-          ) : null}
+        <Box flexGrow={1} width="100%" {...inkBackgroundColorProps(theme.background)}>
+          <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1} width="100%">
+            {transportMessage ? (
+              <Box flexShrink={0}>
+                <Text {...inkColorProps(theme.warning)}>{transportMessage}</Text>
+              </Box>
+            ) : null}
 
-          <HistoryPane {...historyPaneProps} />
-          <PopupArea {...popupAreaProps} />
-          <CommandMenuPane {...commandMenuPaneProps} />
-          <CommandInput {...commandInputProps} />
+            <HistoryPane {...historyPaneProps} />
+            <CommandMenuPane {...commandMenuPaneProps} />
+            <CommandInput {...commandInputProps} />
+          </Box>
+
+          <Box
+            position="absolute"
+            width="100%"
+            height="100%"
+            justifyContent="center"
+            alignItems="center"
+          >
+            <PopupArea {...popupAreaProps} />
+          </Box>
         </Box>
       )
     },

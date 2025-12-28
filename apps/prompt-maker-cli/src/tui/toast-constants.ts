@@ -4,9 +4,9 @@ export const TOAST_ANIMATION_TICK_MS = 40
 
 export const DEFAULT_MAX_TOASTS = 5
 
-// How many terminal rows to lift the toast stack
-// off the bottom edge of the screen.
-export const TOAST_BOTTOM_OFFSET_ROWS = 8
+// How many terminal rows to offset the toast stack
+// from the top edge of the screen.
+export const TOAST_TOP_OFFSET_ROWS = 2
 
 // Align toast borders with the InputBar border. This matches:
 // - AppContainer `paddingX={2}`

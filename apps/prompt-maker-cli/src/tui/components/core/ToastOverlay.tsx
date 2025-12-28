@@ -3,9 +3,9 @@ import React, { memo, useEffect } from 'react'
 
 import {
   TOAST_ANIMATION_TICK_MS,
-  TOAST_BOTTOM_OFFSET_ROWS,
   TOAST_HEIGHT,
   TOAST_HORIZONTAL_INSET_COLUMNS,
+  TOAST_TOP_OFFSET_ROWS,
 } from '../../toast-constants'
 import type { ToastId, ToastItem } from '../../notifier'
 import { useToastContext } from '../../notifier'
@@ -68,7 +68,7 @@ const ToastOverlayItem = ({ toast, onExitComplete }: ToastOverlayItemProps) => {
   }
 
   return (
-    <Box height={height} overflow="hidden" width="100%">
+    <Box height={height} overflow="hidden">
       <Toast message={toast.message} kind={toast.kind} />
     </Box>
   )
@@ -83,14 +83,14 @@ export const ToastOverlay = memo(() => {
       width="100%"
       height="100%"
       flexDirection="column"
-      justifyContent="flex-end"
-      alignItems="stretch"
+      justifyContent="flex-start"
+      alignItems="flex-end"
       paddingX={TOAST_HORIZONTAL_INSET_COLUMNS}
+      paddingTop={TOAST_TOP_OFFSET_ROWS}
     >
       {toasts.map((toast) => (
         <ToastOverlayItem key={toast.id} toast={toast} onExitComplete={removeToast} />
       ))}
-      <Box height={TOAST_BOTTOM_OFFSET_ROWS} />
     </Box>
   )
 })

@@ -98,13 +98,15 @@ export const useCommandScreenLayout = ({
     isGenerating && Boolean(interactiveTransportPath) && awaitingInteractiveMode === 'transport'
 
   const historyRows = useMemo(() => {
-    const overlaySpacingRows = !helpOpen && (popupState || isCommandMenuActive) ? 1 : 0
+    // Popups are now rendered as an absolute overlay, so they should NOT consume
+    // layout rows. Only the in-flow command menu affects available history space.
+    const overlaySpacingRows = !helpOpen && isCommandMenuActive ? 1 : 0
     const baseChromeRows = appStaticRows + commandScreenOverheadRows + inputBarRows
     const transportHeaderRows = interactiveTransportPath ? 1 : 0
     const transportAwaitingRows = isAwaitingTransportInput ? 1 : 0
     const parentRows = baseChromeRows + transportHeaderRows + transportAwaitingRows
-    const availableRows =
-      terminalRows - overlayHeight - parentRows - overlaySpacingRows - reservedRows
+
+    const availableRows = terminalRows - menuHeight - parentRows - overlaySpacingRows - reservedRows
     return Math.max(1, availableRows)
   }, [
     appStaticRows,
@@ -114,8 +116,7 @@ export const useCommandScreenLayout = ({
     interactiveTransportPath,
     isAwaitingTransportInput,
     isCommandMenuActive,
-    overlayHeight,
-    popupState,
+    menuHeight,
     reservedRows,
     terminalRows,
   ])

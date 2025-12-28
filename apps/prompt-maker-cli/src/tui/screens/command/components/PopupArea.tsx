@@ -181,164 +181,154 @@ export const PopupArea = ({
     return null
   }
 
-  return (
-    <Box
-      marginBottom={1}
-      height={overlayHeight}
-      flexShrink={0}
-      overflow="hidden"
-      justifyContent="center"
-    >
-      {popupState.type === 'model' ? (
-        <ModelPopup
-          title={popupState.kind === 'target' ? 'Select target model' : 'Select model'}
-          query={popupState.query}
-          options={modelPopupOptions}
-          selectedIndex={modelPopupSelection}
-          recentCount={modelPopupRecentCount}
-          maxHeight={overlayHeight}
-          providerStatuses={providerStatuses}
-          onQueryChange={onModelPopupQueryChange}
-          onSubmit={onModelPopupSubmit}
-        />
-      ) : popupState.type === 'toggle' ? (
-        <TogglePopup field={popupState.field} selectionIndex={popupState.selectionIndex} />
-      ) : popupState.type === 'file' ? (
-        <ListPopup
-          title="File Context"
-          placeholder="src/**/*.ts"
-          draft={popupState.draft}
-          items={files}
-          selectedIndex={popupState.selectionIndex}
-          emptyLabel="No file globs added"
-          instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
-          suggestedItems={filePopupSuggestions}
-          suggestedSelectionIndex={filePopupSuggestionSelectionIndex}
-          suggestedFocused={filePopupSuggestionsFocused}
-          maxHeight={overlayHeight}
-          onDraftChange={onFilePopupDraftChange}
-          onSubmitDraft={onAddFile}
-        />
-      ) : popupState.type === 'url' ? (
-        <ListPopup
-          title="URL Context"
-          placeholder="https://github.com/..."
-          draft={popupState.draft}
-          items={urls}
-          selectedIndex={popupState.selectionIndex}
-          emptyLabel="No URLs added"
-          instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
-          onDraftChange={onUrlPopupDraftChange}
-          onSubmitDraft={onAddUrl}
-        />
-      ) : popupState.type === 'image' ? (
-        <ListPopup
-          title="Images"
-          placeholder="path/to/image.png"
-          draft={popupState.draft}
-          items={images}
-          selectedIndex={popupState.selectionIndex}
-          emptyLabel="No images attached"
-          instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
-          suggestedItems={imagePopupSuggestions}
-          suggestedSelectionIndex={imagePopupSuggestionSelectionIndex}
-          suggestedFocused={imagePopupSuggestionsFocused}
-          maxHeight={overlayHeight}
-          onDraftChange={onImagePopupDraftChange}
-          onSubmitDraft={onAddImage}
-        />
-      ) : popupState.type === 'video' ? (
-        <ListPopup
-          title="Videos"
-          placeholder="path/to/video.mp4"
-          draft={popupState.draft}
-          items={videos}
-          selectedIndex={popupState.selectionIndex}
-          emptyLabel="No videos attached"
-          instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
-          suggestedItems={videoPopupSuggestions}
-          suggestedSelectionIndex={videoPopupSuggestionSelectionIndex}
-          suggestedFocused={videoPopupSuggestionsFocused}
-          maxHeight={overlayHeight}
-          onDraftChange={onVideoPopupDraftChange}
-          onSubmitDraft={onAddVideo}
-        />
-      ) : popupState.type === 'history' ? (
-        <ListPopup
-          title="History"
-          placeholder="Search commands & intents"
-          draft={popupState.draft}
-          items={historyPopupItems}
-          selectedIndex={popupState.selectionIndex}
-          emptyLabel="No history saved"
-          instructions="Enter to reuse · ↑/↓ navigate · Esc to close"
-          onDraftChange={onHistoryPopupDraftChange}
-          onSubmitDraft={onHistoryPopupSubmit}
-        />
-      ) : popupState.type === 'intent' ? (
-        <IntentFilePopup
-          draft={popupState.draft}
-          suggestions={intentPopupSuggestions}
-          suggestedSelectionIndex={intentPopupSuggestionSelectionIndex}
-          suggestedFocused={intentPopupSuggestionsFocused}
-          maxHeight={overlayHeight}
-          onDraftChange={onIntentPopupDraftChange}
-          onSubmitDraft={onIntentFileSubmit}
-        />
-      ) : popupState.type === 'instructions' ? (
-        <InstructionsPopup
-          draft={popupState.draft}
-          onDraftChange={onInstructionsDraftChange}
-          onSubmitDraft={onInstructionsSubmit}
-        />
-      ) : popupState.type === 'series' ? (
-        <SeriesIntentPopup
-          draft={popupState.draft}
-          hint={popupState.hint}
-          isRunning={isGenerating}
-          onDraftChange={onSeriesDraftChange}
-          onSubmitDraft={onSeriesSubmit}
-        />
-      ) : popupState.type === 'test' ? (
-        <TestPopup
-          draft={popupState.draft}
-          isRunning={isTestCommandRunning}
-          onDraftChange={onTestDraftChange}
-          onSubmitDraft={onTestSubmit}
-        />
-      ) : popupState.type === 'tokens' ? (
-        <TokenUsagePopup run={tokenUsageRun} breakdown={tokenUsageBreakdown} />
-      ) : popupState.type === 'settings' ? (
-        <SettingsPopup chips={statusChips} />
-      ) : popupState.type === 'theme' ? (
-        <ThemePickerPopup
-          selectionIndex={popupState.selectionIndex}
-          initialThemeName={popupState.initialThemeName}
-          maxHeight={overlayHeight}
-        />
-      ) : popupState.type === 'themeMode' ? (
-        <ThemeModePopup
-          selectionIndex={popupState.selectionIndex}
-          initialMode={popupState.initialMode}
-        />
-      ) : popupState.type === 'reasoning' ? (
-        <ReasoningPopup
-          lines={reasoningPopupLines}
-          visibleRows={reasoningPopupVisibleRows}
-          scrollOffset={popupState.scrollOffset}
-        />
-      ) : popupState.type === 'smart' ? (
-        <SmartPopup
-          savedRoot={smartContextRoot}
-          draft={popupState.draft}
-          suggestedItems={smartPopupSuggestions}
-          suggestedSelectionIndex={smartPopupSuggestionSelectionIndex}
-          suggestedFocused={smartPopupSuggestionsFocused}
-          maxHeight={overlayHeight}
-          onDraftChange={onSmartPopupDraftChange}
-          onSubmitRoot={onSmartRootSubmit}
-        />
-      ) : null}
-    </Box>
-  )
+  return popupState.type === 'model' ? (
+    <ModelPopup
+      title={popupState.kind === 'target' ? 'Select target model' : 'Select model'}
+      query={popupState.query}
+      options={modelPopupOptions}
+      selectedIndex={modelPopupSelection}
+      recentCount={modelPopupRecentCount}
+      maxHeight={overlayHeight}
+      providerStatuses={providerStatuses}
+      onQueryChange={onModelPopupQueryChange}
+      onSubmit={onModelPopupSubmit}
+    />
+  ) : popupState.type === 'toggle' ? (
+    <TogglePopup field={popupState.field} selectionIndex={popupState.selectionIndex} />
+  ) : popupState.type === 'file' ? (
+    <ListPopup
+      title="File Context"
+      placeholder="src/**/*.ts"
+      draft={popupState.draft}
+      items={files}
+      selectedIndex={popupState.selectionIndex}
+      emptyLabel="No file globs added"
+      instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
+      suggestedItems={filePopupSuggestions}
+      suggestedSelectionIndex={filePopupSuggestionSelectionIndex}
+      suggestedFocused={filePopupSuggestionsFocused}
+      maxHeight={overlayHeight}
+      onDraftChange={onFilePopupDraftChange}
+      onSubmitDraft={onAddFile}
+    />
+  ) : popupState.type === 'url' ? (
+    <ListPopup
+      title="URL Context"
+      placeholder="https://github.com/..."
+      draft={popupState.draft}
+      items={urls}
+      selectedIndex={popupState.selectionIndex}
+      emptyLabel="No URLs added"
+      instructions="Enter to add · ↑/↓ to select · Del to remove · Esc to close"
+      onDraftChange={onUrlPopupDraftChange}
+      onSubmitDraft={onAddUrl}
+    />
+  ) : popupState.type === 'image' ? (
+    <ListPopup
+      title="Images"
+      placeholder="path/to/image.png"
+      draft={popupState.draft}
+      items={images}
+      selectedIndex={popupState.selectionIndex}
+      emptyLabel="No images attached"
+      instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
+      suggestedItems={imagePopupSuggestions}
+      suggestedSelectionIndex={imagePopupSuggestionSelectionIndex}
+      suggestedFocused={imagePopupSuggestionsFocused}
+      maxHeight={overlayHeight}
+      onDraftChange={onImagePopupDraftChange}
+      onSubmitDraft={onAddImage}
+    />
+  ) : popupState.type === 'video' ? (
+    <ListPopup
+      title="Videos"
+      placeholder="path/to/video.mp4"
+      draft={popupState.draft}
+      items={videos}
+      selectedIndex={popupState.selectionIndex}
+      emptyLabel="No videos attached"
+      instructions="Enter to add · Tab/↓ suggestions · ↑/↓ select · Del remove (Backspace when empty) · Esc close"
+      suggestedItems={videoPopupSuggestions}
+      suggestedSelectionIndex={videoPopupSuggestionSelectionIndex}
+      suggestedFocused={videoPopupSuggestionsFocused}
+      maxHeight={overlayHeight}
+      onDraftChange={onVideoPopupDraftChange}
+      onSubmitDraft={onAddVideo}
+    />
+  ) : popupState.type === 'history' ? (
+    <ListPopup
+      title="History"
+      placeholder="Search commands & intents"
+      draft={popupState.draft}
+      items={historyPopupItems}
+      selectedIndex={popupState.selectionIndex}
+      emptyLabel="No history saved"
+      instructions="Enter to reuse · ↑/↓ navigate · Esc to close"
+      onDraftChange={onHistoryPopupDraftChange}
+      onSubmitDraft={onHistoryPopupSubmit}
+    />
+  ) : popupState.type === 'intent' ? (
+    <IntentFilePopup
+      draft={popupState.draft}
+      suggestions={intentPopupSuggestions}
+      suggestedSelectionIndex={intentPopupSuggestionSelectionIndex}
+      suggestedFocused={intentPopupSuggestionsFocused}
+      maxHeight={overlayHeight}
+      onDraftChange={onIntentPopupDraftChange}
+      onSubmitDraft={onIntentFileSubmit}
+    />
+  ) : popupState.type === 'instructions' ? (
+    <InstructionsPopup
+      draft={popupState.draft}
+      onDraftChange={onInstructionsDraftChange}
+      onSubmitDraft={onInstructionsSubmit}
+    />
+  ) : popupState.type === 'series' ? (
+    <SeriesIntentPopup
+      draft={popupState.draft}
+      hint={popupState.hint}
+      isRunning={isGenerating}
+      onDraftChange={onSeriesDraftChange}
+      onSubmitDraft={onSeriesSubmit}
+    />
+  ) : popupState.type === 'test' ? (
+    <TestPopup
+      draft={popupState.draft}
+      isRunning={isTestCommandRunning}
+      onDraftChange={onTestDraftChange}
+      onSubmitDraft={onTestSubmit}
+    />
+  ) : popupState.type === 'tokens' ? (
+    <TokenUsagePopup run={tokenUsageRun} breakdown={tokenUsageBreakdown} />
+  ) : popupState.type === 'settings' ? (
+    <SettingsPopup chips={statusChips} />
+  ) : popupState.type === 'theme' ? (
+    <ThemePickerPopup
+      selectionIndex={popupState.selectionIndex}
+      initialThemeName={popupState.initialThemeName}
+      maxHeight={overlayHeight}
+    />
+  ) : popupState.type === 'themeMode' ? (
+    <ThemeModePopup
+      selectionIndex={popupState.selectionIndex}
+      initialMode={popupState.initialMode}
+    />
+  ) : popupState.type === 'reasoning' ? (
+    <ReasoningPopup
+      lines={reasoningPopupLines}
+      visibleRows={reasoningPopupVisibleRows}
+      scrollOffset={popupState.scrollOffset}
+    />
+  ) : popupState.type === 'smart' ? (
+    <SmartPopup
+      savedRoot={smartContextRoot}
+      draft={popupState.draft}
+      suggestedItems={smartPopupSuggestions}
+      suggestedSelectionIndex={smartPopupSuggestionSelectionIndex}
+      suggestedFocused={smartPopupSuggestionsFocused}
+      maxHeight={overlayHeight}
+      onDraftChange={onSmartPopupDraftChange}
+      onSubmitRoot={onSmartRootSubmit}
+    />
+  ) : null
 }
