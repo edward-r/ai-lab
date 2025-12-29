@@ -63,6 +63,12 @@ export const CommandScreen = memo(
       const terminalRows = stdout?.rows ?? 24
       const terminalColumns = stdout?.columns ?? 80
 
+      // AppContainer applies `paddingX={2}` (left + right), which reduces the
+      // actual renderable width available to CommandScreen. If we try to render
+      // a full-width `BackgroundFill` at `stdout.columns`, Ink will truncate the
+      // line and paint `...` in the last cells.
+      const backdropColumns = Math.max(0, terminalColumns - 4)
+
       const showPopupOverlay = Boolean(popupAreaProps.popupState) && !popupAreaProps.helpOpen
 
       return (
@@ -84,7 +90,7 @@ export const CommandScreen = memo(
               <Box position="absolute" width="100%" height="100%" overflow="hidden">
                 <BackgroundFill
                   rows={terminalRows}
-                  columns={terminalColumns}
+                  columns={backdropColumns}
                   background={theme.panelBackground}
                 />
               </Box>
