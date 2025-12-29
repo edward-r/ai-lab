@@ -1,5 +1,7 @@
 import { forwardRef, memo, useImperativeHandle } from 'react'
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
+
+import { BackgroundFill } from '../../components/core/BackgroundFill'
 
 import { CommandInput } from './components/CommandInput'
 import { CommandMenuPane } from './components/CommandMenuPane'
@@ -56,26 +58,47 @@ export const CommandScreen = memo(
       useImperativeHandle(ref, () => ({ suppressNextInput }), [suppressNextInput])
 
       const { theme } = useTheme()
+      const { stdout } = useStdout()
+
+      const terminalRows = stdout?.rows ?? 24
+      const terminalColumns = stdout?.columns ?? 80
+
+      const showPopupOverlay = Boolean(popupAreaProps.popupState) && !popupAreaProps.helpOpen
 
       return (
-        <Box
-          flexDirection="column"
-          flexGrow={1}
-          paddingX={1}
-          paddingY={1}
-          width="100%"
-          {...inkBackgroundColorProps(theme.background)}
-        >
-          {transportMessage ? (
-            <Box flexShrink={0}>
-              <Text {...inkColorProps(theme.warning)}>{transportMessage}</Text>
+        <Box flexGrow={1} width="100%" {...inkBackgroundColorProps(theme.background)}>
+          <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1} width="100%">
+            {transportMessage ? (
+              <Box flexShrink={0}>
+                <Text {...inkColorProps(theme.warning)}>{transportMessage}</Text>
+              </Box>
+            ) : null}
+
+            <HistoryPane {...historyPaneProps} />
+            <CommandMenuPane {...commandMenuPaneProps} />
+            <CommandInput {...commandInputProps} />
+          </Box>
+
+          {showPopupOverlay ? (
+            <Box position="absolute" width="100%" height="100%">
+              <Box position="absolute" width="100%" height="100%" overflow="hidden">
+                <BackgroundFill
+                  rows={terminalRows}
+                  columns={terminalColumns}
+                  background={theme.panelBackground}
+                />
+              </Box>
+              <Box
+                position="absolute"
+                width="100%"
+                height="100%"
+                justifyContent="center"
+                alignItems="center"
+              >
+                <PopupArea {...popupAreaProps} />
+              </Box>
             </Box>
           ) : null}
-
-          <HistoryPane {...historyPaneProps} />
-          <PopupArea {...popupAreaProps} />
-          <CommandMenuPane {...commandMenuPaneProps} />
-          <CommandInput {...commandInputProps} />
         </Box>
       )
     },
