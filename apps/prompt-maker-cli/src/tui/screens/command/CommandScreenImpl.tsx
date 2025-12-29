@@ -1,5 +1,7 @@
 import { forwardRef, memo, useImperativeHandle } from 'react'
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
+
+import { BackgroundFill } from '../../components/core/BackgroundFill'
 
 import { CommandInput } from './components/CommandInput'
 import { CommandMenuPane } from './components/CommandMenuPane'
@@ -56,6 +58,12 @@ export const CommandScreen = memo(
       useImperativeHandle(ref, () => ({ suppressNextInput }), [suppressNextInput])
 
       const { theme } = useTheme()
+      const { stdout } = useStdout()
+
+      const terminalRows = stdout?.rows ?? 24
+      const terminalColumns = stdout?.columns ?? 80
+
+      const showPopupOverlay = Boolean(popupAreaProps.popupState) && !popupAreaProps.helpOpen
 
       return (
         <Box flexGrow={1} width="100%" {...inkBackgroundColorProps(theme.background)}>
@@ -71,15 +79,26 @@ export const CommandScreen = memo(
             <CommandInput {...commandInputProps} />
           </Box>
 
-          <Box
-            position="absolute"
-            width="100%"
-            height="100%"
-            justifyContent="center"
-            alignItems="center"
-          >
-            <PopupArea {...popupAreaProps} />
-          </Box>
+          {showPopupOverlay ? (
+            <Box position="absolute" width="100%" height="100%">
+              <Box position="absolute" width="100%" height="100%" overflow="hidden">
+                <BackgroundFill
+                  rows={terminalRows}
+                  columns={terminalColumns}
+                  background={theme.panelBackground}
+                />
+              </Box>
+              <Box
+                position="absolute"
+                width="100%"
+                height="100%"
+                justifyContent="center"
+                alignItems="center"
+              >
+                <PopupArea {...popupAreaProps} />
+              </Box>
+            </Box>
+          ) : null}
         </Box>
       )
     },
